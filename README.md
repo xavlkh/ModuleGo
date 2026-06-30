@@ -35,7 +35,7 @@ Create the sandbox: python3 -m venv venv
 
 Activate it: source venv/bin/activate
 
-Install dependencies: pip install -r requirements.txt
+Install dependencies: python -m pip install -r requirements.txt
 ```
 
 ### Step 3: Run the Server
@@ -47,7 +47,7 @@ python app.py
 
 (If using the Linux VM, you may need to type python3 app.py).
 
-The database will automatically initialize itself. Open your web browser and navigate to http://127.0.0.1:5000 to view the application!
+The database will automatically initialize itself. If there is Windows Defender Firewall pop-up, Check the Private box only. Open your web browser and navigate to http://127.0.0.1:5000 to view the application!
 
 ### Project Structure
 - app.py: The Python Flask REST API and SQLite database initialization.
