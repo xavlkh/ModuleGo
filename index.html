@@ -35,9 +35,6 @@
                         <li class="nav-item">
                             <a class="nav-link" href="https://www.rp.edu.sg/education/modules/" target="_blank">All Modules</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="comparison.html">Comparison</a>
-                        </li>
                     </ul>
                 </div>
             </div>
@@ -62,7 +59,16 @@
                                     class="form-control border-start-0 ps-0" 
                                     placeholder="Search by module code, name, or keyword..."
                                     autocomplete="off"
-                                >
+                                ><select id="schoolFilter" class="form-select" style="max-width: 280px;">
+                                    <option value="all">All Schools</option>
+                                    <option value="School of Applied Science">School of Applied Science</option>
+                                    <option value="School of Engineering">School of Engineering</option>
+                                    <option value="School of Infocomm">School of Infocomm</option>
+                                    <option value="School of Hospitality">School of Hospitality</option>
+                                    <option value="School of Management and Communication">School of Management and Communication</option>
+                                    <option value="School of Sports, Health and Leisure">School of Sports, Health and Leisure</option>
+                                    <option value="School of Technology for the Arts">School of Technology for the Arts</option>
+                                </select>
                                 <button id="searchBtn" class="btn btn-dark px-4" type="button">
                                     Search
                                 </button>
