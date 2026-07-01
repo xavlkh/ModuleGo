@@ -1,11 +1,13 @@
+// Connects the search box to the result list.
 const SearchManager = {
     currentQuery: '',
     debounceTimer: null,
+    searchRunId: 0,
 
     init() {
+        // Bind search input, Enter key, and button click.
         const searchInput = document.getElementById('searchInput');
         const searchBtn = document.getElementById('searchBtn');
-        const schoolFilter = document.getElementById('schoolFilter');
 
         searchInput.addEventListener('input', (e) => {
             this.handleInput(e.target.value);
@@ -20,14 +22,10 @@ const SearchManager = {
         searchBtn.addEventListener('click', () => {
             this.handleSearch(searchInput.value);
         });
-        if (schoolFilter) {
-    schoolFilter.addEventListener('change', () => {
-      this.handleSearch(searchInput.value);
-    });
-  }
     },
 
     handleInput(value) {
+        // Wait briefly so search does not run on every keystroke.
         clearTimeout(this.debounceTimer);
         this.debounceTimer = setTimeout(() => {
             this.handleSearch(value);
@@ -35,20 +33,25 @@ const SearchManager = {
     },
 
     handleSearch(query) {
+        clearTimeout(this.debounceTimer);
         this.currentQuery = query;
-        const schoolFilter = document.getElementById('schoolFilter');
-        const selectedSchool = schoolFilter ? schoolFilter.value : 'all';
-
+        // Ignore older delayed searches.
+        const runId = ++this.searchRunId;
+        
         UIRenderer.showLoading();
         
         setTimeout(() => {
-            let results = DataManager.searchModules(query);
-            if (selectedSchool !== 'all') {
-      results = results.filter(module => module.school === selectedSchool);
-    }
+            if (runId !== this.searchRunId) return;
+
+            if (!DataManager.loaded) {
+                UIRenderer.renderResults([]);
+                UIRenderer.updateResultsCount(0);
+                return;
+            }
+
+            const results = DataManager.searchModules(query);
             UIRenderer.renderResults(results);
             UIRenderer.updateResultsCount(results.length);
         }, 150);
-          
     }
 };
