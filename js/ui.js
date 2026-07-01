@@ -1,4 +1,3 @@
-// Renders module cards and shared UI states.
 const UIRenderer = {
     resultsContainer: null,
     loadingSpinner: null,
@@ -15,7 +14,6 @@ const UIRenderer = {
     },
 
     showLoading() {
-        // Clear stale results before showing the spinner.
         this.resultsContainer.innerHTML = '';
         this.loadingSpinner.classList.remove('d-none');
         this.noResults.classList.add('d-none');
@@ -26,7 +24,6 @@ const UIRenderer = {
     },
 
     renderResults(modules) {
-        // Replace the current grid with the latest results.
         this.hideLoading();
         this.resultsContainer.innerHTML = '';
 
@@ -44,13 +41,10 @@ const UIRenderer = {
     },
 
     createModuleCard(module) {
-        // Build one clickable module card.
         const col = document.createElement('div');
         col.className = 'col-12 col-md-6 col-lg-4';
 
         const truncatedDesc = this.truncateText(module.description, 150);
-        const school = module.school || 'School not listed';
-        const url = module.url || '#';
 
         col.innerHTML = `
             <div class="module-card" data-code="${module.code}">
@@ -58,13 +52,13 @@ const UIRenderer = {
                 <div class="module-name">${module.name}</div>
                 <div class="module-description">${truncatedDesc}</div>
                 <div class="module-meta">
-                    <span class="badge bg-secondary">${school}</span>
+                    <span class="badge bg-secondary">${module.school}</span>
                 </div>
                 <div class="card-actions">
                     <button class="btn btn-sm btn-outline-primary view-details-btn" data-code="${module.code}">
                         <i class="bi bi-info-circle me-1"></i>View Details
                     </button>
-                    <a href="${url}" target="_blank" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation()">
+                    <a href="${module.url}" target="_blank" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation()">
                         <i class="bi bi-box-arrow-up-right me-1"></i>RP Page
                     </a>
                 </div>
@@ -72,7 +66,6 @@ const UIRenderer = {
         `;
 
         const card = col.querySelector('.module-card');
-        // Open the detail modal when the card is clicked.
         card.addEventListener('click', () => {
             DetailManager.showModuleDetail(module.code);
         });
