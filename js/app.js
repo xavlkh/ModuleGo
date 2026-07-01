@@ -1,6 +1,8 @@
+// Starts the home page app.
 const App = {
     async init() {
         try {
+            // Set up UI controllers before loading data.
             UIRenderer.init();
             SearchManager.init();
             DetailManager.init();
@@ -9,11 +11,13 @@ const App = {
             
             await DataManager.loadData();
             
+            // Show an initial sample of modules.
             UIRenderer.updateModuleCount(DataManager.modules.length);
             UIRenderer.renderResults(DataManager.modules.slice(0, 20));
             UIRenderer.updateResultsCount(Math.min(20, DataManager.modules.length));
             
         } catch (error) {
+            // Show a friendly error if data cannot load.
             console.error('Failed to initialize app:', error);
             const spinner = document.getElementById('loadingSpinner');
             if (spinner) spinner.classList.add('d-none');
