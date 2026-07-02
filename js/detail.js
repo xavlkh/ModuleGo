@@ -31,6 +31,25 @@ const DetailManager = {
     },
 
     createDetailContent(module) {
+        // MODIFIED 1:
+        // Get all diplomas that include this module code
+        const diplomas = DataManager.getDiplomasByModule(module.code);
+
+        // MODIFIED 2:
+        // Convert diploma list into HTML
+        const diplomasHTML = diplomas.length > 0
+            ? diplomas.map(diploma => `
+                <li class="list-group-item">
+                    <div class="fw-bold">${diploma.name}</div>
+                    <small class="text-muted">${diploma.id} • ${diploma.school}</small>
+                </li>
+            `).join('')
+            : `
+                <li class="list-group-item text-muted">
+                    No diploma information available for this module.
+                </li>
+            `;
+
         return `
             <div class="module-detail-header">
                 <div class="module-code">${module.code}</div>
@@ -43,6 +62,15 @@ const DetailManager = {
             <div class="mb-4">
                 <h6 class="fw-bold mb-2">Description</h6>
                 <p class="text-muted">${module.description}</p>
+            </div>
+
+            <!-- MODIFIED 3:
+                 Display diplomas associated with this module -->
+            <div class="mb-4">
+                <h6 class="fw-bold mb-2">Diplomas taking this module</h6>
+                <ul class="list-group">
+                    ${diplomasHTML}
+                </ul>
             </div>
 
             <div class="mt-4 mb-4">
