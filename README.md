@@ -82,14 +82,25 @@ Requires Node.js. This is a one-off data processing step.
 
 ## Project Structure
 
+> [!TIP]
+> Coming from Express? Here's the mapping:
+> | Express | Flask |
+> |---------|-------|
+> | `views/` | `templates/` |
+> | `public/` | `static/` |
+> | `partials/layout.html` | `base.html` (layout with `{% block %}`) |
+> | `res.render('pages/index')` | `render_template('modules/index.html')` |
+> | `express.static('public')` | `static_folder='app/static'` |
+> | `<%- include('partials/nav') %>` | `{% extends "base.html" %}` |
+
 ```
 ModuleGo/
-├── app.py                          # Flask backend: REST API for reviews
+├── app.py                          # Flask backend (like server.js)
 ├── app/
-│   ├── data/
+│   ├── data/                       # Static data files
 │   │   ├── rp-modules-final.json   # Module dataset
 │   │   └── diploma.json            # Diploma-to-module mapping
-│   ├── static/
+│   ├── static/                     # Public assets (like public/)
 │   │   ├── css/
 │   │   │   └── styles.css          # Custom styling (RP brand theme)
 │   │   └── js/
@@ -100,8 +111,8 @@ ModuleGo/
 │   │       ├── detail.js           # Module detail modal and reviews
 │   │       ├── comparison.js       # Comparison page logic
 │   │       └── generate-comparison-fields.js  # Data processing utility
-│   └── templates/
-│       ├── base.html               # Base layout template
+│   └── templates/                  # Views (like views/)
+│       ├── base.html               # Layout partial (like partials/layout.html)
 │       └── modules/
 │           ├── index.html          # Main search and browse page
 │           └── comparison.html     # Module comparison page
@@ -109,7 +120,7 @@ ModuleGo/
 │   ├── spec-modulego-design.md     # Design specification
 │   └── plan-modulego-implementation.md  # Implementation plan
 ├── tests/                          # Test files
-├── requirements.txt                # Python dependencies
+├── requirements.txt                # Python dependencies (like package.json)
 └── .env.example                    # Environment config template
 ```
 
