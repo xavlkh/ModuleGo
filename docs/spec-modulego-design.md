@@ -1,10 +1,10 @@
 ---
 title: ModuleGo - Republic Polytechnic Module Viewer Design Specification
-version: 2.0
+version: 3.0
 date_created: 2026-06-29
-last_updated: 2026-07-04
+last_updated: 2026-07-05
 owner: Developer
-tags: ['design', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'sqlite']
+tags: ['design', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'sqlite', 'restructure']
 ---
 
 # Introduction
@@ -36,7 +36,6 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 | Diploma | A full-time program of study at RP (e.g., Diploma in Applied AI & Analytics) |
 | School | Academic division at RP (e.g., School of Infocomm) |
 | Client-side filtering | Searching/filtering data in the browser without server requests |
-| LocalStorage | Web API for storing key-value pairs in the browser |
 
 ## 3. Requirements, Constraints & Guidelines
 
@@ -68,6 +67,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - **CON-003**: Use HTML5 semantic elements
 - **CON-004**: Backend uses Python Flask with SQLite database
 - **CON-005**: Module data is static JSON file
+- **CON-006**: Project follows Flask app structure: `app/templates/` for HTML, `app/static/` for assets, `app/data/` for JSON data
 
 ### Design Guidelines
 
@@ -79,7 +79,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 
 ## 4. Interfaces & Data Contracts
 
-### Module Data Schema (from rp-modules-final.json)
+### Module Data Schema (from app/data/rp-modules-final.json)
 
 ```json
 {
@@ -93,7 +93,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 }
 ```
 
-### Diploma Mapping Schema (data/diplomas.json)
+### Diploma Mapping Schema (app/data/diploma.json)
 
 ```json
 {
@@ -124,7 +124,11 @@ CREATE TABLE REVIEWS (
 ### Page Structure
 
 ```
-index.html (Home/Search Page)
+app/templates/base.html (Base Layout Template)
+├── Common HTML head, Bootstrap CDN, meta tags
+└── Block content placeholder
+
+app/templates/modules/index.html (Home/Search Page)
 ├── Header (Logo, Navigation)
 ├── Hero Section (Search Input + School Filter)
 ├── Search Results Section
@@ -143,7 +147,7 @@ index.html (Home/Search Page)
 │   └── Review Submission Form
 └── Footer
 
-comparison.html (Module Comparison Page)
+app/templates/modules/comparison.html (Module Comparison Page)
 ├── Header (Logo, Navigation)
 ├── Comparison Hero Section
 ├── Module Search Inputs (2)
@@ -200,21 +204,21 @@ comparison.html (Module Comparison Page)
 
 **Design Decisions:**
 1. **Bootstrap 5**: Rapid development, built-in responsive grid, consistent components
-2. **Client-side filtering**: No server needed, instant search feedback, works offline
-3. **LocalStorage**: Simple persistence without backend, suitable for anonymous ratings
-4. **Accordion for comments**: Keeps module detail clean, allows progressive disclosure
+2. **Client-side filtering**: No server needed for search, instant feedback, works offline
+3. **SQLite for reviews**: Persistent storage with better data integrity than LocalStorage
+4. **Flask app structure**: Standard Python Flask layout with templates, static, and data separation
 5. **Green theme**: Matches RP brand identity for institutional familiarity
 
 **Trade-offs:**
-- LocalStorage data is browser-specific and can be cleared
-- No user authentication means ratings are anonymous and not verifiable
 - Client-side filtering requires loading entire dataset upfront
+- No user authentication means reviews are anonymous and not verifiable
+- SQLite has limited concurrency for multiple simultaneous users
 
 ## 8. Dependencies & External Integrations
 
 ### Data Dependencies
-- **DAT-001**: `rp-modules-final.json` - Module dataset provided locally
-- **DAT-002**: `data/diplomas.json` - Hardcoded diploma mapping
+- **DAT-001**: `app/data/rp-modules-final.json` - Module dataset provided locally
+- **DAT-002**: `app/data/diploma.json` - Hardcoded diploma mapping
 
 ### External Links
 - **EXT-001**: RP Module Pages - Links to official module information
@@ -252,20 +256,21 @@ comparison.html (Module Comparison Page)
 
 ## 10. Validation Criteria
 
-- [ ] All user stories implemented and functional
-- [ ] Search filters correctly across all module fields
-- [ ] School filter dropdown works correctly
-- [ ] Module detail shows complete information and diploma list
-- [ ] Review system saves to SQLite database via Flask API
-- [ ] Reviews display correctly with rating and timestamp
-- [ ] Module comparison page works correctly
-- [ ] Responsive design works on mobile, tablet, and desktop
-- [ ] Loading animations display during data operations
-- [ ] External links open in new tabs
-- [ ] No JavaScript errors in browser console
-- [ ] Bootstrap CDN loads correctly
-- [ ] Flask backend starts and serves API endpoints
-- [ ] SQLite database initializes correctly
+- [x] All user stories implemented and functional
+- [x] Search filters correctly across all module fields
+- [x] School filter dropdown works correctly
+- [x] Module detail shows complete information and diploma list
+- [x] Review system saves to SQLite database via Flask API
+- [x] Reviews display correctly with rating and timestamp
+- [x] Module comparison page works correctly
+- [x] Responsive design works on mobile, tablet, and desktop
+- [x] Loading animations display during data operations
+- [x] External links open in new tabs
+- [x] No JavaScript errors in browser console
+- [x] Bootstrap CDN loads correctly
+- [x] Flask backend starts and serves API endpoints
+- [x] SQLite database initializes correctly
+- [ ] Cross-browser testing (Chrome, Firefox, Safari, Edge)
 
 ## 11. Related Specifications / Further Reading
 
