@@ -82,6 +82,7 @@ Requires Node.js. This is a one-off data processing step.
 
 ## Project Structure
 
+{% raw %}
 > [!TIP]
 > Coming from Express? Here's the mapping:
 > | Express | Flask |
@@ -92,6 +93,7 @@ Requires Node.js. This is a one-off data processing step.
 > | `res.render('pages/index')` | `render_template('modules/index.html')` |
 > | `express.static('public')` | `static_folder='app/static'` |
 > | `<%- include('partials/nav') %>` | `{% extends "base.html" %}` |
+{% endraw %}
 
 ```
 ModuleGo/
