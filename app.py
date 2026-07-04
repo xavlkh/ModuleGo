@@ -5,7 +5,8 @@ import os
 app = Flask(__name__,
             static_folder='app/static',
             template_folder='app/templates')
-db_name = 'modulego.db'
+_base_dir = os.path.dirname(os.path.abspath(__file__))
+db_name = '/tmp/modulego.db' if os.environ.get('VERCEL') else os.path.join(_base_dir, 'modulego.db')
 
 def init_db():
     conn = sqlite3.connect(db_name)
@@ -18,6 +19,8 @@ def init_db():
                   TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     conn.commit()
     conn.close()
+
+init_db()
 
 @app.route('/')
 def serve_index():
@@ -59,6 +62,5 @@ def get_reviews(module_code):
     return jsonify(reviews), 200
 
 if __name__ == '__main__':
-    init_db()
     print("ModuleGo Backend Server running on http://127.0.0.1:5000")
     app.run(host='0.0.0.0', port=5000, debug=True)
