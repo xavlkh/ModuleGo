@@ -182,8 +182,8 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | `app/static/js/generate-comparison-fields.js` | `public/js/generate-comparison-fields.js` | Data processing utility |
 | `app.py` | `server.js` | Flask backend with SQLite database |
 | `requirements.txt` | `package.json` | Python dependencies |
-| `app/data/rp-modules-final.json` | `data/rp-modules-final.json` | Module dataset |
-| `app/data/diploma.json` | `data/diploma.json` | Diploma mapping data |
+| `app/static/data/rp-modules-final.json` | `data/rp-modules-final.json` | Module dataset |
+| `app/static/data/diploma.json` | `data/diploma.json` | Diploma mapping data |
 
 ## 6. Testing
 

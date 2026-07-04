@@ -80,7 +80,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 
 ## 4. Interfaces & Data Contracts
 
-### Module Data Schema (from app/data/rp-modules-final.json)
+### Module Data Schema (from app/static/data/rp-modules-final.json)
 
 ```json
 {
@@ -94,7 +94,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 }
 ```
 
-### Diploma Mapping Schema (app/data/diploma.json)
+### Diploma Mapping Schema (app/static/data/diploma.json)
 
 ```json
 {
@@ -221,8 +221,8 @@ app/templates/modules/comparison.html (Comparison Page - like views/modules/comp
 ## 8. Dependencies & External Integrations
 
 ### Data Dependencies
-- **DAT-001**: `app/data/rp-modules-final.json` - Module dataset provided locally
-- **DAT-002**: `app/data/diploma.json` - Hardcoded diploma mapping
+- **DAT-001**: `app/static/data/rp-modules-final.json` - Module dataset provided locally
+- **DAT-002**: `app/static/data/diploma.json` - Hardcoded diploma mapping
 
 ### External Links
 - **EXT-001**: RP Module Pages - Links to official module information

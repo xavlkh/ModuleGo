@@ -97,12 +97,12 @@ Requires Node.js. This is a one-off data processing step.
 ModuleGo/
 ├── app.py                          # Flask backend (like server.js)
 ├── app/
-│   ├── data/                       # Static data files
-│   │   ├── rp-modules-final.json   # Module dataset
-│   │   └── diploma.json            # Diploma-to-module mapping
 │   ├── static/                     # Public assets (like public/)
 │   │   ├── css/
 │   │   │   └── styles.css          # Custom styling (RP brand theme)
+│   │   ├── data/
+│   │   │   ├── rp-modules-final.json   # Module dataset
+│   │   │   └── diploma.json            # Diploma-to-module mapping
 │   │   └── js/
 │   │       ├── app.js              # Home page initialization
 │   │       ├── data.js             # Data loading and search logic
