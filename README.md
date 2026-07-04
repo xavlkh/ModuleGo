@@ -1,9 +1,35 @@
-## Getting Started (Local Development Setup)
+# ModuleGo
 
-To run this project on your local machine, you will need to clone the repository and set up a Python Virtual Environment. 
+A web application for Republic Polytechnic students to explore, search, compare, and review academic modules. Built as an improved alternative to the official RP Module viewer.
 
-### Step 1: Clone the Repository
-Open your terminal and run:
+## Features
+
+- **Module Search** -- Real-time client-side search across module code, name, description, category, and school with relevance ranking
+- **School Filtering** -- Filter results by RP's seven schools (Applied Science, Engineering, Infocomm, etc.)
+- **Module Details** -- View full descriptions, school, and all diplomas that include a module
+- **Module Comparison** -- Side-by-side comparison of two modules (code, name, school, features, suitability)
+- **Student Reviews** -- Submit 1-5 star ratings and comments, persisted in a SQLite database
+- **Responsive Design** -- Works across desktop, tablet, and mobile viewports
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Vanilla JavaScript, HTML5, Bootstrap 5.3.3 |
+| Backend | Python 3.x, Flask 3.0.3 |
+| Database | SQLite (auto-initialized) |
+| Data | Static JSON files |
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.x
+- Git
+
+### Setup
+
+**1. Clone the repository**
 
 ```bash
 git clone https://github.com/xavlkh/ModuleGo.git
@@ -11,52 +37,80 @@ cd ModuleGo
 git checkout dev
 ```
 
-(Note: We are currently working in the dev branch for Phase 1 development).
+**2. Create and activate a virtual environment**
 
-### Step 2: Set up the Python Environment
-Choose the instructions below based on your operating system:
-
-Option A: For Windows (VS Code Local)
-Open the terminal in VS Code (cmd or powershell) and run:
+<details>
+<summary>Windows (VS Code)</summary>
 
 ```bash
-Create the sandbox: python -m venv venv
-
-Activate it: .\venv\Scripts\activate
-
-Install dependencies: pip install -r requirements.txt
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
 ```
+</details>
 
-Option B: For Linux (DEVASC VM) or macOS
-Open your terminal and run:
+<details>
+<summary>Linux / macOS</summary>
 
 ```bash
-Create the sandbox: python3 -m venv venv
-
-Activate it: source venv/bin/activate
-
-Install dependencies: python -m pip install -r requirements.txt
+python3 -m venv venv
+source venv/bin/activate
+python -m pip install -r requirements.txt
 ```
+</details>
 
-### Step 3: Run the Server
-Once the requirements are installed and the (venv) tag is active in your terminal, start the Flask backend server:
+**3. Run the server**
 
 ```bash
 python app.py
 ```
 
-(If using the Linux VM, you may need to type python3 app.py).
+The SQLite database (`modulego.db`) is created automatically on first run. Navigate to `http://127.0.0.1:5000` in your browser.
 
-The database will automatically initialize itself. If there is Windows Defender Firewall pop-up, Check the Private box only. Open your web browser and navigate to http://127.0.0.1:5000 to view the application!
+> [!NOTE]
+> If a Windows Defender Firewall prompt appears, check the **Private** box only.
 
-### Project Structure
-- app.py: The Python Flask REST API and SQLite database initialization.
-- index.html: The main user interface.
-- js/: Frontend logic (Search, UI rendering, Data management).
-- css/: Custom styling overrides.
-- data/: Raw JSON data containing the RP module information.
-- requirements.txt: Python dependency list.
+### Optional: Regenerate Comparison Fields
 
-### Important Git Rules
-- Before committing new code, ensure you do not upload your local database or virtual environment. The .gitignore file is already configured to block venv/ and *.db files.
-- Never merge your own code directly to main. Always open a Pull Request (PR) and have a teammate review it first.
+If you modify the module data and need to regenerate the `features` and `suitableFor` fields:
+
+```bash
+node js/generate-comparison-fields.js
+```
+
+Requires Node.js. This is a one-off data processing step.
+
+## Project Structure
+
+```
+ModuleGo/
+├── app.py                  # Flask backend: REST API for reviews
+├── index.html              # Main search and browse page
+├── comparison.html         # Module comparison page
+├── css/
+│   └── styles.css          # Custom styling (RP brand theme)
+├── js/
+│   ├── app.js              # Home page initialization
+│   ├── data.js             # Data loading and search logic
+│   ├── search.js           # Search input and filter handling
+│   ├── ui.js               # Module card rendering
+│   ├── detail.js           # Module detail modal and reviews
+│   └── comparison.js       # Comparison page logic
+├── data/
+│   ├── rp-modules-final.json   # Module dataset
+│   └── diploma.json            # Diploma-to-module mapping
+└── requirements.txt        # Python dependencies
+```
+
+## Git Workflow
+
+- Do **not** commit `venv/` or `*.db` -- the `.gitignore` is already configured to block these
+- Never merge directly to `main`. Open a Pull Request and have a teammate review first
+- Development happens on the `dev` branch
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/reviews` | Submit a new review (rating + optional comment) |
+| `GET` | `/api/reviews/<module_code>` | Retrieve reviews for a specific module |
