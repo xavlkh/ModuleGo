@@ -1,18 +1,18 @@
 ---
 goal: ModuleGo - Republic Polytechnic Module Viewer Implementation
-version: 2.0
+version: 3.0
 date_created: 2026-06-29
-last_updated: 2026-07-04
+last_updated: 2026-07-05
 owner: Developer
-status: 'In progress'
-tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'sqlite']
+status: 'Completed'
+tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'sqlite', 'restructure']
 ---
 
 # Introduction
 
-![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
+![Status: Completed](https://img.shields.io/badge/status-Completed-brightgreen)
 
-Implementation plan for ModuleGo, a responsive module search application for Republic Polytechnic students. The application uses Vanilla JS, Bootstrap 5, and HTML for the frontend, with Python Flask and SQLite for the backend review system.
+Implementation plan for ModuleGo, a responsive module search application for Republic Polytechnic students. The application uses Vanilla JS, Bootstrap 5, and HTML for the frontend, with Python Flask and SQLite for the backend review system. The project follows a standard Flask app structure with `app/templates/` for HTML, `app/static/` for CSS/JS, and `app/data/` for JSON data files.
 
 ## 1. Requirements & Constraints
 
@@ -128,7 +128,24 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | TASK-038 | Add hover effects on module cards | ✅ | 2026-06-29 |
 | TASK-039 | Add transition animations for detail view open/close | ✅ | 2026-06-29 |
 | TASK-040 | Test and fix responsive design on mobile, tablet, desktop | ✅ | 2026-06-29 |
-| TASK-041 | Cross-browser testing (Chrome, Firefox, Safari, Edge) | | |
+| TASK-041 | Cross-browser testing (Chrome, Firefox, Safari, Edge) | ✅ | 2026-07-05 |
+
+### Implementation Phase 8: Project Restructuring to Flask App Layout
+
+- GOAL-008: Reorganize project into standard Flask application structure
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-042 | Create `app/` directory with `templates/`, `static/`, and `data/` subdirectories | ✅ | 2026-07-05 |
+| TASK-043 | Move `index.html` and `comparison.html` to `app/templates/modules/` | ✅ | 2026-07-05 |
+| TASK-044 | Create `app/templates/base.html` base layout template | ✅ | 2026-07-05 |
+| TASK-045 | Move `css/styles.css` to `app/static/css/` | ✅ | 2026-07-05 |
+| TASK-046 | Move all `js/*.js` files to `app/static/js/` | ✅ | 2026-07-05 |
+| TASK-047 | Move `data/` files to `app/data/` | ✅ | 2026-07-05 |
+| TASK-048 | Move `spec/` and `plan/` docs to `docs/` directory | ✅ | 2026-07-05 |
+| TASK-049 | Create `tests/` directory for future test files | ✅ | 2026-07-05 |
+| TASK-050 | Create `.env.example` for environment configuration | ✅ | 2026-07-05 |
+| TASK-051 | Update `.gitignore` for new project structure | ✅ | 2026-07-05 |
 
 ## 3. Alternatives
 
@@ -146,22 +163,25 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **DEP-004**: Flask 3.0.3 (Python web framework)
 - **DEP-005**: SQLite3 (Python built-in database)
 - **DEP-006**: Python 3.x runtime
+- **DEP-007**: Flask app structure (templates, static, data directories)
 
 ## 5. Files
 
-- **FILE-001**: `index.html` - Main HTML page with search interface
-- **FILE-002**: `comparison.html` - Module comparison page
-- **FILE-003**: `css/styles.css` - Custom CSS styles and RP theme
-- **FILE-004**: `js/data.js` - Data loading and parsing
-- **FILE-005**: `js/search.js` - Search/filter functionality
-- **FILE-006**: `js/ui.js` - UI rendering functions
-- **FILE-007**: `js/detail.js` - Module detail view with review system
-- **FILE-008**: `js/comparison.js` - Module comparison logic
-- **FILE-009**: `js/app.js` - Main application initialization
-- **FILE-010**: `app.py` - Flask backend with SQLite database
-- **FILE-011**: `requirements.txt` - Python dependencies
-- **FILE-012**: `data/rp-modules-final.json` - Module dataset
-- **FILE-013**: `data/diplomas.json` - Diploma mapping data
+- **FILE-001**: `app/templates/modules/index.html` - Main HTML page with search interface
+- **FILE-002**: `app/templates/modules/comparison.html` - Module comparison page
+- **FILE-003**: `app/templates/base.html` - Base layout template with common HTML head and Bootstrap CDN
+- **FILE-004**: `app/static/css/styles.css` - Custom CSS styles and RP theme
+- **FILE-005**: `app/static/js/data.js` - Data loading and parsing
+- **FILE-006**: `app/static/js/search.js` - Search/filter functionality
+- **FILE-007**: `app/static/js/ui.js` - UI rendering functions
+- **FILE-008**: `app/static/js/detail.js` - Module detail view with review system
+- **FILE-009**: `app/static/js/comparison.js` - Module comparison logic
+- **FILE-010**: `app/static/js/app.js` - Main application initialization
+- **FILE-011**: `app/static/js/generate-comparison-fields.js` - Data processing utility
+- **FILE-012**: `app.py` - Flask backend with SQLite database
+- **FILE-013**: `requirements.txt` - Python dependencies
+- **FILE-014**: `app/data/rp-modules-final.json` - Module dataset
+- **FILE-015**: `app/data/diploma.json` - Diploma mapping data
 
 ## 6. Testing
 
@@ -193,7 +213,7 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 
 ## 8. Related Specifications / Further Reading
 
-- [ModuleGo Design Specification](../spec/spec-modulego-design.md)
+- [ModuleGo Design Specification](./spec-modulego-design.md)
 - [Bootstrap 5 Documentation](https://getbootstrap.com/docs/5.3/)
 - [Flask Documentation](https://flask.palletsprojects.com/)
 - [SQLite Documentation](https://www.sqlite.org/docs.html)
