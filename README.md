@@ -1,26 +1,34 @@
+<div align="center">
+
 # ModuleGo
 
-A web application for Republic Polytechnic students to explore, search, compare, and review academic modules. Built as an improved alternative to the official RP Module viewer.
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-000000?style=flat-square&logo=flask&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black)
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white)
+![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white)
+![Bootstrap](https://img.shields.io/badge/Bootstrap-533B78?style=flat-square&logo=bootstrap&logoColor=white)
+
+[![Vercel](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=flat-square&logo=vercel&logoColor=white)](https://module-go.vercel.app/)
+[![GitHub](https://img.shields.io/badge/Source-Code-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/xavlkh/ModuleGo)
+
+A better way for Republic Polytechnic students to explore, search, compare, and review academic modules.
+
+</div>
+
+---
 
 ## Features
 
-- **Module Search** -- Real-time client-side search across module code, name, description, category, and school with relevance ranking
-- **School Filtering** -- Filter results by RP's seven schools (Applied Science, Engineering, Infocomm, etc.)
-- **Module Details** -- View full descriptions, school, and all diplomas that include a module
-- **Module Comparison** -- Side-by-side comparison of two modules (code, name, school, features, suitability)
-- **Student Reviews** -- Submit 1-5 star ratings and comments, persisted in a SQLite database
-- **Responsive Design** -- Works across desktop, tablet, and mobile viewports
+- **Search** -- Real-time client-side search across module code, name, description, category, and school with relevance ranking
+- **Filter** -- Filter results by RP's seven schools (Applied Science, Engineering, Infocomm, etc.)
+- **Details** -- View full descriptions, school, and all diplomas that include a module
+- **Compare** -- Side-by-side comparison of two modules (code, name, school, features, suitability)
+- **Reviews** -- Submit 1-5 star ratings and comments, persisted in a SQLite database
+- **Responsive** -- Works across desktop, tablet, and mobile viewports
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Vanilla JavaScript, HTML5, Bootstrap 5.3.3 |
-| Backend | Python 3.x, Flask 3.0.3 |
-| Database | SQLite (auto-initialized) |
-| Data | Static JSON files |
-
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 
@@ -29,24 +37,21 @@ A web application for Republic Polytechnic students to explore, search, compare,
 
 ### Setup
 
-**1. Clone the repository**
-
 ```bash
 git clone https://github.com/xavlkh/ModuleGo.git
 cd ModuleGo
 git checkout dev
 ```
 
-**2. Create and activate a virtual environment**
-
 <details>
-<summary>Windows (VS Code)</summary>
+<summary>Windows</summary>
 
 ```bash
 python -m venv venv
 .\venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
 </details>
 
 <details>
@@ -57,18 +62,70 @@ python3 -m venv venv
 source venv/bin/activate
 python -m pip install -r requirements.txt
 ```
+
 </details>
 
-**3. Run the server**
+### Run
 
 ```bash
 python app.py
 ```
 
-The SQLite database (`modulego.db`) is created automatically on first run. Navigate to `http://127.0.0.1:5000` in your browser.
+Navigate to `http://127.0.0.1:5000`. The SQLite database (`modulego.db`) is created automatically on first run.
 
 > [!NOTE]
 > If a Windows Defender Firewall prompt appears, check the **Private** box only.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Vanilla JavaScript, HTML5, Bootstrap 5.3.3 |
+| Backend | Python 3.x, Flask 3.0.3 |
+| Database | SQLite (auto-initialized) |
+| Data | Static JSON files |
+
+## Project Structure
+
+```
+ModuleGo/
+├── app.py                          # Flask backend
+├── app/
+│   ├── static/
+│   │   ├── css/styles.css          # Custom styling (RP brand theme)
+│   │   ├── data/
+│   │   │   ├── rp-modules-final.json
+│   │   │   └── diploma.json
+│   │   └── js/
+│   │       ├── app.js              # Home page initialization
+│   │       ├── data.js             # Data loading and search logic
+│   │       ├── search.js           # Search input and filter handling
+│   │       ├── ui.js               # Module card rendering
+│   │       ├── detail.js           # Module detail modal and reviews
+│   │       └── comparison.js       # Comparison page logic
+│   └── templates/
+│       ├── base.html               # Layout template
+│       └── modules/
+│           ├── index.html          # Main search page
+│           └── comparison.html     # Comparison page
+├── docs/                           # Design specs and implementation plans
+├── tests/
+├── requirements.txt
+└── vercel.json
+```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/reviews` | Submit a review (rating + optional comment) |
+| `GET`  | `/api/reviews/<module_code>` | Get reviews for a module |
+
+## Git Workflow
+
+- Do **not** commit `venv/` or `*.db` -- the `.gitignore` is already configured to block these
+- Never merge directly to `main`. Open a Pull Request and have a teammate review first
+- Development happens on the `dev` branch
 
 ### Optional: Regenerate Comparison Fields
 
@@ -79,62 +136,3 @@ node app/static/js/generate-comparison-fields.js
 ```
 
 Requires Node.js. This is a one-off data processing step.
-
-## Project Structure
-
-{% raw %}
-> [!TIP]
-> Coming from Express? Here's the mapping:
-> | Express | Flask |
-> |---------|-------|
-> | `views/` | `templates/` |
-> | `public/` | `static/` |
-> | `partials/layout.html` | `base.html` (layout with `{% block %}`) |
-> | `res.render('pages/index')` | `render_template('modules/index.html')` |
-> | `express.static('public')` | `static_folder='app/static'` |
-> | `<%- include('partials/nav') %>` | `{% extends "base.html" %}` |
-{% endraw %}
-
-```
-ModuleGo/
-├── app.py                          # Flask backend (like server.js)
-├── app/
-│   ├── static/                     # Public assets (like public/)
-│   │   ├── css/
-│   │   │   └── styles.css          # Custom styling (RP brand theme)
-│   │   ├── data/
-│   │   │   ├── rp-modules-final.json   # Module dataset
-│   │   │   └── diploma.json            # Diploma-to-module mapping
-│   │   └── js/
-│   │       ├── app.js              # Home page initialization
-│   │       ├── data.js             # Data loading and search logic
-│   │       ├── search.js           # Search input and filter handling
-│   │       ├── ui.js               # Module card rendering
-│   │       ├── detail.js           # Module detail modal and reviews
-│   │       ├── comparison.js       # Comparison page logic
-│   │       └── generate-comparison-fields.js  # Data processing utility
-│   └── templates/                  # Views (like views/)
-│       ├── base.html               # Layout partial (like partials/layout.html)
-│       └── modules/
-│           ├── index.html          # Main search and browse page
-│           └── comparison.html     # Module comparison page
-├── docs/
-│   ├── spec-modulego-design.md     # Design specification
-│   └── plan-modulego-implementation.md  # Implementation plan
-├── tests/                          # Test files
-├── requirements.txt                # Python dependencies (like package.json)
-└── .env.example                    # Environment config template
-```
-
-## Git Workflow
-
-- Do **not** commit `venv/` or `*.db` -- the `.gitignore` is already configured to block these
-- Never merge directly to `main`. Open a Pull Request and have a teammate review first
-- Development happens on the `dev` branch
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/reviews` | Submit a new review (rating + optional comment) |
-| `GET` | `/api/reviews/<module_code>` | Retrieve reviews for a specific module |
