@@ -4,6 +4,7 @@ version: 3.0
 date_created: 2026-06-29
 last_updated: 2026-07-05
 owner: Developer
+status: 'In progress'
 tags: ['design', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'sqlite', 'restructure']
 ---
 

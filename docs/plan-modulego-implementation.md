@@ -4,13 +4,13 @@ version: 3.0
 date_created: 2026-06-29
 last_updated: 2026-07-05
 owner: Developer
-status: 'Completed'
+status: 'In progress'
 tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'sqlite', 'restructure']
 ---
 
 # Introduction
 
-![Status: Completed](https://img.shields.io/badge/status-Completed-brightgreen)
+![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
 
 Implementation plan for ModuleGo, a responsive module search application for Republic Polytechnic students. The application uses Vanilla JS, Bootstrap 5, and HTML for the frontend, with Python Flask and SQLite for the backend review system. The project follows a standard Flask app structure with `app/templates/` for HTML, `app/static/` for CSS/JS, and `app/data/` for JSON data files.
 
