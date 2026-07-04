@@ -7,8 +7,13 @@ const DataManager = {
     async loadData() {
         try {
             // Load module records from the local JSON file.
-            const response = await fetch('data/rp-modules-final.json');
-            this.modules = await response.json();
+            const moduleResponse = await fetch('data/rp-modules-final.json');
+            this.modules = await moduleResponse.json();
+
+            // Load diploma data
+            const diplomaResponse = await fetch('data/diploma.json');
+            this.diplomas = await diplomaResponse.json();
+
             this.loaded = true;
 
             return this.modules;
@@ -91,7 +96,7 @@ const DataManager = {
             if (a.score !== b.score) return a.score - b.score;
             return (a.module.code || '').localeCompare(b.module.code || '');
         });
-        
+
         return results.map(r => r.module);
     },
 
