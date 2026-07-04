@@ -1,63 +1,24 @@
-# =======================================================================
-# Universal .gitignore Template
-# =======================================================================
-
-# --- Environment Variables & Secrets ---
-# Never commit credentials, API keys, or private configuration files
+# Environment
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-*.pem
-*.key
-*.secret
+!.env.example
 
-# --- Operating System Files ---
-# macOS specific files
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+
+# Database
+*.db
+
+# OS
 .DS_Store
-.AppleDouble
-.LSOverride
-._*
-
-# Windows specific files
 Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
 
-# Linux specific files
-*~
-.fuse_hidden*
-.directory
-.trash/
-
-# --- IDEs and Text Editors ---
-# JetBrains (IntelliJ, WebStorm, PyCharm, etc.)
-.idea/
-*.iws
-
-# Visual Studio Code
-.vscode/
-!.vscode/extensions.json
-*.code-workspace
-.history/
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-
-# Vim
-.*.sw[a-z]
-*.un~
-Session.vim
-
-# --- Common Crash Logs & Temporary Files ---
-*.log
-*.log.*
-*.tmp
-*.bak
-*.swp
-
-# --- Others ---
-AGENTS.md
+# AI agents
+*.agent.md
+agents.md
