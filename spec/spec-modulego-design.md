@@ -1,27 +1,32 @@
 ---
 title: ModuleGo - Republic Polytechnic Module Viewer Design Specification
-version: 1.0
+version: 2.0
 date_created: 2026-06-29
+last_updated: 2026-07-04
 owner: Developer
-tags: ['design', 'frontend', 'vanilla-js', 'bootstrap']
+tags: ['design', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'sqlite']
 ---
 
 # Introduction
 
-ModuleGo is a responsive web application that allows Republic Polytechnic students to search for modules, view module details, and discover which diplomas offer each module. The application addresses the limitation of the official RP Module viewer by providing a more intuitive and comprehensive module exploration experience.
+ModuleGo is a responsive web application that allows Republic Polytechnic students to search for modules, view module details, discover which diplomas offer each module, compare modules side-by-side, and leave reviews. The application addresses the limitation of the official RP Module viewer by providing a more intuitive and comprehensive module exploration experience.
 
 ## 1. Purpose & Scope
 
 **Purpose:** Define the design system, UI components, and interaction patterns for the ModuleGo application.
 
-**Scope:** Frontend web application built with Vanilla JS, CSS/Bootstrap, and HTML. No backend required.
+**Scope:** Full-stack web application with:
+- Frontend: Vanilla JS, CSS/Bootstrap, and HTML
+- Backend: Python Flask server with SQLite database
+- API endpoints for review management
 
 **Audience:** Republic Polytechnic students seeking to explore modules and their associated diplomas.
 
 **Assumptions:**
 - Module data is provided via static JSON file (`rp-modules-final.json`)
-- Diploma-to-module mapping will be hardcoded
-- All data persistence uses browser LocalStorage
+- Diploma-to-module mapping is hardcoded in `data/diplomas.json`
+- Review data (ratings and comments) is stored in SQLite database
+- Backend server runs on Python Flask
 
 ## 2. Definitions
 
@@ -43,23 +48,26 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - **REQ-004**: Search results display as a list showing Module Code, Module Name, Description, Category, and School
 - **REQ-005**: Clicking a module displays a list of diplomas offering that module
 - **REQ-006**: Each module entry includes a link to the external RP module page (url field)
+- **REQ-007**: User can filter modules by School using dropdown filter
+- **REQ-008**: User can compare two modules side-by-side
+- **REQ-009**: User can leave reviews with ratings (1-5) and comments on modules
+- **REQ-010**: Reviews are stored in backend database (SQLite)
+- **REQ-011**: User can view existing reviews for each module
 
 ### Bonus Requirements
 
 - **REQ-B01**: Responsive design works on desktop, tablet, and mobile viewports
 - **REQ-B02**: Loading animation displayed during initial data load
-- **REQ-B03**: Anonymous commenting system on module detail pages
-- **REQ-B04**: Anonymous 1-5 star rating system on module detail pages
-- **REQ-B05**: Average module rating displayed on search results page
-- **REQ-B06**: Comments displayed in accordion/collapsible section
+- **REQ-B03**: Module comparison page with side-by-side table view
+- **REQ-B04**: School filter dropdown for narrowing search results
 
 ### Constraints
 
 - **CON-001**: Use only Vanilla JavaScript (no frameworks like React, Vue, Angular)
 - **CON-002**: Use Bootstrap 5 for styling and responsive grid
 - **CON-003**: Use HTML5 semantic elements
-- **CON-004**: No backend/server required
-- **CON-005**: Data persistence via browser LocalStorage only
+- **CON-004**: Backend uses Python Flask with SQLite database
+- **CON-005**: Module data is static JSON file
 
 ### Design Guidelines
 
@@ -85,7 +93,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 }
 ```
 
-### Diploma Mapping Schema (to be created)
+### Diploma Mapping Schema (data/diplomas.json)
 
 ```json
 {
@@ -94,31 +102,31 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 }
 ```
 
-### Rating/Comment Schema (LocalStorage)
+### Review Schema (SQLite Database)
 
-```json
-{
-  "A001": {
-    "ratings": [5, 4, 3, 5, 4],
-    "average": 4.2,
-    "comments": [
-      {
-        "id": "timestamp",
-        "text": "Great module!",
-        "rating": 5,
-        "timestamp": "2026-06-29T14:00:00Z"
-      }
-    ]
-  }
-}
+```sql
+CREATE TABLE REVIEWS (
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    MODULE_CODE TEXT NOT NULL,
+    RATING INTEGER NOT NULL,
+    COMMENT TEXT,
+    TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP
+)
 ```
+
+### Backend API Endpoints
+
+| Endpoint | Method | Description | Request Body | Response |
+|----------|--------|-------------|--------------|----------|
+| `/api/reviews/<module_code>` | GET | Get reviews for a module | - | Array of review objects |
+| `/api/reviews` | POST | Create a new review | `{ module_code, rating, comment }` | Success message |
 
 ### Page Structure
 
 ```
 index.html (Home/Search Page)
 ├── Header (Logo, Navigation)
-├── Hero Section (Search Input)
+├── Hero Section (Search Input + School Filter)
 ├── Search Results Section
 │   ├── Results Count
 │   └── Module Cards List
@@ -127,13 +135,19 @@ index.html (Home/Search Page)
 │       ├── Description (truncated)
 │       ├── Category Badge
 │       ├── School
-│       ├── Average Rating (stars)
 │       └── External Link Button
-├── Module Detail Modal/Section
+├── Module Detail Modal
 │   ├── Full Module Details
 │   ├── Diploma List
-│   ├── Rating Component (1-5 stars)
-│   └── Comments Accordion
+│   ├── Reviews Section (Rating + Comments)
+│   └── Review Submission Form
+└── Footer
+
+comparison.html (Module Comparison Page)
+├── Header (Logo, Navigation)
+├── Comparison Hero Section
+├── Module Search Inputs (2)
+├── Comparison Table
 └── Footer
 ```
 
@@ -144,24 +158,24 @@ index.html (Home/Search Page)
 - **AC-002**: Given user types "A001", When search filters, Then only modules with code containing "A001" are shown
 - **AC-003**: Given user types "biology", When search filters, Then modules with "biology" in name or description are shown
 - **AC-004**: Given no results match, When search is performed, Then "No modules found" message is displayed
+- **AC-005**: Given user selects a school from dropdown, When search filters, Then only modules from that school are shown
 
 ### Module Display
-- **AC-005**: Given search results are displayed, When user views the list, Then each module shows code, name, description, category, and school
-- **AC-006**: Given module has a URL, When user views module card, Then external link button is visible and clickable
+- **AC-006**: Given search results are displayed, When user views the list, Then each module shows code, name, description, category, and school
+- **AC-007**: Given module has a URL, When user views module card, Then external link button is visible and clickable
 
 ### Module Detail
-- **AC-007**: Given user clicks a module, When detail view opens, Then full description and diploma list are displayed
-- **AC-008**: Given module has diplomas, When detail view opens, Then diploma names are listed with links to diploma pages
+- **AC-008**: Given user clicks a module, When detail view opens, Then full description and diploma list are displayed
+- **AC-009**: Given module has diplomas, When detail view opens, Then diploma names are listed with links to diploma pages
 
-### Rating System
-- **AC-009**: Given user is on module detail, When user clicks star, Then rating is saved to LocalStorage
-- **AC-010**: Given user has rated, When page reloads, Then user's rating is remembered
-- **AC-011**: Given multiple ratings exist, When module card displays, Then average rating is shown
+### Review System
+- **AC-010**: Given user is on module detail, When user submits review with rating and comment, Then review is saved to backend database
+- **AC-011**: Given reviews exist for a module, When user views module detail, Then existing reviews are displayed with rating and timestamp
+- **AC-012**: Given user submits review, When page reloads, Then review persists in database
 
-### Comment System
-- **AC-012**: Given user is on module detail, When user submits comment, Then comment is saved to LocalStorage
-- **AC-013**: Given comments exist, When user expands accordion, Then comments are displayed with timestamp
-- **AC-014**: Given user submits comment with rating, When saved, Then both comment and rating are stored
+### Module Comparison
+- **AC-013**: Given user is on comparison page, When user searches and selects two modules, Then comparison table displays side-by-side
+- **AC-014**: Given two modules are selected, When comparison table loads, Then module attributes are compared in rows
 
 ### Responsive Design
 - **AC-015**: Given user is on mobile (< 768px), When viewing search results, Then modules display in single column
@@ -174,11 +188,13 @@ index.html (Home/Search Page)
 
 ## 6. Test Automation Strategy
 
-- **Test Levels**: Manual testing, browser developer tools
-- **Frameworks**: None required (vanilla JS)
+- **Test Levels**: Manual testing, browser developer tools, API testing
+- **Frameworks**: None required (vanilla JS frontend), Python unittest for backend
 - **Test Data Management**: Use provided rp-modules-final.json
 - **Coverage Requirements**: All user stories tested manually
 - **Performance Testing**: Test with full dataset, ensure smooth filtering
+- **API Testing**: Test Flask endpoints with curl or Postman
+- **Database Testing**: Verify SQLite operations work correctly
 
 ## 7. Rationale & Context
 
@@ -198,15 +214,23 @@ index.html (Home/Search Page)
 
 ### Data Dependencies
 - **DAT-001**: `rp-modules-final.json` - Module dataset provided locally
-- **DAT-002**: Hardcoded diploma mapping - Module-to-diploma relationships
+- **DAT-002**: `data/diplomas.json` - Hardcoded diploma mapping
 
 ### External Links
 - **EXT-001**: RP Module Pages - Links to official module information
 - **EXT-002**: RP Diploma Pages - Links to diploma program pages
 
 ### Infrastructure Dependencies
-- **INF-001**: Modern web browser with JavaScript and LocalStorage support
+- **INF-001**: Modern web browser with JavaScript support
 - **INF-002**: Bootstrap 5 CSS/JS via CDN
+- **INF-003**: Python 3.x runtime
+- **INF-004**: Flask web framework
+- **INF-005**: SQLite database (modulego.db)
+
+### Backend Dependencies
+- **DEP-001**: Flask 3.0.3 - Web framework
+- **DEP-002**: SQLite3 - Database (built-in Python module)
+- **DEP-003**: Werkzeug 3.0.6 - WSGI utilities (Flask dependency)
 
 ## 9. Examples & Edge Cases
 
@@ -230,14 +254,18 @@ index.html (Home/Search Page)
 
 - [ ] All user stories implemented and functional
 - [ ] Search filters correctly across all module fields
+- [ ] School filter dropdown works correctly
 - [ ] Module detail shows complete information and diploma list
-- [ ] Rating system saves and retrieves from LocalStorage
-- [ ] Comment system saves and displays correctly
+- [ ] Review system saves to SQLite database via Flask API
+- [ ] Reviews display correctly with rating and timestamp
+- [ ] Module comparison page works correctly
 - [ ] Responsive design works on mobile, tablet, and desktop
 - [ ] Loading animations display during data operations
 - [ ] External links open in new tabs
 - [ ] No JavaScript errors in browser console
 - [ ] Bootstrap CDN loads correctly
+- [ ] Flask backend starts and serves API endpoints
+- [ ] SQLite database initializes correctly
 
 ## 11. Related Specifications / Further Reading
 
