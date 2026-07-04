@@ -7,11 +7,11 @@ const DataManager = {
     async loadData() {
         try {
             // Load module records from the local JSON file.
-            const moduleResponse = await fetch('data/rp-modules-final.json');
+            const moduleResponse = await fetch('/static/data/rp-modules-final.json');
             this.modules = await moduleResponse.json();
 
             // Load diploma data
-            const diplomaResponse = await fetch('data/diploma.json');
+            const diplomaResponse = await fetch('/static/data/diploma.json');
             this.diplomas = await diplomaResponse.json();
 
             this.loaded = true;

@@ -75,31 +75,53 @@ The SQLite database (`modulego.db`) is created automatically on first run. Navig
 If you modify the module data and need to regenerate the `features` and `suitableFor` fields:
 
 ```bash
-node js/generate-comparison-fields.js
+node app/static/js/generate-comparison-fields.js
 ```
 
 Requires Node.js. This is a one-off data processing step.
 
 ## Project Structure
 
+> [!TIP]
+> Coming from Express? Here's the mapping:
+> | Express | Flask |
+> |---------|-------|
+> | `views/` | `templates/` |
+> | `public/` | `static/` |
+> | `partials/layout.html` | `base.html` (layout with `{% block %}`) |
+> | `res.render('pages/index')` | `render_template('modules/index.html')` |
+> | `express.static('public')` | `static_folder='app/static'` |
+> | `<%- include('partials/nav') %>` | `{% extends "base.html" %}` |
+
 ```
 ModuleGo/
-├── app.py                  # Flask backend: REST API for reviews
-├── index.html              # Main search and browse page
-├── comparison.html         # Module comparison page
-├── css/
-│   └── styles.css          # Custom styling (RP brand theme)
-├── js/
-│   ├── app.js              # Home page initialization
-│   ├── data.js             # Data loading and search logic
-│   ├── search.js           # Search input and filter handling
-│   ├── ui.js               # Module card rendering
-│   ├── detail.js           # Module detail modal and reviews
-│   └── comparison.js       # Comparison page logic
-├── data/
-│   ├── rp-modules-final.json   # Module dataset
-│   └── diploma.json            # Diploma-to-module mapping
-└── requirements.txt        # Python dependencies
+├── app.py                          # Flask backend (like server.js)
+├── app/
+│   ├── static/                     # Public assets (like public/)
+│   │   ├── css/
+│   │   │   └── styles.css          # Custom styling (RP brand theme)
+│   │   ├── data/
+│   │   │   ├── rp-modules-final.json   # Module dataset
+│   │   │   └── diploma.json            # Diploma-to-module mapping
+│   │   └── js/
+│   │       ├── app.js              # Home page initialization
+│   │       ├── data.js             # Data loading and search logic
+│   │       ├── search.js           # Search input and filter handling
+│   │       ├── ui.js               # Module card rendering
+│   │       ├── detail.js           # Module detail modal and reviews
+│   │       ├── comparison.js       # Comparison page logic
+│   │       └── generate-comparison-fields.js  # Data processing utility
+│   └── templates/                  # Views (like views/)
+│       ├── base.html               # Layout partial (like partials/layout.html)
+│       └── modules/
+│           ├── index.html          # Main search and browse page
+│           └── comparison.html     # Module comparison page
+├── docs/
+│   ├── spec-modulego-design.md     # Design specification
+│   └── plan-modulego-implementation.md  # Implementation plan
+├── tests/                          # Test files
+├── requirements.txt                # Python dependencies (like package.json)
+└── .env.example                    # Environment config template
 ```
 
 ## Git Workflow
