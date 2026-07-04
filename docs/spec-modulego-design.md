@@ -123,13 +123,18 @@ CREATE TABLE REVIEWS (
 
 ### Page Structure
 
-```
-app/templates/base.html (Base Layout Template)
-├── Common HTML head, Bootstrap CDN, meta tags
-└── Block content placeholder
+> [!TIP]
+> **Express equivalent:** `base.html` works like a partial (e.g., `partials/layout.html`) that all pages extend. The `{% block content %}` placeholder is where page-specific content goes, similar to how you'd `<%- include() %>` shared components in Express.
 
-app/templates/modules/index.html (Home/Search Page)
-├── Header (Logo, Navigation)
+```
+app/templates/base.html (Layout Partial - like partials/layout.ejs)
+├── Common HTML head, Bootstrap CDN, meta tags
+├── Header/Nav (shared across all pages)
+├── {% block content %}{% endblock %} ← page-specific content injected here
+└── Footer (shared across all pages)
+
+app/templates/modules/index.html (Home/Search Page - like views/modules/index.html)
+├── {% extends "base.html" %}
 ├── Hero Section (Search Input + School Filter)
 ├── Search Results Section
 │   ├── Results Count
@@ -145,14 +150,12 @@ app/templates/modules/index.html (Home/Search Page)
 │   ├── Diploma List
 │   ├── Reviews Section (Rating + Comments)
 │   └── Review Submission Form
-└── Footer
 
-app/templates/modules/comparison.html (Module Comparison Page)
-├── Header (Logo, Navigation)
+app/templates/modules/comparison.html (Comparison Page - like views/modules/comparison.html)
+├── {% extends "base.html" %}
 ├── Comparison Hero Section
 ├── Module Search Inputs (2)
-├── Comparison Table
-└── Footer
+└── Comparison Table
 ```
 
 ## 5. Acceptance Criteria

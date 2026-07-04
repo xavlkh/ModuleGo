@@ -160,28 +160,30 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **DEP-001**: Bootstrap 5.3 CSS/JS via CDN
 - **DEP-002**: Bootstrap Icons via CDN
 - **DEP-003**: rp-modules-final.json dataset
-- **DEP-004**: Flask 3.0.3 (Python web framework)
+- **DEP-004**: Flask 3.0.3 (Python web framework) -- *Express equivalent*
 - **DEP-005**: SQLite3 (Python built-in database)
 - **DEP-006**: Python 3.x runtime
-- **DEP-007**: Flask app structure (templates, static, data directories)
+- **DEP-007**: Flask app structure (templates, static, data directories) -- *Like Express with EJS views*
 
 ## 5. Files
 
-- **FILE-001**: `app/templates/modules/index.html` - Main HTML page with search interface
-- **FILE-002**: `app/templates/modules/comparison.html` - Module comparison page
-- **FILE-003**: `app/templates/base.html` - Base layout template with common HTML head and Bootstrap CDN
-- **FILE-004**: `app/static/css/styles.css` - Custom CSS styles and RP theme
-- **FILE-005**: `app/static/js/data.js` - Data loading and parsing
-- **FILE-006**: `app/static/js/search.js` - Search/filter functionality
-- **FILE-007**: `app/static/js/ui.js` - UI rendering functions
-- **FILE-008**: `app/static/js/detail.js` - Module detail view with review system
-- **FILE-009**: `app/static/js/comparison.js` - Module comparison logic
-- **FILE-010**: `app/static/js/app.js` - Main application initialization
-- **FILE-011**: `app/static/js/generate-comparison-fields.js` - Data processing utility
-- **FILE-012**: `app.py` - Flask backend with SQLite database
-- **FILE-013**: `requirements.txt` - Python dependencies
-- **FILE-014**: `app/data/rp-modules-final.json` - Module dataset
-- **FILE-015**: `app/data/diploma.json` - Diploma mapping data
+| Flask Path | Express Equivalent | Description |
+|------------|-------------------|-------------|
+| `app/templates/modules/index.html` | `views/modules/index.html` | Main search and browse page |
+| `app/templates/modules/comparison.html` | `views/modules/comparison.html` | Module comparison page |
+| `app/templates/base.html` | `partials/layout.html` | Layout partial with shared nav/footer |
+| `app/static/css/styles.css` | `public/css/styles.css` | Custom CSS styles and RP theme |
+| `app/static/js/data.js` | `public/js/data.js` | Data loading and parsing |
+| `app/static/js/search.js` | `public/js/search.js` | Search/filter functionality |
+| `app/static/js/ui.js` | `public/js/ui.js` | UI rendering functions |
+| `app/static/js/detail.js` | `public/js/detail.js` | Module detail view with review system |
+| `app/static/js/comparison.js` | `public/js/comparison.js` | Module comparison logic |
+| `app/static/js/app.js` | `public/js/app.js` | Main application initialization |
+| `app/static/js/generate-comparison-fields.js` | `public/js/generate-comparison-fields.js` | Data processing utility |
+| `app.py` | `server.js` | Flask backend with SQLite database |
+| `requirements.txt` | `package.json` | Python dependencies |
+| `app/data/rp-modules-final.json` | `data/rp-modules-final.json` | Module dataset |
+| `app/data/diploma.json` | `data/diploma.json` | Diploma mapping data |
 
 ## 6. Testing
 
