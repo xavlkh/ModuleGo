@@ -48,7 +48,7 @@
                     <div class="col-lg-7">
                         <span class="section-kicker">Student feedback</span>
                         <h1 class="display-6 fw-bold mb-3">Review Dashboard</h1>
-                        <p class="lead text-muted mb-0">Explore ratings across modules and manage submitted reviews in one place.</p>
+                        <p class="lead text-muted mb-0">Browse recent student feedback across RP modules.</p>
                     </div>
                     <div class="col-lg-5">
                         <div class="dashboard-summary-grid">
@@ -57,12 +57,12 @@
                                 <span class="dashboard-stat-label">Reviews</span>
                             </div>
                             <div class="dashboard-stat">
-                                <span id="dashboardAverageRating" class="dashboard-stat-value">-</span>
-                                <span class="dashboard-stat-label">Average</span>
+                                <span id="dashboardMonthlyReviewCount" class="dashboard-stat-value">0</span>
+                                <span class="dashboard-stat-label">Reviews This Month</span>
                             </div>
                             <div class="dashboard-stat">
                                 <span id="dashboardModuleCount" class="dashboard-stat-value">0</span>
-                                <span class="dashboard-stat-label">Modules rated</span>
+                                <span class="dashboard-stat-label">Modules Reviewed</span>
                             </div>
                         </div>
                     </div>
@@ -91,6 +91,13 @@
                                 <option value="3">3 stars</option>
                                 <option value="2">2 stars</option>
                                 <option value="1">1 star</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-auto">
+                            <label class="visually-hidden" for="reviewSort">Sort reviews by submission time</label>
+                            <select id="reviewSort" class="form-select">
+                                <option value="newest" selected>Newest first</option>
+                                <option value="oldest">Oldest first</option>
                             </select>
                         </div>
                     </div>
