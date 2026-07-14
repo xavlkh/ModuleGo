@@ -6,8 +6,8 @@ const DataManager = {
 
     async loadData() {
         try {
-            // Load module records from the local JSON file.
-            const moduleResponse = await fetch('/static/data/rp-modules-final.json');
+            // Load module records from the Supabase-backed API.
+            const moduleResponse = await fetch('/api/modules');
             this.modules = await moduleResponse.json();
 
             // Load diploma data
