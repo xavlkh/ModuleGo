@@ -24,9 +24,10 @@ const ReviewDashboard = {
             list: document.getElementById('reviewDashboardList'),
             search: document.getElementById('reviewSearch'),
             ratingFilter: document.getElementById('ratingFilter'),
+            sort: document.getElementById('reviewSort'),
             resultCount: document.getElementById('dashboardResultCount'),
             reviewCount: document.getElementById('dashboardReviewCount'),
-            averageRating: document.getElementById('dashboardAverageRating'),
+            monthlyReviewCount: document.getElementById('dashboardMonthlyReviewCount'),
             moduleCount: document.getElementById('dashboardModuleCount'),
             message: document.getElementById('dashboardMessage'),
             editMessage: document.getElementById('dashboardEditMessage'),
@@ -40,6 +41,7 @@ const ReviewDashboard = {
     bindEvents() {
         this.elements.search.addEventListener('input', () => this.renderReviews());
         this.elements.ratingFilter.addEventListener('change', () => this.renderReviews());
+        this.elements.sort.addEventListener('change', () => this.renderReviews());
         this.elements.saveButton.addEventListener('click', () => this.saveEdit());
     },
 
@@ -56,13 +58,17 @@ const ReviewDashboard = {
 
     renderStats() {
         const count = this.reviews.length;
-        const average = count
-            ? this.reviews.reduce((sum, review) => sum + review.rating, 0) / count
-            : null;
         const modulesRated = new Set(this.reviews.map(review => review.module_code)).size;
+        const now = new Date();
+        const monthlyReviewCount = this.reviews.filter(review => {
+            const submittedAt = this.getSubmittedDate(review);
+            return submittedAt
+                && submittedAt.getFullYear() === now.getFullYear()
+                && submittedAt.getMonth() === now.getMonth();
+        }).length;
 
         this.elements.reviewCount.textContent = String(count);
-        this.elements.averageRating.textContent = average === null ? '-' : average.toFixed(1);
+        this.elements.monthlyReviewCount.textContent = String(monthlyReviewCount);
         this.elements.moduleCount.textContent = String(modulesRated);
     },
 
@@ -70,7 +76,7 @@ const ReviewDashboard = {
         const query = this.elements.search.value.trim().toLowerCase();
         const rating = this.elements.ratingFilter.value;
 
-        return this.reviews.filter(review => {
+        const filtered = this.reviews.filter(review => {
             const module = DataManager.getModule(review.module_code);
             const searchable = [
                 review.module_code,
@@ -80,6 +86,15 @@ const ReviewDashboard = {
             const matchesQuery = !query || searchable.includes(query);
             const matchesRating = rating === 'all' || review.rating === Number(rating);
             return matchesQuery && matchesRating;
+        });
+
+        const direction = this.elements.sort.value === 'oldest' ? 1 : -1;
+        return filtered.sort((first, second) => {
+            const firstDate = this.getSubmittedDate(first);
+            const secondDate = this.getSubmittedDate(second);
+            const firstTime = firstDate ? firstDate.getTime() : 0;
+            const secondTime = secondDate ? secondDate.getTime() : 0;
+            return (firstTime - secondTime) * direction;
         });
     },
 
@@ -215,6 +230,14 @@ const ReviewDashboard = {
     createStars(rating) {
         return '<i class="bi bi-star-fill"></i>'.repeat(rating)
             + '<i class="bi bi-star"></i>'.repeat(5 - rating);
+    },
+
+    getSubmittedDate(review) {
+        if (!review.timestamp) return null;
+        const value = review.timestamp;
+        const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
+        const date = new Date(normalized);
+        return Number.isNaN(date.getTime()) ? null : date;
     },
 
     formatDate(review) {
