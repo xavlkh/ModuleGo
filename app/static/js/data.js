@@ -2,17 +2,25 @@
 const DataManager = {
     modules: [],
     diplomas: [],
+    ratings: {},
     loaded: false,
 
     async loadData() {
         try {
-            // Load module records from the local JSON file.
-            const moduleResponse = await fetch('/static/data/rp-modules-final.json');
-            this.modules = await moduleResponse.json();
+            // Load catalogue data and review aggregates together.
+            const [moduleResponse, diplomaResponse, ratingResponse] = await Promise.all([
+                fetch('/static/data/rp-modules-final.json'),
+                fetch('/static/data/diploma.json'),
+                fetch('/api/ratings')
+            ]);
 
-            // Load diploma data
-            const diplomaResponse = await fetch('/static/data/diploma.json');
+            if (!moduleResponse.ok || !diplomaResponse.ok) {
+                throw new Error('Failed to load module catalogue data.');
+            }
+
+            this.modules = await moduleResponse.json();
             this.diplomas = await diplomaResponse.json();
+            this.ratings = ratingResponse.ok ? await ratingResponse.json() : {};
 
             this.loaded = true;
 
@@ -27,6 +35,23 @@ const DataManager = {
         // Match module codes case-insensitively.
         const lookupCode = (code || '').toLowerCase();
         return this.modules.find(m => (m.code || '').toLowerCase() === lookupCode);
+    },
+
+    getRatingSummary(moduleCode) {
+        return this.ratings[(moduleCode || '').toUpperCase()] || {
+            average_rating: null,
+            review_count: 0
+        };
+    },
+
+    async refreshRatingSummaries() {
+        const response = await fetch('/api/ratings');
+        if (!response.ok) {
+            throw new Error('Failed to refresh rating summaries.');
+        }
+
+        this.ratings = await response.json();
+        return this.ratings;
     },
 
     getDiplomasByModule(moduleCode) {

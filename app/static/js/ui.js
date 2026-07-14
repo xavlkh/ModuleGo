@@ -60,6 +60,9 @@ const UIRenderer = {
                 <div class="module-meta">
                     <span class="badge bg-secondary">${school}</span>
                 </div>
+                <div class="module-rating" data-rating-code="${module.code}">
+                    ${this.createRatingMarkup(module.code)}
+                </div>
                 <div class="card-actions">
                     <button class="btn btn-sm btn-outline-primary view-details-btn" data-code="${module.code}">
                         <i class="bi bi-info-circle me-1"></i>View Details
@@ -78,6 +81,32 @@ const UIRenderer = {
         });
 
         return col;
+    },
+
+    createRatingMarkup(moduleCode) {
+        const summary = DataManager.getRatingSummary(moduleCode);
+        if (!summary.review_count) {
+            return `
+                <i class="bi bi-star me-1" aria-hidden="true"></i>
+                <span>No reviews yet</span>
+            `;
+        }
+
+        const reviewLabel = summary.review_count === 1 ? 'review' : 'reviews';
+        return `
+            <i class="bi bi-star-fill me-1" aria-hidden="true"></i>
+            <strong>${Number(summary.average_rating).toFixed(1)}</strong>
+            <span>(${summary.review_count} ${reviewLabel})</span>
+        `;
+    },
+
+    updateRatingDisplay(moduleCode) {
+        const ratingElement = document.querySelector(
+            `[data-rating-code="${moduleCode}"]`
+        );
+        if (ratingElement) {
+            ratingElement.innerHTML = this.createRatingMarkup(moduleCode);
+        }
     },
 
     updateResultsCount(count) {
