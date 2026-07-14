@@ -151,8 +151,6 @@ const practiceRules = [
 
 function cleanText(value) {
     return String(value || '')
-        .replace(/螕脟脰s|ΓÇÖs/g, "'s")
-        .replace(/ΓÇÖ|螕脟脰/g, "'")
         .replace(/\s+/g, ' ')
         .trim();
 }
