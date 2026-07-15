@@ -25,7 +25,9 @@ A better way for Republic Polytechnic students to explore, search, compare, and 
 - **Filter** -- Filter results by RP's seven schools (Applied Science, Engineering, Infocomm, etc.)
 - **Details** -- View full descriptions, school, and all diplomas that include a module
 - **Compare** -- Side-by-side comparison of two modules (code, name, school, features, suitability)
-- **Reviews** -- Submit 1-5 star ratings and comments, persisted in a SQLite database
+- **Reviews** -- Create, read, edit, and delete validated 1-5 star reviews in SQLite
+- **Rating summaries** -- View average ratings and review counts directly on module cards
+- **Review dashboard** -- Search, filter, and manage reviews across all modules
 - **Responsive** -- Works across desktop, tablet, and mobile viewports
 
 ## Quick Start
@@ -102,12 +104,14 @@ ModuleGo/
 │   │       ├── search.js           # Search input and filter handling
 │   │       ├── ui.js               # Module card rendering
 │   │       ├── detail.js           # Module detail modal and reviews
-│   │       └── comparison.js       # Comparison page logic
+│   │       ├── comparison.js       # Comparison page logic
+│   │       └── reviews.js          # Review dashboard logic
 │   └── templates/
 │       ├── base.html               # Layout template
 │       └── modules/
 │           ├── index.html          # Main search page
-│           └── comparison.html     # Comparison page
+│           ├── comparison.html     # Comparison page
+│           └── reviews.html        # Review dashboard
 ├── docs/                           # Design specs and implementation plans
 ├── tests/
 ├── requirements.txt
@@ -118,13 +122,28 @@ ModuleGo/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/reviews` | Submit a review (rating + optional comment) |
+| `GET`  | `/api/reviews` | List all reviews for the dashboard |
+| `POST` | `/api/reviews` | Submit a validated review |
 | `GET`  | `/api/reviews/<module_code>` | Get reviews for a module |
+| `PUT`  | `/api/reviews/<review_id>` | Update a review |
+| `DELETE` | `/api/reviews/<review_id>` | Delete a review |
+| `GET`  | `/api/ratings` | Get average rating and count per module |
+
+## Automated Tests
+
+Install the development dependencies and run the API test suite:
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+GitHub Actions runs the same tests automatically for pushes and pull requests targeting `dev` or `master`.
 
 ## Git Workflow
 
 - Do **not** commit `venv/` or `*.db` -- the `.gitignore` is already configured to block these
-- Never merge directly to `main`. Open a Pull Request and have a teammate review first
+- Never merge directly to `master`. Open a Pull Request and have a teammate review first
 - Development happens on the `dev` branch
 
 ### Optional: Regenerate Comparison Fields
