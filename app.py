@@ -6,6 +6,7 @@ import os
 import re
 from dotenv import load_dotenv
 from supabase import create_client
+from postgrest.exceptions import APIError
 
 load_dotenv()
 
@@ -14,7 +15,6 @@ app = Flask(__name__,
             template_folder='app/templates')
 
 _base_dir = os.path.dirname(os.path.abspath(__file__))
-IS_VERCEL = bool(os.environ.get('VERCEL'))
 MAX_COMMENT_LENGTH = 500
 
 supabase_url = os.environ.get('SUPABASE_URL')
@@ -30,9 +30,6 @@ if supabase_url and supabase_key:
             'publishable browser key.'
         )
     supabase = create_client(supabase_url, supabase_key)
-elif IS_VERCEL:
-    raise RuntimeError('SUPABASE_URL and SUPABASE_KEY are required on Vercel.')
-
 db_name = os.environ.get('DATABASE_PATH', os.path.join(_base_dir, 'modulego.db'))
 
 
@@ -131,8 +128,18 @@ def select_review(conn, review_id):
     ).fetchone()
 
 
-if not IS_VERCEL:
-    init_db()
+def use_sqlite_reviews():
+    """Keep SQLite isolated to automated tests."""
+    return bool(app.config.get('TESTING'))
+
+
+def supabase_unavailable():
+    return jsonify({
+        'error': (
+            'Supabase is not configured. Set SUPABASE_URL and the '
+            'backend-only SUPABASE_KEY.'
+        )
+    }), 503
 
 THEME_RULES = [
     (r'3d print|additive manufactur|prototype|printed object', '3D design, printing, prototyping, and post-processing', 'hands-on making, product design, prototyping, and creative technology'),
@@ -290,21 +297,23 @@ def serve_reviews():
 
 @app.route('/api/reviews', methods=['GET'])
 def list_reviews():
-    if IS_VERCEL:
-        result = (
-            supabase.table('reviews')
-            .select('id,module_code,rating,comment,timestamp,updated_at')
-            .order('timestamp', desc=True)
-            .execute()
-        )
-        return jsonify(result.data), 200
+    if use_sqlite_reviews():
+        with database_connection() as conn:
+            rows = conn.execute(
+                '''SELECT ID, MODULE_CODE, RATING, COMMENT, TIMESTAMP, UPDATED_AT
+                   FROM REVIEWS ORDER BY TIMESTAMP DESC, ID DESC'''
+            ).fetchall()
+        return jsonify([review_to_dict(row) for row in rows]), 200
 
-    with database_connection() as conn:
-        rows = conn.execute(
-            '''SELECT ID, MODULE_CODE, RATING, COMMENT, TIMESTAMP, UPDATED_AT
-               FROM REVIEWS ORDER BY TIMESTAMP DESC, ID DESC'''
-        ).fetchall()
-    return jsonify([review_to_dict(row) for row in rows]), 200
+    if supabase is None:
+        return supabase_unavailable()
+    result = (
+        supabase.table('reviews')
+        .select('id,module_code,rating,comment,timestamp,updated_at')
+        .order('timestamp', desc=True)
+        .execute()
+    )
+    return jsonify(result.data), 200
 
 
 @app.route('/api/reviews', methods=['POST'])
@@ -316,41 +325,50 @@ def add_review():
     if error:
         return jsonify({'error': error}), 400
 
-    if IS_VERCEL:
-        result = supabase.table('reviews').insert(payload).execute()
-        return jsonify(result.data[0]), 201
+    if use_sqlite_reviews():
+        with database_connection() as conn:
+            cursor = conn.execute(
+                '''INSERT INTO REVIEWS (MODULE_CODE, RATING, COMMENT)
+                   VALUES (?, ?, ?)''',
+                (payload['module_code'], payload['rating'], payload['comment']),
+            )
+            row = select_review(conn, cursor.lastrowid)
+        return jsonify(review_to_dict(row)), 201
 
-    with database_connection() as conn:
-        cursor = conn.execute(
-            '''INSERT INTO REVIEWS (MODULE_CODE, RATING, COMMENT)
-               VALUES (?, ?, ?)''',
-            (payload['module_code'], payload['rating'], payload['comment']),
-        )
-        row = select_review(conn, cursor.lastrowid)
-    return jsonify(review_to_dict(row)), 201
+    if supabase is None:
+        return supabase_unavailable()
+    try:
+        result = supabase.table('reviews').insert(payload).execute()
+    except APIError as error:
+        if error.code == '23503':
+            return jsonify({'error': 'Module code does not exist.'}), 400
+        raise
+    return jsonify(result.data[0]), 201
 
 
 @app.route('/api/reviews/<module_code>', methods=['GET'])
 def get_reviews(module_code):
     normalized_code = module_code.strip().upper()
-    if IS_VERCEL:
-        result = (
-            supabase.table('reviews')
-            .select('id,module_code,rating,comment,timestamp,updated_at')
-            .eq('module_code', normalized_code)
-            .order('timestamp', desc=True)
-            .execute()
-        )
-        return jsonify(result.data), 200
+    if use_sqlite_reviews():
+        with database_connection() as conn:
+            rows = conn.execute(
+                '''SELECT ID, MODULE_CODE, RATING, COMMENT, TIMESTAMP, UPDATED_AT
+                   FROM REVIEWS WHERE MODULE_CODE = ?
+                   ORDER BY TIMESTAMP DESC, ID DESC''',
+                (normalized_code,),
+            ).fetchall()
+        return jsonify([review_to_dict(row) for row in rows]), 200
 
-    with database_connection() as conn:
-        rows = conn.execute(
-            '''SELECT ID, MODULE_CODE, RATING, COMMENT, TIMESTAMP, UPDATED_AT
-               FROM REVIEWS WHERE MODULE_CODE = ?
-               ORDER BY TIMESTAMP DESC, ID DESC''',
-            (normalized_code,),
-        ).fetchall()
-    return jsonify([review_to_dict(row) for row in rows]), 200
+    if supabase is None:
+        return supabase_unavailable()
+    result = (
+        supabase.table('reviews')
+        .select('id,module_code,rating,comment,timestamp,updated_at')
+        .eq('module_code', normalized_code)
+        .order('timestamp', desc=True)
+        .execute()
+    )
+    return jsonify(result.data), 200
 
 
 @app.route('/api/reviews/<int:review_id>', methods=['PUT'])
@@ -359,83 +377,89 @@ def update_review(review_id):
     if error:
         return jsonify({'error': error}), 400
 
-    if IS_VERCEL:
-        payload['updated_at'] = datetime.now(timezone.utc).isoformat()
-        result = (
-            supabase.table('reviews')
-            .update(payload)
-            .eq('id', review_id)
-            .execute()
-        )
-        if not result.data:
-            return jsonify({'error': 'Review not found.'}), 404
-        return jsonify(result.data[0]), 200
+    if use_sqlite_reviews():
+        with database_connection() as conn:
+            cursor = conn.execute(
+                '''UPDATE REVIEWS
+                   SET RATING = ?, COMMENT = ?, UPDATED_AT = CURRENT_TIMESTAMP
+                   WHERE ID = ?''',
+                (payload['rating'], payload['comment'], review_id),
+            )
+            if cursor.rowcount == 0:
+                return jsonify({'error': 'Review not found.'}), 404
+            row = select_review(conn, review_id)
+        return jsonify(review_to_dict(row)), 200
 
-    with database_connection() as conn:
-        cursor = conn.execute(
-            '''UPDATE REVIEWS
-               SET RATING = ?, COMMENT = ?, UPDATED_AT = CURRENT_TIMESTAMP
-               WHERE ID = ?''',
-            (payload['rating'], payload['comment'], review_id),
-        )
-        if cursor.rowcount == 0:
-            return jsonify({'error': 'Review not found.'}), 404
-        row = select_review(conn, review_id)
-    return jsonify(review_to_dict(row)), 200
+    if supabase is None:
+        return supabase_unavailable()
+    payload['updated_at'] = datetime.now(timezone.utc).isoformat()
+    result = (
+        supabase.table('reviews')
+        .update(payload)
+        .eq('id', review_id)
+        .execute()
+    )
+    if not result.data:
+        return jsonify({'error': 'Review not found.'}), 404
+    return jsonify(result.data[0]), 200
 
 
 @app.route('/api/reviews/<int:review_id>', methods=['DELETE'])
 def delete_review(review_id):
-    if IS_VERCEL:
-        existing = (
-            supabase.table('reviews')
-            .select('id')
-            .eq('id', review_id)
-            .limit(1)
-            .execute()
-        )
-        if not existing.data:
-            return jsonify({'error': 'Review not found.'}), 404
-        supabase.table('reviews').delete().eq('id', review_id).execute()
+    if use_sqlite_reviews():
+        with database_connection() as conn:
+            cursor = conn.execute('DELETE FROM REVIEWS WHERE ID = ?', (review_id,))
+            if cursor.rowcount == 0:
+                return jsonify({'error': 'Review not found.'}), 404
         return '', 204
 
-    with database_connection() as conn:
-        cursor = conn.execute('DELETE FROM REVIEWS WHERE ID = ?', (review_id,))
-        if cursor.rowcount == 0:
-            return jsonify({'error': 'Review not found.'}), 404
+    if supabase is None:
+        return supabase_unavailable()
+    existing = (
+        supabase.table('reviews')
+        .select('id')
+        .eq('id', review_id)
+        .limit(1)
+        .execute()
+    )
+    if not existing.data:
+        return jsonify({'error': 'Review not found.'}), 404
+    supabase.table('reviews').delete().eq('id', review_id).execute()
     return '', 204
 
 
 @app.route('/api/ratings', methods=['GET'])
 def get_rating_summaries():
-    if IS_VERCEL:
-        result = supabase.table('reviews').select('module_code,rating').execute()
-        grouped = {}
-        for review in result.data:
-            code = review['module_code']
-            grouped.setdefault(code, []).append(review['rating'])
+    if use_sqlite_reviews():
+        with database_connection() as conn:
+            rows = conn.execute(
+                '''SELECT MODULE_CODE,
+                          ROUND(AVG(RATING), 2) AS AVERAGE_RATING,
+                          COUNT(*) AS REVIEW_COUNT
+                   FROM REVIEWS GROUP BY MODULE_CODE ORDER BY MODULE_CODE'''
+            ).fetchall()
         summaries = {
-            code: {
-                'average_rating': round(sum(ratings) / len(ratings), 2),
-                'review_count': len(ratings),
+            row['MODULE_CODE']: {
+                'average_rating': row['AVERAGE_RATING'],
+                'review_count': row['REVIEW_COUNT'],
             }
-            for code, ratings in grouped.items()
+            for row in rows
         }
         return jsonify(summaries), 200
 
-    with database_connection() as conn:
-        rows = conn.execute(
-            '''SELECT MODULE_CODE,
-                      ROUND(AVG(RATING), 2) AS AVERAGE_RATING,
-                      COUNT(*) AS REVIEW_COUNT
-               FROM REVIEWS GROUP BY MODULE_CODE ORDER BY MODULE_CODE'''
-        ).fetchall()
+    if supabase is None:
+        return supabase_unavailable()
+    result = supabase.table('reviews').select('module_code,rating').execute()
+    grouped = {}
+    for review in result.data:
+        code = review['module_code']
+        grouped.setdefault(code, []).append(review['rating'])
     summaries = {
-        row['MODULE_CODE']: {
-            'average_rating': row['AVERAGE_RATING'],
-            'review_count': row['REVIEW_COUNT'],
+        code: {
+            'average_rating': round(sum(ratings) / len(ratings), 2),
+            'review_count': len(ratings),
         }
-        for row in rows
+        for code, ratings in grouped.items()
     }
     return jsonify(summaries), 200
 
