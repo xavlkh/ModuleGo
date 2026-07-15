@@ -4,6 +4,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-000000?style=flat-square&logo=flask&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black)
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white)
@@ -25,7 +26,7 @@ A better way for Republic Polytechnic students to explore, search, compare, and 
 - **Filter** -- Filter results by RP's seven schools (Applied Science, Engineering, Infocomm, etc.)
 - **Details** -- View full descriptions, school, and all diplomas that include a module
 - **Compare** -- Side-by-side comparison of two modules (code, name, school, features, suitability)
-- **Reviews** -- Create, read, edit, and delete validated 1-5 star reviews in SQLite
+- **Reviews** -- Create, read, edit, and delete validated 1-5 star reviews in shared Supabase storage
 - **Rating summaries** -- View average ratings and review counts directly on module cards
 - **Review dashboard** -- Search, filter, and manage reviews across all modules
 - **Responsive** -- Works across desktop, tablet, and mobile viewports
@@ -67,13 +68,18 @@ python -m pip install -r requirements.txt
 
 </details>
 
+Copy `.env.example` to `.env`, then enter the Singapore Supabase project URL
+and backend-only `sb_secret_...` key. Never commit the real `.env` file.
+
 ### Run
 
 ```bash
 python app.py
 ```
 
-Navigate to `http://127.0.0.1:5000`. The SQLite database (`modulego.db`) is created automatically on first run.
+Navigate to `http://127.0.0.1:5000`. Local and deployed application runs use
+the same Supabase module and review data. SQLite is created only inside the
+automated test environment.
 
 > [!NOTE]
 > If a Windows Defender Firewall prompt appears, check the **Private** box only.
@@ -84,8 +90,13 @@ Navigate to `http://127.0.0.1:5000`. The SQLite database (`modulego.db`) is crea
 |-------|-----------|
 | Frontend | Vanilla JavaScript, HTML5, Bootstrap 5.3.3 |
 | Backend | Python 3.x, Flask 3.0.3 |
-| Database | SQLite (auto-initialized) |
-| Data | Static JSON files |
+| Database | Supabase PostgreSQL (runtime), SQLite (automated tests only) |
+| Data | Supabase module/review records and static diploma mappings |
+
+The tracked migration at
+`supabase/migrations/20260715_connect_reviews_to_modules.sql` connects reviews
+to module records and adds the module-code index. Apply it through the Supabase
+SQL Editor when setting up a new project.
 
 ## Project Structure
 
