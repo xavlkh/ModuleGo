@@ -12,22 +12,37 @@
 ![Bootstrap](https://img.shields.io/badge/Bootstrap-533B78?style=flat-square&logo=bootstrap&logoColor=white)
 
 [![Vercel](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=flat-square&logo=vercel&logoColor=white)](https://module-go.vercel.app/)
-[![GitHub](https://img.shields.io/badge/Source-Code-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/xavlkh/ModuleGo)
+[![GitHub](https://img.shields.io/badge/Source%20Code-GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/xavlkh/ModuleGo)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
 
 A better way for Republic Polytechnic students to explore, search, compare, and review academic modules.
+
+[Features](#features) &bull; [Quick Start](#quick-start) &bull; [Deploy](#deploy-to-vercel) &bull; [API](#api-endpoints) &bull; [Tests](#automated-tests)
 
 </div>
 
 ---
 
+## Overview
+
+The official RP Module Viewer makes it hard to discover which diplomas offer a given module, compare modules side-by-side, or get peer feedback. ModuleGo solves this with:
+
+- **Instant search** across 4000+ modules with client-side filtering
+- **Diploma discovery** showing every program that includes a module
+- **Side-by-side comparison** of module features and suitability
+- **Community reviews** with 1-5 star ratings stored in Supabase
+
+> [!TIP]
+> Try the live demo at [module-go.vercel.app](https://module-go.vercel.app/).
+
 ## Features
 
-- **Search** -- Real-time client-side search across module code, name, description, category, and school with relevance ranking
-- **Filter** -- Filter results by RP's seven schools (Applied Science, Engineering, Infocomm, etc.)
+- **Search** -- Real-time client-side search across module code, name, description, category, and school
+- **Filter** -- Filter results by RP's seven schools
 - **Details** -- View full descriptions, school, and all diplomas that include a module
-- **Compare** -- Side-by-side comparison of two modules (code, name, school, features, suitability)
+- **Compare** -- Side-by-side comparison of two modules
 - **Reviews** -- Create, read, edit, and delete validated 1-5 star reviews stored in Supabase
-- **Rating summaries** -- View average ratings and review counts directly on module cards
+- **Rating summaries** -- View average ratings and review counts on module cards
 - **Review dashboard** -- Search, filter, and manage reviews across all modules
 - **Responsive** -- Works across desktop, tablet, and mobile viewports
 
@@ -69,8 +84,7 @@ python -m pip install -r requirements.txt
 
 </details>
 
-Copy `.env.example` to `.env`, then enter the Singapore Supabase project URL
-and backend-only `sb_secret_...` key. Never commit the real `.env` file.
+Copy `.env.example` to `.env` and fill in your Supabase credentials.
 
 > [!IMPORTANT]
 > The frontend never calls Supabase directly. All requests go through Flask
@@ -82,56 +96,14 @@ and backend-only `sb_secret_...` key. Never commit the real `.env` file.
 python app.py
 ```
 
-Navigate to `http://127.0.0.1:5000`. Both local and deployed (Vercel) runs
-fetch modules and reviews from the shared Supabase database. SQLite is used
-only inside the automated test environment.
+Navigate to `http://127.0.0.1:5000`.
 
-> [!NOTE]
-> If a Windows Defender Firewall prompt appears, check the **Private** box only.
+## Deploy to Vercel
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Vanilla JavaScript, HTML5, Bootstrap 5.3.3 |
-| Backend | Python 3.x, Flask 3.0.3 |
-| Database | Supabase PostgreSQL (modules and reviews) |
-| Data | Supabase `rp_modules` table and static `diploma.json` mappings |
-
-Both module data and reviews are stored in Supabase. The Flask backend
-proxies all Supabase calls so the browser never sees the secret key.
-SQLite is used only in the automated test environment.
-
-## Project Structure
-
-```
-ModuleGo/
-├── app.py                          # Flask backend (Supabase + SQLite for tests)
-├── app/
-│   ├── static/
-│   │   ├── css/styles.css          # Custom styling (RP brand theme)
-│   │   ├── data/
-│   │   │   └── diploma.json        # Static diploma mappings
-│   │   └── js/
-│   │       ├── app.js              # Home page initialization
-│   │       ├── data.js             # Data loading from /api/modules
-│   │       ├── search.js           # Search input and filter handling
-│   │       ├── ui.js               # Module card rendering
-│   │       ├── detail.js           # Module detail modal and reviews
-│   │       ├── comparison.js       # Comparison page logic
-│   │       └── reviews.js          # Review dashboard logic
-│   └── templates/
-│       ├── base.html               # Layout template
-│       └── modules/
-│           ├── index.html          # Main search page
-│           ├── comparison.html     # Comparison page
-│           └── reviews.html        # Review dashboard
-├── docs/                           # Design specs and implementation plans
-├── tests/
-├── requirements.txt
-├── .env.example                    # Supabase credential template
-└── vercel.json
-```
+1. Fork the repository on GitHub
+2. Import the project in [Vercel](https://vercel.com/new)
+3. Set `SUPABASE_URL` and `SUPABASE_KEY` in the Vercel dashboard
+4. Deploy
 
 ## API Endpoints
 
@@ -147,25 +119,15 @@ ModuleGo/
 
 ## Automated Tests
 
-Install the development dependencies and run the API test suite:
-
 ```bash
 python -m pip install -r requirements.txt
 python -m pytest -q
 ```
 
-The test suite uses an in-memory SQLite database so it does not need
-Supabase credentials. GitHub Actions runs the same tests automatically
-for pushes and pull requests targeting `dev` or `master`.
+Tests use an in-memory SQLite database and do not need Supabase credentials. GitHub Actions runs the same suite for pushes and PRs targeting `dev` or `master`.
 
 ## Git Workflow
 
-- Do **not** commit `venv/` or `*.db` -- the `.gitignore` is already configured to block these
-- Never merge directly to `master`. Open a Pull Request and have a teammate review first
 - Development happens on the `dev` branch
-
-### Comparison Fields
-
-The `features` and `suitableFor` fields are generated server-side in the
-`/api/modules` endpoint using keyword matching against module descriptions.
-No separate data processing step is needed.
+- Never merge directly to `master` -- open a Pull Request first
+- Do **not** commit `venv/` or `*.db` (`.gitignore` blocks these)
