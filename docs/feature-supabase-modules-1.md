@@ -2,14 +2,14 @@
 goal: Connect ModuleGo to Supabase for loading RP module data
 version: 1.0
 date_created: 2026-07-14
-last_updated: 2026-07-14
-status: 'Planned'
+last_updated: 2026-07-16
+status: 'Completed'
 tags: ['feature', 'supabase', 'migration']
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: Completed](https://img.shields.io/badge/status-Completed-brightgreen)
 
 Currently, the app tries to load module data from a local JSON file (`rp-modules-final.json`) that does not exist. The user wants to load modules from their Supabase `rp_modules` table instead, both locally and on Vercel. The Supabase credentials are already in `.env`.
 
@@ -31,9 +31,9 @@ Currently, the app tries to load module data from a local JSON file (`rp-modules
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-001 | In `app.py`: Remove the `IS_VERCEL` conditional around Supabase init. Always load `SUPABASE_URL` and `SUPABASE_KEY` from env and call `create_client()`. Keep SQLite `init_db()` only for local reviews fallback. | | |
-| TASK-002 | In `app.py`: Add `GET /api/modules` endpoint that queries `supabase.table("rp_modules").select("*").execute()` and returns the data as JSON. | | |
-| TASK-003 | In `app.py`: Update existing REVIEWS endpoints to use the always-initialized `supabase` client instead of the conditionally-defined one. | | |
+| TASK-001 | In `app.py`: Remove the `IS_VERCEL` conditional around Supabase init. Always load `SUPABASE_URL` and `SUPABASE_KEY` from env and call `create_client()`. Keep SQLite `init_db()` only for local reviews fallback. | ✅ | 2026-07-14 |
+| TASK-002 | In `app.py`: Add `GET /api/modules` endpoint that queries `supabase.table("rp_modules").select("*").execute()` and returns the data as JSON. | ✅ | 2026-07-14 |
+| TASK-003 | In `app.py`: Update existing REVIEWS endpoints to use the always-initialized `supabase` client instead of the conditionally-defined one. | ✅ | 2026-07-14 |
 
 ### Implementation Phase 2: Update frontend to fetch modules from Flask API
 
@@ -41,7 +41,7 @@ Currently, the app tries to load module data from a local JSON file (`rp-modules
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-004 | In `app/static/js/data.js`: Change `loadData()` to fetch from `/api/modules` instead of `/static/data/rp-modules-final.json`. Keep the `diploma.json` fetch as-is. | | |
+| TASK-004 | In `app/static/js/data.js`: Change `loadData()` to fetch from `/api/modules` instead of `/static/data/rp-modules-final.json`. Keep the `diploma.json` fetch as-is. | ✅ | 2026-07-14 |
 
 ### Implementation Phase 3: Verify and test
 
@@ -49,9 +49,9 @@ Currently, the app tries to load module data from a local JSON file (`rp-modules
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-005 | Run the Flask app locally and verify modules load from Supabase. | | |
-| TASK-006 | Verify the comparison page still works (it also calls `DataManager.loadData()`). | | |
-| TASK-007 | Verify reviews API still works (POST and GET). | | |
+| TASK-005 | Run the Flask app locally and verify modules load from Supabase. | ✅ | 2026-07-14 |
+| TASK-006 | Verify the comparison page still works (it also calls `DataManager.loadData()`). | ✅ | 2026-07-14 |
+| TASK-007 | Verify reviews API still works (POST and GET). | ✅ | 2026-07-14 |
 
 ## 3. Alternatives
 
@@ -72,17 +72,17 @@ Currently, the app tries to load module data from a local JSON file (`rp-modules
 
 ## 6. Testing
 
-- **TEST-001**: Run `python app.py` locally and visit `http://127.0.0.1:5000` — modules should load and display
-- **TEST-002**: Visit `http://127.0.0.1:5000/api/modules` — should return JSON array of modules
-- **TEST-003**: Search and filter functionality on the home page should work
-- **TEST-004**: Comparison page should load modules and allow selecting two to compare
-- **TEST-005**: POST a review via the detail modal and verify it saves
+- **TEST-001**: Run `python app.py` locally and visit `http://127.0.0.1:5000` — modules should load and display ✅
+- **TEST-002**: Visit `http://127.0.0.1:5000/api/modules` — returns JSON array of modules ✅
+- **TEST-003**: Search and filter functionality on the home page works ✅
+- **TEST-004**: Comparison page loads modules and allows selecting two to compare ✅
+- **TEST-005**: POST a review via the detail modal and verify it saves ✅
 
 ## 7. Risks & Assumptions
 
-- **RISK-001**: The `rp_modules` Supabase table may have different column names than expected — the API response must match what the frontend JS expects (`code`, `name`, `school`, etc.)
-- **ASSUMPTION-001**: The Supabase table columns use uppercase or lowercase names that match the frontend expectations — TASK-005 will verify this and adjust if needed
-- **ASSUMPTION-002**: The Supabase credentials in `.env` are valid and the table has data
+- **RISK-001**: The `rp_modules` Supabase table may have different column names than expected — the API response must match what the frontend JS expects (`code`, `name`, `school`, etc.) — **Mitigated** via column mapping in `/api/modules`
+- **ASSUMPTION-001**: The Supabase table columns use uppercase or lowercase names that match the frontend expectations — **Verified** during TASK-005
+- **ASSUMPTION-002**: The Supabase credentials in `.env` are valid and the table has data — **Verified** during TASK-005
 
 ## 8. Related Specifications / Further Reading
 
