@@ -26,7 +26,7 @@ A better way for Republic Polytechnic students to explore, search, compare, and 
 - **Filter** -- Filter results by RP's seven schools (Applied Science, Engineering, Infocomm, etc.)
 - **Details** -- View full descriptions, school, and all diplomas that include a module
 - **Compare** -- Side-by-side comparison of two modules (code, name, school, features, suitability)
-- **Reviews** -- Create, read, edit, and delete validated 1-5 star reviews in shared Supabase storage
+- **Reviews** -- Create, read, edit, and delete validated 1-5 star reviews stored in Supabase
 - **Rating summaries** -- View average ratings and review counts directly on module cards
 - **Review dashboard** -- Search, filter, and manage reviews across all modules
 - **Responsive** -- Works across desktop, tablet, and mobile viewports
@@ -37,6 +37,7 @@ A better way for Republic Polytechnic students to explore, search, compare, and 
 
 - Python 3.x
 - Git
+- A Supabase project with the `rp_modules` and `reviews` tables
 
 ### Setup
 
@@ -71,15 +72,19 @@ python -m pip install -r requirements.txt
 Copy `.env.example` to `.env`, then enter the Singapore Supabase project URL
 and backend-only `sb_secret_...` key. Never commit the real `.env` file.
 
+> [!IMPORTANT]
+> The frontend never calls Supabase directly. All requests go through Flask
+> so the secret key stays on the server.
+
 ### Run
 
 ```bash
 python app.py
 ```
 
-Navigate to `http://127.0.0.1:5000`. Local and deployed application runs use
-the same Supabase module and review data. SQLite is created only inside the
-automated test environment.
+Navigate to `http://127.0.0.1:5000`. Both local and deployed (Vercel) runs
+fetch modules and reviews from the shared Supabase database. SQLite is used
+only inside the automated test environment.
 
 > [!NOTE]
 > If a Windows Defender Firewall prompt appears, check the **Private** box only.
@@ -90,28 +95,26 @@ automated test environment.
 |-------|-----------|
 | Frontend | Vanilla JavaScript, HTML5, Bootstrap 5.3.3 |
 | Backend | Python 3.x, Flask 3.0.3 |
-| Database | Supabase PostgreSQL (runtime), SQLite (automated tests only) |
-| Data | Supabase module/review records and static diploma mappings |
+| Database | Supabase PostgreSQL (modules and reviews) |
+| Data | Supabase `rp_modules` table and static `diploma.json` mappings |
 
-The tracked migration at
-`supabase/migrations/20260715_connect_reviews_to_modules.sql` connects reviews
-to module records and adds the module-code index. Apply it through the Supabase
-SQL Editor when setting up a new project.
+Both module data and reviews are stored in Supabase. The Flask backend
+proxies all Supabase calls so the browser never sees the secret key.
+SQLite is used only in the automated test environment.
 
 ## Project Structure
 
 ```
 ModuleGo/
-├── app.py                          # Flask backend
+├── app.py                          # Flask backend (Supabase + SQLite for tests)
 ├── app/
 │   ├── static/
 │   │   ├── css/styles.css          # Custom styling (RP brand theme)
 │   │   ├── data/
-│   │   │   ├── rp-modules-final.json
-│   │   │   └── diploma.json
+│   │   │   └── diploma.json        # Static diploma mappings
 │   │   └── js/
 │   │       ├── app.js              # Home page initialization
-│   │       ├── data.js             # Data loading and search logic
+│   │       ├── data.js             # Data loading from /api/modules
 │   │       ├── search.js           # Search input and filter handling
 │   │       ├── ui.js               # Module card rendering
 │   │       ├── detail.js           # Module detail modal and reviews
@@ -126,6 +129,7 @@ ModuleGo/
 ├── docs/                           # Design specs and implementation plans
 ├── tests/
 ├── requirements.txt
+├── .env.example                    # Supabase credential template
 └── vercel.json
 ```
 
@@ -133,6 +137,7 @@ ModuleGo/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `GET`  | `/api/modules` | List all modules from Supabase |
 | `GET`  | `/api/reviews` | List all reviews for the dashboard |
 | `POST` | `/api/reviews` | Submit a validated review |
 | `GET`  | `/api/reviews/<module_code>` | Get reviews for a module |
@@ -145,11 +150,13 @@ ModuleGo/
 Install the development dependencies and run the API test suite:
 
 ```bash
-python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs the same tests automatically for pushes and pull requests targeting `dev` or `master`.
+The test suite uses an in-memory SQLite database so it does not need
+Supabase credentials. GitHub Actions runs the same tests automatically
+for pushes and pull requests targeting `dev` or `master`.
 
 ## Git Workflow
 
@@ -157,12 +164,8 @@ GitHub Actions runs the same tests automatically for pushes and pull requests ta
 - Never merge directly to `master`. Open a Pull Request and have a teammate review first
 - Development happens on the `dev` branch
 
-### Optional: Regenerate Comparison Fields
+### Comparison Fields
 
-If you modify the module data and need to regenerate the `features` and `suitableFor` fields:
-
-```bash
-node app/static/js/generate-comparison-fields.js
-```
-
-Requires Node.js. This is a one-off data processing step.
+The `features` and `suitableFor` fields are generated server-side in the
+`/api/modules` endpoint using keyword matching against module descriptions.
+No separate data processing step is needed.

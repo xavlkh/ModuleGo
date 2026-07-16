@@ -1,18 +1,18 @@
 ---
 goal: ModuleGo - Republic Polytechnic Module Viewer Implementation
-version: 3.0
+version: 4.0
 date_created: 2026-06-29
-last_updated: 2026-07-05
+last_updated: 2026-07-16
 owner: Developer
 status: 'In progress'
-tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'sqlite', 'restructure']
+tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'supabase']
 ---
 
 # Introduction
 
 ![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
 
-Implementation plan for ModuleGo, a responsive module search application for Republic Polytechnic students. The application uses Vanilla JS, Bootstrap 5, and HTML for the frontend, with Python Flask and SQLite for the backend review system. The project follows a standard Flask app structure with `app/templates/` for HTML, `app/static/` for CSS/JS, and `app/data/` for JSON data files.
+Implementation plan for ModuleGo, a responsive module search application for Republic Polytechnic students. The application uses Vanilla JS, Bootstrap 5, and HTML for the frontend, with Python Flask and Supabase PostgreSQL for the backend. Module data and reviews are stored in Supabase, with Flask proxying all calls so the browser never sees the secret key. SQLite is used only for automated tests.
 
 ## 1. Requirements & Constraints
 
@@ -25,7 +25,7 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **REQ-007**: User can filter modules by School using dropdown filter
 - **REQ-008**: User can compare two modules side-by-side
 - **REQ-009**: User can leave reviews with ratings (1-5) and comments on modules
-- **REQ-010**: Reviews are stored in backend database (SQLite)
+- **REQ-010**: Reviews are stored in Supabase `reviews` table
 - **REQ-011**: User can view existing reviews for each module
 - **REQ-B01**: Responsive design works on desktop, tablet, and mobile
 - **REQ-B02**: Loading animation displayed during initial data load
@@ -34,8 +34,8 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **CON-001**: Use only Vanilla JavaScript (no frameworks)
 - **CON-002**: Use Bootstrap 5 for styling and responsive grid
 - **CON-003**: Use HTML5 semantic elements
-- **CON-004**: Backend uses Python Flask with SQLite database
-- **CON-005**: Module data is static JSON file
+- **CON-004**: Backend uses Python Flask with Supabase PostgreSQL
+- **CON-005**: Module data is stored in Supabase, diploma data is static JSON
 - **GUD-001**: Follow RP brand colors: Green (#00A651), Black (#1a1a1a), White (#ffffff)
 
 ## 2. Implementation Steps
@@ -147,43 +147,63 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | TASK-050 | Create `.env.example` for environment configuration | ✅ | 2026-07-05 |
 | TASK-051 | Update `.gitignore` for new project structure | ✅ | 2026-07-05 |
 
+### Implementation Phase 9: Supabase Integration
+
+- GOAL-009: Migrate from local SQLite to Supabase for modules and reviews
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-052 | Add `/api/modules` endpoint to query Supabase `rp_modules` table | ✅ | 2026-07-14 |
+| TASK-053 | Update Flask to always initialize Supabase client from env vars | ✅ | 2026-07-14 |
+| TASK-054 | Update `data.js` to fetch modules from `/api/modules` instead of local JSON | ✅ | 2026-07-14 |
+| TASK-055 | Update reviews endpoints to use Supabase (with SQLite fallback for tests) | ✅ | 2026-07-14 |
+| TASK-056 | Add school name mapping in `/api/modules` for Supabase data | ✅ | 2026-07-14 |
+| TASK-057 | Generate `features` and `suitableFor` fields server-side for comparison | ✅ | 2026-07-14 |
+| TASK-058 | Create Supabase migration for reviews foreign key to modules | ✅ | 2026-07-15 |
+| TASK-059 | Update `.env.example` with Supabase credential placeholders | ✅ | 2026-07-14 |
+| TASK-060 | Verify end-to-end: modules load, search works, reviews save | ✅ | 2026-07-14 |
+
 ## 3. Alternatives
 
 - **ALT-001**: React/Vue framework - Rejected due to constraint CON-001 (Vanilla JS only)
-- **ALT-002**: LocalStorage for review persistence - Rejected in favor of SQLite database for better data integrity
-- **ALT-003**: IndexedDB for persistence - Rejected as SQLite provides better querying capabilities
+- **ALT-002**: LocalStorage for review persistence - Rejected in favor of Supabase for better data integrity and shared access
+- **ALT-003**: IndexedDB for persistence - Rejected as Supabase provides better querying and cross-device access
 - **ALT-004**: CSS-only accordion - Rejected in favor of Bootstrap JS accordion for better accessibility
 - **ALT-005**: Separate rating and comment systems - Rejected in favor of unified review system
+- **ALT-006**: Self-hosted PostgreSQL - Rejected in favor of managed Supabase for simplicity
 
 ## 4. Dependencies
 
 - **DEP-001**: Bootstrap 5.3 CSS/JS via CDN
 - **DEP-002**: Bootstrap Icons via CDN
-- **DEP-003**: rp-modules-final.json dataset
-- **DEP-004**: Flask 3.0.3 (Python web framework) -- *Express equivalent*
-- **DEP-005**: SQLite3 (Python built-in database)
-- **DEP-006**: Python 3.x runtime
-- **DEP-007**: Flask app structure (templates, static, data directories) -- *Like Express with EJS views*
+- **DEP-003**: Supabase `rp_modules` table (module dataset)
+- **DEP-004**: Supabase `reviews` table (review storage)
+- **DEP-005**: Flask 3.0.3 (Python web framework)
+- **DEP-006**: supabase 2.31.0 (Python client)
+- **DEP-007**: python-dotenv 1.1.0 (env var loading)
+- **DEP-008**: Python 3.x runtime
+- **DEP-009**: `app/static/data/diploma.json` (static diploma mappings)
 
 ## 5. Files
 
-| Flask Path | Express Equivalent | Description |
-|------------|-------------------|-------------|
-| `app/templates/modules/index.html` | `views/modules/index.html` | Main search and browse page |
-| `app/templates/modules/comparison.html` | `views/modules/comparison.html` | Module comparison page |
-| `app/templates/base.html` | `partials/layout.html` | Layout partial with shared nav/footer |
-| `app/static/css/styles.css` | `public/css/styles.css` | Custom CSS styles and RP theme |
-| `app/static/js/data.js` | `public/js/data.js` | Data loading and parsing |
-| `app/static/js/search.js` | `public/js/search.js` | Search/filter functionality |
-| `app/static/js/ui.js` | `public/js/ui.js` | UI rendering functions |
-| `app/static/js/detail.js` | `public/js/detail.js` | Module detail view with review system |
-| `app/static/js/comparison.js` | `public/js/comparison.js` | Module comparison logic |
-| `app/static/js/app.js` | `public/js/app.js` | Main application initialization |
-| `app/static/js/generate-comparison-fields.js` | `public/js/generate-comparison-fields.js` | Data processing utility |
-| `app.py` | `server.js` | Flask backend with SQLite database |
-| `requirements.txt` | `package.json` | Python dependencies |
-| `app/static/data/rp-modules-final.json` | `data/rp-modules-final.json` | Module dataset |
-| `app/static/data/diploma.json` | `data/diploma.json` | Diploma mapping data |
+| Path | Description |
+|------|-------------|
+| `app/templates/modules/index.html` | Main search and browse page |
+| `app/templates/modules/comparison.html` | Module comparison page |
+| `app/templates/modules/reviews.html` | Review dashboard page |
+| `app/templates/base.html` | Layout template with shared nav/footer |
+| `app/static/css/styles.css` | Custom CSS styles and RP theme |
+| `app/static/js/data.js` | Data loading from `/api/modules` |
+| `app/static/js/search.js` | Search/filter functionality |
+| `app/static/js/ui.js` | UI rendering functions |
+| `app/static/js/detail.js` | Module detail view with review system |
+| `app/static/js/comparison.js` | Module comparison logic |
+| `app/static/js/reviews.js` | Review dashboard logic |
+| `app/static/js/app.js` | Main application initialization |
+| `app/static/data/diploma.json` | Static diploma mappings |
+| `app.py` | Flask backend with Supabase integration |
+| `requirements.txt` | Python dependencies |
+| `.env.example` | Supabase credential template |
 
 ## 6. Testing
 
@@ -193,25 +213,28 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **TEST-004**: School filter correctly filters modules by selected school
 - **TEST-005**: Module detail shows complete information
 - **TEST-006**: Diploma list displays correctly for modules with mapped diplomas
-- **TEST-007**: Review submission saves to SQLite database via Flask API
+- **TEST-007**: Review submission saves to Supabase via Flask API
 - **TEST-008**: Reviews display correctly with rating and timestamp
 - **TEST-009**: Module comparison page loads and displays two modules side-by-side
 - **TEST-010**: Responsive design works at 375px (mobile), 768px (tablet), 1024px+ (desktop)
 - **TEST-011**: Loading animation displays during data load
 - **TEST-012**: External links open in new tab
 - **TEST-013**: Flask backend starts and serves API endpoints correctly
-- **TEST-014**: SQLite database initializes and stores reviews correctly
+- **TEST-014**: `/api/modules` returns JSON array of modules from Supabase
+- **TEST-015**: SQLite fallback works for automated tests (no Supabase needed)
 
 ## 7. Risks & Assumptions
 
 - **RISK-001**: Large dataset (4000+ modules) may cause slow initial load - Mitigation: Show loading indicator
-- **RISK-002**: SQLite database may have concurrency issues with multiple users - Mitigation: Acceptable for single-user development
+- **RISK-002**: Supabase outage would affect both module data and reviews - Mitigation: Acceptable for student project; SQLite fallback for tests
 - **RISK-003**: Diploma mapping may be incomplete - Mitigation: Show "No diploma information available" for unmapped modules
-- **RISK-004**: Flask backend must be running for review functionality - Mitigation: Show error message if server not available
+- **RISK-004**: Flask backend must be running for all functionality - Mitigation: Show error message if server not available
+- **RISK-005**: Supabase column names may differ from expectations - Mitigation: Map columns in `/api/modules` endpoint
 - **ASSUMPTION-001**: Users have modern browsers with JavaScript support
 - **ASSUMPTION-002**: Bootstrap CDN is accessible
-- **ASSUMPTION-003**: Module data is accurate and up-to-date
+- **ASSUMPTION-003**: Module data in Supabase is accurate and up-to-date
 - **ASSUMPTION-004**: Python 3.x is installed on the server
+- **ASSUMPTION-005**: Supabase credentials in `.env` are valid
 
 ## 8. Related Specifications / Further Reading
 

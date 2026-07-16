@@ -1,11 +1,11 @@
 ---
 title: ModuleGo - Republic Polytechnic Module Viewer Design Specification
-version: 3.0
+version: 4.0
 date_created: 2026-06-29
-last_updated: 2026-07-05
+last_updated: 2026-07-16
 owner: Developer
 status: 'In progress'
-tags: ['design', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'sqlite', 'restructure']
+tags: ['design', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'supabase']
 ---
 
 # Introduction
@@ -18,16 +18,17 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 
 **Scope:** Full-stack web application with:
 - Frontend: Vanilla JS, CSS/Bootstrap, and HTML
-- Backend: Python Flask server with SQLite database
-- API endpoints for review management
+- Backend: Python Flask server with Supabase PostgreSQL (modules and reviews)
+- API endpoints for module data and review management
 
 **Audience:** Republic Polytechnic students seeking to explore modules and their associated diplomas.
 
 **Assumptions:**
-- Module data is provided via static JSON file (`rp-modules-final.json`)
-- Diploma-to-module mapping is hardcoded in `data/diplomas.json`
-- Review data (ratings and comments) is stored in SQLite database
-- Backend server runs on Python Flask
+- Module data is stored in Supabase `rp_modules` table and served via `/api/modules`
+- Diploma-to-module mapping is hardcoded in `app/static/data/diploma.json`
+- Review data (ratings and comments) is stored in Supabase `reviews` table
+- Backend server runs on Python Flask and proxies all Supabase calls
+- SQLite is used only for automated tests
 
 ## 2. Definitions
 
@@ -51,7 +52,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - **REQ-007**: User can filter modules by School using dropdown filter
 - **REQ-008**: User can compare two modules side-by-side
 - **REQ-009**: User can leave reviews with ratings (1-5) and comments on modules
-- **REQ-010**: Reviews are stored in backend database (SQLite)
+- **REQ-010**: Reviews are stored in Supabase `reviews` table
 - **REQ-011**: User can view existing reviews for each module
 
 ### Bonus Requirements
@@ -66,9 +67,10 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - **CON-001**: Use only Vanilla JavaScript (no frameworks like React, Vue, Angular)
 - **CON-002**: Use Bootstrap 5 for styling and responsive grid
 - **CON-003**: Use HTML5 semantic elements
-- **CON-004**: Backend uses Python Flask with SQLite database
-- **CON-005**: Module data is static JSON file
-- **CON-006**: Project follows Flask app structure: `app/templates/` for HTML, `app/static/` for assets, `app/data/` for JSON data
+- **CON-004**: Backend uses Python Flask with Supabase PostgreSQL
+- **CON-005**: Module data is stored in Supabase, diploma data is static JSON
+- **CON-006**: Project follows Flask app structure: `app/templates/` for HTML, `app/static/` for assets
+- **CON-007**: Frontend never calls Supabase directly; all requests go through Flask API
 
 ### Design Guidelines
 
@@ -80,19 +82,23 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 
 ## 4. Interfaces & Data Contracts
 
-### Module Data Schema (from app/static/data/rp-modules-final.json)
+### Module Data Schema (served via `/api/modules` from Supabase)
 
 ```json
 {
   "code": "string (e.g., 'A001')",
   "name": "string (e.g., '3D Printing Hacks')",
   "description": "string (module description text)",
-  "category": "string (e.g., 'Science', or empty)",
   "school": "string (e.g., 'School of Applied Science')",
   "url": "string (URL to RP module page)",
-  "source": "string (data source identifier)"
+  "features": "string (auto-generated comparison features)",
+  "suitableFor": "string (auto-generated suitability description)"
 }
 ```
+
+The `/api/modules` endpoint maps Supabase columns (`module_code`,
+`module_name`, `module_description`, `school`, `link`) to the frontend
+format and generates `features` and `suitableFor` fields server-side.
 
 ### Diploma Mapping Schema (app/static/data/diploma.json)
 
@@ -103,24 +109,40 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 }
 ```
 
-### Review Schema (SQLite Database)
+### Review Schema (Supabase)
 
 ```sql
-CREATE TABLE REVIEWS (
-    ID INTEGER PRIMARY KEY AUTOINCREMENT,
-    MODULE_CODE TEXT NOT NULL,
-    RATING INTEGER NOT NULL,
-    COMMENT TEXT,
-    TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP
-)
+-- Stored in the shared Supabase PostgreSQL database.
+-- The Flask backend proxies all reads/writes through API endpoints.
+CREATE TABLE reviews (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    module_code text NOT NULL,
+    rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    comment text NOT NULL DEFAULT '',
+    timestamp timestamptz DEFAULT now(),
+    updated_at timestamptz
+);
+
+-- Index for fast per-module lookups.
+CREATE INDEX idx_reviews_module_code ON reviews (module_code);
+
+-- Foreign key to rp_modules (applied via migration).
+ALTER TABLE reviews
+    ADD CONSTRAINT fk_reviews_module
+    FOREIGN KEY (module_code) REFERENCES rp_modules(module_code);
 ```
 
 ### Backend API Endpoints
 
 | Endpoint | Method | Description | Request Body | Response |
 |----------|--------|-------------|--------------|----------|
+| `/api/modules` | GET | List all modules from Supabase | - | Array of module objects |
+| `/api/reviews` | GET | List all reviews (dashboard) | - | Array of review objects |
+| `/api/reviews` | POST | Create a new review | `{ module_code, rating, comment }` | Review object |
 | `/api/reviews/<module_code>` | GET | Get reviews for a module | - | Array of review objects |
-| `/api/reviews` | POST | Create a new review | `{ module_code, rating, comment }` | Success message |
+| `/api/reviews/<review_id>` | PUT | Update a review | `{ rating, comment }` | Review object |
+| `/api/reviews/<review_id>` | DELETE | Delete a review | - | 204 No Content |
+| `/api/ratings` | GET | Get average rating per module | - | `{ module_code: { average_rating, review_count } }` |
 
 ### Page Structure
 
@@ -196,32 +218,32 @@ app/templates/modules/comparison.html (Comparison Page - like views/modules/comp
 
 ## 6. Test Automation Strategy
 
-- **Test Levels**: Manual testing, browser developer tools, API testing
-- **Frameworks**: None required (vanilla JS frontend), Python unittest for backend
-- **Test Data Management**: Use provided rp-modules-final.json
-- **Coverage Requirements**: All user stories tested manually
-- **Performance Testing**: Test with full dataset, ensure smooth filtering
-- **API Testing**: Test Flask endpoints with curl or Postman
-- **Database Testing**: Verify SQLite operations work correctly
+- **Test Levels**: Automated API tests (pytest), manual browser testing
+- **Frameworks**: pytest for backend API tests
+- **Test Data Management**: SQLite in-memory database for isolated tests
+- **Coverage Requirements**: All API endpoints tested, manual testing for UI
+- **Performance Testing**: Test with full Supabase dataset, ensure smooth filtering
+- **API Testing**: Automated pytest suite for Flask endpoints
+- **Database Testing**: Verify Supabase operations via mocked client in tests
 
 ## 7. Rationale & Context
 
 **Design Decisions:**
 1. **Bootstrap 5**: Rapid development, built-in responsive grid, consistent components
 2. **Client-side filtering**: No server needed for search, instant feedback, works offline
-3. **SQLite for reviews**: Persistent storage with better data integrity than LocalStorage
+3. **Supabase for modules and reviews**: Managed PostgreSQL with real-time capabilities, no self-hosted database
 4. **Flask app structure**: Standard Python Flask layout with templates, static, and data separation
 5. **Green theme**: Matches RP brand identity for institutional familiarity
 
 **Trade-offs:**
 - Client-side filtering requires loading entire dataset upfront
 - No user authentication means reviews are anonymous and not verifiable
-- SQLite has limited concurrency for multiple simultaneous users
+- Supabase dependency means reviews require network connectivity
 
 ## 8. Dependencies & External Integrations
 
 ### Data Dependencies
-- **DAT-001**: `app/static/data/rp-modules-final.json` - Module dataset provided locally
+- **DAT-001**: Supabase `rp_modules` table - Module dataset stored in PostgreSQL
 - **DAT-002**: `app/static/data/diploma.json` - Hardcoded diploma mapping
 
 ### External Links
@@ -233,12 +255,13 @@ app/templates/modules/comparison.html (Comparison Page - like views/modules/comp
 - **INF-002**: Bootstrap 5 CSS/JS via CDN
 - **INF-003**: Python 3.x runtime
 - **INF-004**: Flask web framework
-- **INF-005**: SQLite database (modulego.db)
+- **INF-005**: Supabase project with `rp_modules` and `reviews` tables
 
 ### Backend Dependencies
 - **DEP-001**: Flask 3.0.3 - Web framework
-- **DEP-002**: SQLite3 - Database (built-in Python module)
-- **DEP-003**: Werkzeug 3.0.6 - WSGI utilities (Flask dependency)
+- **DEP-002**: supabase 2.31.0 - Supabase Python client
+- **DEP-003**: python-dotenv 1.1.0 - Environment variable loading
+- **DEP-004**: SQLite3 - Database (automated tests only)
 
 ## 9. Examples & Edge Cases
 
@@ -264,7 +287,7 @@ app/templates/modules/comparison.html (Comparison Page - like views/modules/comp
 - [x] Search filters correctly across all module fields
 - [x] School filter dropdown works correctly
 - [x] Module detail shows complete information and diploma list
-- [x] Review system saves to SQLite database via Flask API
+- [x] Review system saves to Supabase via Flask API
 - [x] Reviews display correctly with rating and timestamp
 - [x] Module comparison page works correctly
 - [x] Responsive design works on mobile, tablet, and desktop
@@ -273,7 +296,7 @@ app/templates/modules/comparison.html (Comparison Page - like views/modules/comp
 - [x] No JavaScript errors in browser console
 - [x] Bootstrap CDN loads correctly
 - [x] Flask backend starts and serves API endpoints
-- [x] SQLite database initializes correctly
+- [x] Module data loads from Supabase via /api/modules
 - [ ] Cross-browser testing (Chrome, Firefox, Safari, Edge)
 
 ## 11. Related Specifications / Further Reading
