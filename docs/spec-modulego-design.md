@@ -2,7 +2,7 @@
 title: ModuleGo - Republic Polytechnic Module Viewer Design Specification
 version: 4.0
 date_created: 2026-06-29
-last_updated: 2026-07-16
+last_updated: 2026-07-17
 owner: Developer
 status: 'In progress'
 tags: ['design', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'supabase']
@@ -262,6 +262,7 @@ app/templates/modules/comparison.html (Comparison Page - like views/modules/comp
 - **DEP-002**: supabase 2.31.0 - Supabase Python client
 - **DEP-003**: python-dotenv 1.1.0 - Environment variable loading
 - **DEP-004**: SQLite3 - Database (automated tests only)
+- **DEP-005**: pytest>=8.0,<10.0 - Test framework
 
 ## 9. Examples & Edge Cases
 

@@ -2,7 +2,7 @@
 goal: ModuleGo - Republic Polytechnic Module Viewer Implementation
 version: 4.0
 date_created: 2026-06-29
-last_updated: 2026-07-16
+last_updated: 2026-07-17
 owner: Developer
 status: 'In progress'
 tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'supabase']
@@ -202,8 +202,11 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | `app/static/js/app.js` | Main application initialization |
 | `app/static/data/diploma.json` | Static diploma mappings |
 | `app.py` | Flask backend with Supabase integration |
+| `app/static/js/generate-comparison-fields.js` | Node.js utility script for generating comparison fields (now obsolete; logic moved to server-side in `app.py`) |
+| `tests/test_reviews.py` | Pytest test suite for review API endpoints |
 | `requirements.txt` | Python dependencies |
 | `.env.example` | Supabase credential template |
+| `vercel.json` | Vercel serverless function configuration |
 
 ## 6. Testing
 
