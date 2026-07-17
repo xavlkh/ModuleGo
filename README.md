@@ -27,7 +27,7 @@ A better way for Republic Polytechnic students to explore, search, compare, and 
 
 The official RP Module Viewer makes it hard to discover which diplomas offer a given module, compare modules side-by-side, or get peer feedback. ModuleGo solves this with:
 
-- **Instant search** across 4000+ modules with client-side filtering
+- **Instant search** across 400+ modules with client-side filtering
 - **Diploma discovery** showing every program that includes a module
 - **Side-by-side comparison** of module features and suitability
 - **Community reviews** with 1-5 star ratings stored in Supabase
