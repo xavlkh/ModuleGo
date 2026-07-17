@@ -233,15 +233,15 @@ const ReviewDashboard = {
     },
 
     getSubmittedDate(review) {
-        if (!review.timestamp) return null;
-        const value = review.timestamp;
+        if (!review.created_at) return null;
+        const value = review.created_at;
         const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
         const date = new Date(normalized);
         return Number.isNaN(date.getTime()) ? null : date;
     },
 
     formatDate(review) {
-        const value = review.updated_at || review.timestamp;
+        const value = review.updated_at || review.created_at;
         if (!value) return '';
         const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
         const date = new Date(normalized);

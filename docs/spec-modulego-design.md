@@ -119,7 +119,7 @@ CREATE TABLE reviews (
     module_code text NOT NULL,
     rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment text NOT NULL DEFAULT '',
-    timestamp timestamptz DEFAULT now(),
+    created_at timestamptz DEFAULT now(),
     updated_at timestamptz
 );
 

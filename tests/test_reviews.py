@@ -40,7 +40,7 @@ def test_create_and_read_review(client):
     assert created["module_code"] == "C270"
     assert created["rating"] == 5
     assert created["comment"] == "Very useful"
-    assert created["timestamp"] is not None
+    assert created["created_at"] is not None
 
     response = client.get("/api/reviews/C270")
     assert response.status_code == 200
