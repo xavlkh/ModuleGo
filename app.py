@@ -62,7 +62,7 @@ def init_db():
                 MODULE_CODE TEXT NOT NULL,
                 RATING INTEGER NOT NULL,
                 COMMENT TEXT NOT NULL DEFAULT '',
-                TIMESTAMP DATETIME DEFAULT CURRENT_TIMESTAMP,
+                CREATED_AT DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UPDATED_AT DATETIME)'''
         )
         columns = {
@@ -115,14 +115,14 @@ def review_to_dict(row):
         'module_code': row['MODULE_CODE'],
         'rating': row['RATING'],
         'comment': row['COMMENT'],
-        'timestamp': row['TIMESTAMP'],
+        'created_at': row['CREATED_AT'],
         'updated_at': row['UPDATED_AT'],
     }
 
 
 def select_review(conn, review_id):
     return conn.execute(
-        '''SELECT ID, MODULE_CODE, RATING, COMMENT, TIMESTAMP, UPDATED_AT
+        '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT
            FROM REVIEWS WHERE ID = ?''',
         (review_id,),
     ).fetchone()
@@ -300,8 +300,8 @@ def list_reviews():
     if use_sqlite_reviews():
         with database_connection() as conn:
             rows = conn.execute(
-                '''SELECT ID, MODULE_CODE, RATING, COMMENT, TIMESTAMP, UPDATED_AT
-                   FROM REVIEWS ORDER BY TIMESTAMP DESC, ID DESC'''
+                '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT
+                   FROM REVIEWS ORDER BY CREATED_AT DESC, ID DESC'''
             ).fetchall()
         return jsonify([review_to_dict(row) for row in rows]), 200
 
@@ -309,8 +309,8 @@ def list_reviews():
         return supabase_unavailable()
     result = (
         supabase.table('reviews')
-        .select('id,module_code,rating,comment,timestamp,updated_at')
-        .order('timestamp', desc=True)
+        .select('id,module_code,rating,comment,created_at,updated_at')
+        .order('created_at', desc=True)
         .execute()
     )
     return jsonify(result.data), 200
@@ -352,9 +352,9 @@ def get_reviews(module_code):
     if use_sqlite_reviews():
         with database_connection() as conn:
             rows = conn.execute(
-                '''SELECT ID, MODULE_CODE, RATING, COMMENT, TIMESTAMP, UPDATED_AT
+                '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT
                    FROM REVIEWS WHERE MODULE_CODE = ?
-                   ORDER BY TIMESTAMP DESC, ID DESC''',
+                   ORDER BY CREATED_AT DESC, ID DESC''',
                 (normalized_code,),
             ).fetchall()
         return jsonify([review_to_dict(row) for row in rows]), 200
@@ -363,9 +363,9 @@ def get_reviews(module_code):
         return supabase_unavailable()
     result = (
         supabase.table('reviews')
-        .select('id,module_code,rating,comment,timestamp,updated_at')
+        .select('id,module_code,rating,comment,created_at,updated_at')
         .eq('module_code', normalized_code)
-        .order('timestamp', desc=True)
+        .order('created_at', desc=True)
         .execute()
     )
     return jsonify(result.data), 200
