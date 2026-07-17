@@ -165,8 +165,8 @@ const DetailManager = {
                             ${this.createStars(review.rating)}
                         </div>
                         <p class="mb-1 small review-comment">${comment}</p>
-                        <small class="text-muted review-timestamp">
-                            ${this.formatDate(review.timestamp)}${updated}
+                        <small class="text-muted review-created_at">
+                            ${this.formatDate(review.created_at)}${updated}
                         </small>
                     </div>
                     <div class="review-actions">
