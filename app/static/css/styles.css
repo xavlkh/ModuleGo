@@ -428,7 +428,7 @@ body {
     white-space: pre-wrap;
 }
 
-.review-timestamp {
+.review-created_at {
     font-size: 0.74rem;
 }
 
