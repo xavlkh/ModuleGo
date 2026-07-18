@@ -4,7 +4,6 @@ import csv
 import time
 import string
 import os
-import re
 
 API_URL = "https://lcs.rp.edu.sg/RPModuleSynopsis/screenservices/RPModuleSynopsis/MainFlow/ModuleSynopsis/ScreenDataSetGetSynopsis?lXamMASFpg1bQfatzeulEg"
 
