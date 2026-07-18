@@ -269,20 +269,19 @@ class ReviewRepository:
         """Return average rating and review count per module."""
         if use_sqlite_reviews():
             with database_connection() as conn:
-                pass
-            #     rows = conn.execute(
-            #         '''SELECT MODULE_CODE,
-            #                   ROUND(AVG(RATING), 2) AS AVERAGE_RATING,
-            #                   COUNT(*) AS REVIEW_COUNT
-            #            FROM REVIEWS GROUP BY MODULE_CODE ORDER BY MODULE_CODE'''
-            #     ).fetchall()
-            # return {
-            #     row['MODULE_CODE']: {
-            #         'average_rating': row['AVERAGE_RATING'],
-            #         'review_count': row['REVIEW_COUNT'],
-            #     }
-            #     for row in rows
-            # }
+                rows = conn.execute(
+                    '''SELECT MODULE_CODE,
+                              ROUND(AVG(RATING), 2) AS AVERAGE_RATING,
+                              COUNT(*) AS REVIEW_COUNT
+                       FROM REVIEWS GROUP BY MODULE_CODE ORDER BY MODULE_CODE'''
+                ).fetchall()
+            return {
+                row['MODULE_CODE']: {
+                    'average_rating': row['AVERAGE_RATING'],
+                    'review_count': row['REVIEW_COUNT'],
+                }
+                for row in rows
+            }
 
         # Aggregate in-memory instead of GROUP BY — avoids Supabase
         # restrictions on aggregate queries with the free tier.
