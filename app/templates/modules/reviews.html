@@ -1,165 +1,96 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Review Dashboard - ModuleGo</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
-</head>
-<body>
-    <header class="bg-white border-bottom sticky-top">
-        <nav class="navbar navbar-expand-lg">
-            <div class="container">
-                <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('serve_index') }}">
-                    <div class="rp-logo">
-                        <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
-                            <rect width="40" height="40" rx="8" fill="#00A651"/>
-                            <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="18" font-weight="bold" font-family="Arial">M</text>
-                        </svg>
-                    </div>
-                    <span class="fw-bold text-dark">ModuleGo</span>
-                </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav ms-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('serve_index') }}">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('serve_comparison') }}">Comparison</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="{{ url_for('serve_reviews') }}">Reviews</a>
-                        </li>
-                    </ul>
-                </div>
+{% extends "base.html" %}
+{% from '_macros.html' import hero, inputSearch, selectField, statCard, loadingSpinner, btnGhost, btnPrimary, label, textarea, helperText %}
+
+{% block title %}Reviews{% endblock %}
+
+{% block content %}
+<section class="relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-500 to-accent-400 py-12 sm:py-16">
+    <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyem0wLTRWMjhIMjR2Mmgxem0tMS0zdi0ySDI0djJoMTF6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-40"></div>
+    <div class="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+            <div class="lg:max-w-lg">
+                <span class="inline-block text-xs font-bold uppercase tracking-widest text-white/70 mb-3">Student feedback</span>
+                <h1 class="text-3xl sm:text-4xl font-extrabold text-white mb-3">Review Dashboard</h1>
+                <p class="text-white/80 text-lg">Browse recent student feedback across RP modules.</p>
             </div>
-        </nav>
-    </header>
-
-    <main>
-        <section class="review-dashboard-hero py-5">
-            <div class="container">
-                <div class="row align-items-center g-4">
-                    <div class="col-lg-7">
-                        <span class="section-kicker">Student feedback</span>
-                        <h1 class="display-6 fw-bold mb-3">Review Dashboard</h1>
-                        <p class="lead text-muted mb-0">Browse recent student feedback across RP modules.</p>
-                    </div>
-                    <div class="col-lg-5">
-                        <div class="dashboard-summary-grid">
-                            <div class="dashboard-stat">
-                                <span id="dashboardReviewCount" class="dashboard-stat-value">0</span>
-                                <span class="dashboard-stat-label">Reviews</span>
-                            </div>
-                            <div class="dashboard-stat">
-                                <span id="dashboardMonthlyReviewCount" class="dashboard-stat-value">0</span>
-                                <span class="dashboard-stat-label">Reviews This Month</span>
-                            </div>
-                            <div class="dashboard-stat">
-                                <span id="dashboardModuleCount" class="dashboard-stat-value">0</span>
-                                <span class="dashboard-stat-label">Modules Reviewed</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="py-5">
-            <div class="container">
-                <div class="review-dashboard-toolbar mb-4">
-                    <div>
-                        <h2 class="h4 mb-1">All reviews</h2>
-                        <p id="dashboardResultCount" class="text-muted mb-0">Loading reviews...</p>
-                    </div>
-                    <div class="row g-2 dashboard-filters">
-                        <div class="col-sm">
-                            <label class="visually-hidden" for="reviewSearch">Search reviews</label>
-                            <input id="reviewSearch" class="form-control" type="search" placeholder="Search module or comment">
-                        </div>
-                        <div class="col-sm-auto">
-                            <label class="visually-hidden" for="ratingFilter">Filter by rating</label>
-                            <select id="ratingFilter" class="form-select">
-                                <option value="all">All ratings</option>
-                                <option value="5">5 stars</option>
-                                <option value="4">4 stars</option>
-                                <option value="3">3 stars</option>
-                                <option value="2">2 stars</option>
-                                <option value="1">1 star</option>
-                            </select>
-                        </div>
-                        <div class="col-sm-auto">
-                            <label class="visually-hidden" for="reviewSort">Sort reviews by submission time</label>
-                            <select id="reviewSort" class="form-select">
-                                <option value="newest" selected>Newest first</option>
-                                <option value="oldest">Oldest first</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="dashboardMessage" class="alert d-none" role="alert"></div>
-                <div id="reviewDashboardList" class="review-dashboard-list" aria-live="polite">
-                    <div class="text-center py-5 text-muted">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="mt-3">Loading reviews...</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <div class="modal fade" id="editReviewModal" tabindex="-1" aria-labelledby="editReviewModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 class="modal-title h5" id="editReviewModalLabel">Edit Review</h2>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="dashboardEditMessage" class="alert d-none py-2" role="alert"></div>
-                    <p id="editReviewModule" class="fw-semibold"></p>
-                    <div class="mb-3">
-                        <label class="form-label" for="editReviewRating">Rating</label>
-                        <select id="editReviewRating" class="form-select">
-                            <option value="5">5 - Excellent</option>
-                            <option value="4">4 - Good</option>
-                            <option value="3">3 - Average</option>
-                            <option value="2">2 - Poor</option>
-                            <option value="1">1 - Terrible</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="form-label" for="editReviewComment">Comment</label>
-                        <textarea id="editReviewComment" class="form-control" rows="4" maxlength="500"></textarea>
-                        <div class="form-text">Optional, maximum 500 characters.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button id="saveDashboardReviewBtn" type="button" class="btn btn-primary">Save Changes</button>
-                </div>
+            <div class="grid grid-cols-3 gap-3 lg:min-w-[380px]">
+                {{ statCard('0', 'Reviews', id='dashboardReviewCount') }}
+                {{ statCard('0', 'This Month', id='dashboardMonthlyReviewCount') }}
+                {{ statCard('0', 'Modules', id='dashboardModuleCount') }}
             </div>
         </div>
     </div>
+</section>
 
-    <footer class="bg-dark text-white py-4 mt-5">
-        <div class="container d-flex flex-column flex-md-row justify-content-between gap-2">
+<section class="py-8 sm:py-12">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
             <div>
-                <h5 class="mb-1">ModuleGo</h5>
-                <p class="text-white-50 mb-0">Republic Polytechnic Module Viewer</p>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-0.5">All reviews</h2>
+                <p id="dashboardResultCount" class="text-sm text-slate-500 dark:text-slate-400">Loading reviews...</p>
             </div>
-            <p class="text-white-50 mb-0">Reviews are stored by the ModuleGo Flask API.</p>
+            <div class="flex flex-col sm:flex-row gap-2 sm:max-w-lg w-full">
+                {{ inputSearch('reviewSearch', 'Search module or comment', 'flex-1') }}
+                {{ selectField('ratingFilter', [
+                    ('all', 'All ratings'),
+                    ('5', '5 stars'),
+                    ('4', '4 stars'),
+                    ('3', '3 stars'),
+                    ('2', '2 stars'),
+                    ('1', '1 star')
+                ], 'rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-sm') }}
+                {{ selectField('reviewSort', [
+                    ('newest', 'Newest first'),
+                    ('oldest', 'Oldest first')
+                ], 'rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-sm') }}
+            </div>
         </div>
-    </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/data.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/reviews.js') }}"></script>
-</body>
-</html>
+        <div id="dashboardMessage" class="hidden mb-4 rounded-xl px-5 py-3 text-sm font-medium" role="alert"></div>
+
+        <div id="reviewDashboardList" class="grid gap-4" aria-live="polite">
+            {{ loadingSpinner('Loading reviews...') }}
+        </div>
+    </div>
+</section>
+
+<div id="editReviewModalOverlay" class="hidden modal-overlay">
+    <div class="modal-panel" style="max-width: 28rem;">
+        <div class="modal-header">
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white" id="editReviewModalLabel">Edit Review</h2>
+            <button id="editReviewModalClose" class="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors" aria-label="Close">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div class="modal-body px-6 py-5">
+            <div id="dashboardEditMessage" class="hidden mb-4 rounded-lg px-4 py-2.5 text-sm" role="alert"></div>
+            <p id="editReviewModule" class="mb-4 font-semibold text-slate-900 dark:text-white"></p>
+            <div class="mb-4">
+                <label for="editReviewRating" class="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">Rating</label>
+                <select id="editReviewRating" class="select-field w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 shadow-sm pl-4 pr-10 py-2.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400 cursor-pointer">
+                    <option value="5">5 - Excellent</option>
+                    <option value="4">4 - Good</option>
+                    <option value="3">3 - Average</option>
+                    <option value="2">2 - Poor</option>
+                    <option value="1">1 - Terrible</option>
+                </select>
+            </div>
+            <div>
+                <label for="editReviewComment" class="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">Comment</label>
+                <textarea id="editReviewComment" class="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 shadow-sm px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400" rows="4" maxlength="500"></textarea>
+                <p class="mt-1.5 text-xs text-slate-400 dark:text-slate-400">Optional, maximum 500 characters.</p>
+            </div>
+        </div>
+        <div class="flex items-center justify-end gap-3 border-t border-slate-200/60 dark:border-slate-700 px-6 py-4 flex-shrink-0">
+            <button type="button" id="editReviewCancelBtn" class="truncate rounded-xl border border-slate-200 dark:border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-400 transition-all duration-300 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-800 dark:hover:text-slate-200 active:translate-y-0">Cancel</button>
+            <button id="saveDashboardReviewBtn" type="button" class="truncate rounded-xl bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-primary-600 hover:shadow active:translate-y-0">Save Changes</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/data.js') }}"></script>
+<script src="{{ url_for('static', filename='js/reviews.js') }}"></script>
+{% endblock %}

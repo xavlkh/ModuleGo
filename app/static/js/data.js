@@ -1,4 +1,7 @@
-// Handles module data loading, lookup, and search.
+/**
+ * Handles module data loading, lookup, and search.
+ * @module data
+ */
 const DataManager = {
     modules: [],
     diplomas: [],
@@ -7,19 +10,18 @@ const DataManager = {
 
     async loadData() {
         try {
-            // Load Supabase module data, diploma mappings, and review summaries.
-            const [moduleResponse, diplomaResponse, ratingResponse] = await Promise.all([
+            const [moduleResponse, courseResponse, ratingResponse] = await Promise.all([
                 fetch('/api/modules'),
-                fetch('/static/data/diploma.json'),
+                fetch('/api/courses'),
                 fetch('/api/ratings')
             ]);
 
-            if (!moduleResponse.ok || !diplomaResponse.ok) {
+            if (!moduleResponse.ok || !courseResponse.ok) {
                 throw new Error('Failed to load module catalogue data.');
             }
 
             this.modules = await moduleResponse.json();
-            this.diplomas = await diplomaResponse.json();
+            this.diplomas = await courseResponse.json();
             this.ratings = ratingResponse.ok ? await ratingResponse.json() : {};
 
             this.loaded = true;
@@ -32,7 +34,6 @@ const DataManager = {
     },
 
     getModule(code) {
-        // Match module codes case-insensitively.
         const lookupCode = (code || '').toLowerCase();
         return this.modules.find(m => (m.code || '').toLowerCase() === lookupCode);
     },
@@ -60,14 +61,25 @@ const DataManager = {
         }
 
         const code = moduleCode.toUpperCase();
+        const categories = [
+            { key: 'general_modules', label: 'General' },
+            { key: 'major_modules', label: 'Major' },
+            { key: 'discipline_modules', label: 'Discipline' },
+            { key: 'elective_modules', label: 'Elective' },
+            { key: 'industry_modules', label: 'Industry' }
+        ];
 
-        return this.diplomas.filter(diploma => {
-            if (!Array.isArray(diploma.modules)) {
-                return false;
+        const results = [];
+        for (const course of this.diplomas) {
+            for (const cat of categories) {
+                const arr = course[cat.key];
+                if (Array.isArray(arr) && arr.some(m => (typeof m === 'string' ? m : m.code) === code)) {
+                    results.push({ ...course, category: cat.label });
+                    break;
+                }
             }
-
-            return diploma.modules.includes(code);
-        });
+        }
+        return results;
     },
 
     searchModules(query) {
@@ -75,7 +87,6 @@ const DataManager = {
             return this.modules;
         }
 
-        // Split the search into simple keyword tokens.
         const searchTerm = this.normalizeSearchText(query);
         const searchTokens = searchTerm.split(' ').filter(Boolean);
         const results = [];
@@ -88,21 +99,18 @@ const DataManager = {
                 module.code,
                 module.name,
                 module.school,
-                module.category,
-                module.description,
-                module.features,
+                module.synopsis,
+                module.summary,
                 module.suitableFor,
-                module.source
+                module.url
             ].filter(Boolean).join(' '));
 
-            // Require every keyword to appear somewhere in the module.
             if (!searchTokens.every(token => searchableText.includes(token))) {
                 continue;
             }
 
             let score = 100;
 
-            // Rank exact code and title matches higher.
             if (code === searchTerm) score -= 80;
             else if (code.startsWith(searchTerm)) score -= 60;
             else if (code.includes(searchTerm)) score -= 45;
@@ -126,7 +134,6 @@ const DataManager = {
     },
 
     normalizeSearchText(value) {
-        // Normalize punctuation and spacing for easier matching.
         return String(value || '')
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, ' ')

@@ -8,8 +8,8 @@
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black)
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white)
-![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white)
-![Bootstrap](https://img.shields.io/badge/Bootstrap-533B78?style=flat-square&logo=bootstrap&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
+![Lucide](https://img.shields.io/badge/Lucide-F56565?style=flat-square&logo=lucide&logoColor=white)
 
 [![Vercel](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=flat-square&logo=vercel&logoColor=white)](https://module-go.vercel.app/)
 [![GitHub](https://img.shields.io/badge/Source%20Code-GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/xavlkh/ModuleGo)
@@ -27,9 +27,9 @@ A better way for Republic Polytechnic students to explore, search, compare, and 
 
 The official RP Module Viewer makes it hard to discover which diplomas offer a given module, compare modules side-by-side, or get peer feedback. ModuleGo solves this with:
 
-- **Instant search** across 400+ modules with client-side filtering
+- **Instant search** across 500+ modules with real-time client-side filtering and pagination
 - **Diploma discovery** showing every program that includes a module
-- **Side-by-side comparison** of module features and suitability
+- **Side-by-side comparison** of module features and suitability with infinite scroll search
 - **Community reviews** with 1-5 star ratings stored in Supabase
 
 > [!TIP]
@@ -37,13 +37,15 @@ The official RP Module Viewer makes it hard to discover which diplomas offer a g
 
 ## Features
 
-- **Search** -- Real-time client-side search across module code, name, description, category, and school
+- **Search** -- Real-time client-side search across module code, name, synopsis, school, and comparison fields
 - **Filter** -- Filter results by RP's seven schools
-- **Details** -- View full descriptions, school, and all diplomas that include a module
-- **Compare** -- Side-by-side comparison of two modules
+- **Pagination** -- Results split across pages with ellipsis navigation and keyboard arrow support
+- **Details** -- View full synopsis, school, and all diplomas that include a module
+- **Compare** -- Side-by-side comparison of two modules with infinite scroll search
 - **Reviews** -- Create, read, edit, and delete validated 1-5 star reviews stored in Supabase
 - **Rating summaries** -- View average ratings and review counts on module cards
 - **Review dashboard** -- Search, filter, and manage reviews across all modules
+- **Dark mode** -- Light/dark/system theme toggle persisted to localStorage
 - **Responsive** -- Works across desktop, tablet, and mobile viewports
 
 ## Quick Start
@@ -52,7 +54,7 @@ The official RP Module Viewer makes it hard to discover which diplomas offer a g
 
 - Python 3.x
 - Git
-- A Supabase project with the `rp_modules` and `reviews` tables
+- A Supabase project with `rp_modules`, `rp_modules_comparision`, `rp_courses`, and `reviews` tables
 
 ### Setup
 
@@ -88,7 +90,7 @@ Copy `.env.example` to `.env` and fill in your Supabase credentials.
 
 > [!IMPORTANT]
 > The frontend never calls Supabase directly. All requests go through Flask
-> so the secret key stays on the server.
+> so the secret key stays on the server. SQLite is used only for automated tests.
 
 ### Run
 
@@ -102,14 +104,15 @@ Navigate to `http://127.0.0.1:5000`.
 
 1. Fork the repository on GitHub
 2. Import the project in [Vercel](https://vercel.com/new)
-3. Set `SUPABASE_URL` and `SUPABASE_KEY` in the Vercel dashboard
+3. Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in the Vercel dashboard
 4. Deploy
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET`  | `/api/modules` | List all modules from Supabase |
+| `GET`  | `/api/modules` | List all modules from Supabase with comparison fields |
+| `GET`  | `/api/courses` | List all courses (diplomas) from Supabase |
 | `GET`  | `/api/reviews` | List all reviews for the dashboard |
 | `POST` | `/api/reviews` | Submit a validated review |
 | `GET`  | `/api/reviews/<module_code>` | Get reviews for a module |

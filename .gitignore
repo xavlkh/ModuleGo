@@ -5,8 +5,9 @@
 # Python
 __pycache__/
 *.py[cod]
-*.egg-info/
-*.egg
+
+# Testing
+.pytest_cache/
 
 # Virtual environments
 venv/
