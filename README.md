@@ -104,7 +104,7 @@ Navigate to `http://127.0.0.1:5000`.
 
 1. Fork the repository on GitHub
 2. Import the project in [Vercel](https://vercel.com/new)
-3. Set `SUPABASE_URL` and `SUPABASE_KEY` in the Vercel dashboard
+3. Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in the Vercel dashboard
 4. Deploy
 
 ## API Endpoints
