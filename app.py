@@ -24,18 +24,18 @@ _base_dir = os.path.dirname(os.path.abspath(__file__))
 MAX_COMMENT_LENGTH = 500
 
 supabase_url = os.environ.get('SUPABASE_URL')
-supabase_key = os.environ.get('SUPABASE_SECRET_KEY')
+supabase_secret_key = os.environ.get('SUPABASE_SECRET_KEY')
 supabase = None
 
-if supabase_url and supabase_key:
+if supabase_url and supabase_secret_key:
     if not supabase_url.startswith(('https://', 'http://')):
         raise RuntimeError('SUPABASE_URL must be a complete HTTP(S) URL.')
-    if supabase_key.startswith('sb_publishable_'):
+    if supabase_secret_key.startswith('sb_publishable_'):
         raise RuntimeError(
-            'SUPABASE_KEY must use the backend-only sb_secret_ key, not a '
+            'SUPABASE_SECRET_KEY must use the backend-only sb_secret_ key, not a '
             'publishable browser key.'
         )
-    supabase = create_client(supabase_url, supabase_key)
+    supabase = create_client(supabase_url, supabase_secret_key)
 db_name = os.environ.get('DATABASE_PATH', os.path.join(_base_dir, 'modulego.db'))
 
 
@@ -141,7 +141,7 @@ def init_db() -> None:
         )
 
 
-init_db()
+# init_db()
 
 
 # ---------------------------------------------------------------------------
