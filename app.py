@@ -24,7 +24,7 @@ _base_dir = os.path.dirname(os.path.abspath(__file__))
 MAX_COMMENT_LENGTH = 500
 
 supabase_url = os.environ.get('SUPABASE_URL')
-supabase_key = os.environ.get('SUPABASE_KEY')
+supabase_key = os.environ.get('SUPABASE_SECRET_KEY')
 supabase = None
 
 if supabase_url and supabase_key:
