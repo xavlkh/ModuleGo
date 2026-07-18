@@ -1,21 +1,29 @@
-// Powers the all-module review dashboard.
+/**
+ * Powers the all-module review dashboard.
+ * @module reviews
+ */
 const ReviewDashboard = {
     reviews: [],
     editingReviewId: null,
-    editModal: null,
     elements: {},
+    modal: null,
 
     async init() {
         this.cacheElements();
         this.bindEvents();
-        this.editModal = new bootstrap.Modal(document.getElementById('editReviewModal'));
+        this.modal = createModalController({
+            overlayId: 'editReviewModalOverlay',
+            closeBtnId: 'editReviewModalClose',
+            cancelBtnId: 'editReviewCancelBtn'
+        });
+        this.modal.init();
 
         try {
             await Promise.all([DataManager.loadData(), this.loadReviews()]);
             this.render();
         } catch (error) {
             console.error('Could not initialize review dashboard:', error);
-            this.elements.list.innerHTML = '<p class="text-danger">Could not load the review dashboard.</p>';
+            this.elements.list.innerHTML = '<p class="text-red-500 dark:text-red-400 py-8 text-center">Could not load the review dashboard.</p>';
         }
     },
 
@@ -58,17 +66,15 @@ const ReviewDashboard = {
 
     renderStats() {
         const count = this.reviews.length;
-        const modulesRated = new Set(this.reviews.map(review => review.module_code)).size;
+        const modulesRated = new Set(this.reviews.map(r => r.module_code)).size;
         const now = new Date();
-        const monthlyReviewCount = this.reviews.filter(review => {
-            const submittedAt = this.getSubmittedDate(review);
-            return submittedAt
-                && submittedAt.getFullYear() === now.getFullYear()
-                && submittedAt.getMonth() === now.getMonth();
+        const monthlyCount = this.reviews.filter(r => {
+            const d = parseTimestamp(r.created_at);
+            return d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
         }).length;
 
         this.elements.reviewCount.textContent = String(count);
-        this.elements.monthlyReviewCount.textContent = String(monthlyReviewCount);
+        this.elements.monthlyReviewCount.textContent = String(monthlyCount);
         this.elements.moduleCount.textContent = String(modulesRated);
     },
 
@@ -78,23 +84,17 @@ const ReviewDashboard = {
 
         const filtered = this.reviews.filter(review => {
             const module = DataManager.getModule(review.module_code);
-            const searchable = [
-                review.module_code,
-                module ? module.name : '',
-                review.comment
-            ].join(' ').toLowerCase();
+            const searchable = [review.module_code, module ? module.name : '', review.comment].join(' ').toLowerCase();
             const matchesQuery = !query || searchable.includes(query);
             const matchesRating = rating === 'all' || review.rating === Number(rating);
             return matchesQuery && matchesRating;
         });
 
-        const direction = this.elements.sort.value === 'oldest' ? 1 : -1;
-        return filtered.sort((first, second) => {
-            const firstDate = this.getSubmittedDate(first);
-            const secondDate = this.getSubmittedDate(second);
-            const firstTime = firstDate ? firstDate.getTime() : 0;
-            const secondTime = secondDate ? secondDate.getTime() : 0;
-            return (firstTime - secondTime) * direction;
+        const dir = this.elements.sort.value === 'oldest' ? 1 : -1;
+        return filtered.sort((a, b) => {
+            const aTime = parseTimestamp(a.created_at)?.getTime() || 0;
+            const bTime = parseTimestamp(b.created_at)?.getTime() || 0;
+            return (aTime - bTime) * dir;
         });
     },
 
@@ -106,50 +106,54 @@ const ReviewDashboard = {
 
         if (filtered.length === 0) {
             const empty = document.createElement('div');
-            empty.className = 'review-dashboard-empty';
-            empty.innerHTML = '<i class="bi bi-chat-square-text"></i><h3 class="h5 mt-3">No reviews found</h3><p class="text-muted mb-0">Try a different search or rating filter.</p>';
+            empty.className = 'py-16 text-center';
+            empty.innerHTML = `
+                <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800 mb-4">
+                    <i data-lucide="message-square" class="w-8 h-8 text-slate-400 dark:text-slate-400"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-1">No reviews found</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Try a different search or rating filter.</p>
+            `;
             this.elements.list.appendChild(empty);
+            lucide.createIcons();
             return;
         }
 
-        filtered.forEach(review => this.elements.list.appendChild(this.createReviewCard(review)));
+        filtered.forEach(r => this.elements.list.appendChild(this.createReviewCard(r)));
+        lucide.createIcons();
     },
 
     createReviewCard(review) {
         const module = DataManager.getModule(review.module_code);
         const article = document.createElement('article');
-        article.className = 'dashboard-review-card';
+        article.className = 'glass-card p-5';
         article.innerHTML = `
-            <div class="dashboard-review-heading">
+            <div class="flex items-start justify-between gap-3 mb-3">
                 <div>
-                    <span class="dashboard-review-code"></span>
-                    <h3 class="h5 mb-1 dashboard-review-name"></h3>
-                    <div class="review-stars" aria-label="${review.rating} out of 5 stars">
-                        ${this.createStars(review.rating)}
+                    <span class="text-xs font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400">${review.module_code}</span>
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white mb-1">${module ? module.name : 'Module name unavailable'}</h3>
+                    <div class="star-rating flex gap-0.5 text-sm" aria-label="${review.rating} out of 5 stars">
+                        ${createStars(review.rating)}
                     </div>
                 </div>
-                <div class="review-actions">
-                    <button class="btn btn-sm btn-outline-primary dashboard-edit-btn" type="button" aria-label="Edit review"><i class="bi bi-pencil"></i></button>
-                    <button class="btn btn-sm btn-outline-danger dashboard-delete-btn" type="button" aria-label="Delete review"><i class="bi bi-trash"></i></button>
-                </div>
+                ${createReviewActionsHTML(review.id)}
             </div>
-            <p class="dashboard-review-comment"></p>
-            <small class="text-muted dashboard-review-date"></small>
+            <div class="rounded-lg bg-slate-50 dark:bg-slate-800/60 border-l-[3px] border-l-primary-300 dark:border-l-primary-500 pl-3 py-2 mb-3">
+                <p class="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">${review.comment || 'No written comment'}</p>
+            </div>
+            <small class="text-xs text-slate-400 dark:text-slate-400">${this.formatDate(review)}</small>
         `;
 
-        article.querySelector('.dashboard-review-code').textContent = review.module_code;
-        article.querySelector('.dashboard-review-name').textContent = module ? module.name : 'Module name unavailable';
-        const commentElement = article.querySelector('.dashboard-review-comment');
-        commentElement.textContent = review.comment || 'No written comment';
-        if (!review.comment) commentElement.classList.add('text-muted', 'fst-italic');
-        article.querySelector('.dashboard-review-date').textContent = this.formatDate(review);
-        article.querySelector('.dashboard-edit-btn').addEventListener('click', () => this.openEdit(review.id));
-        article.querySelector('.dashboard-delete-btn').addEventListener('click', () => this.deleteReview(review.id));
+        if (!review.comment) {
+            article.querySelector('.text-sm.text-slate-700').classList.add('text-slate-400', 'dark:text-slate-400', 'italic');
+        }
+        article.querySelector('.edit-review-btn').addEventListener('click', () => this.openEdit(review.id));
+        article.querySelector('.delete-review-btn').addEventListener('click', () => this.deleteReview(review.id));
         return article;
     },
 
     openEdit(reviewId) {
-        const review = this.reviews.find(item => item.id === reviewId);
+        const review = this.reviews.find(r => r.id === reviewId);
         if (!review) return;
         const module = DataManager.getModule(review.module_code);
 
@@ -158,7 +162,7 @@ const ReviewDashboard = {
         this.elements.editRating.value = String(review.rating);
         this.elements.editComment.value = review.comment;
         this.clearEditMessage();
-        this.editModal.show();
+        this.modal.show();
     },
 
     async saveEdit() {
@@ -180,10 +184,9 @@ const ReviewDashboard = {
                 this.showEditMessage(result.error || 'Could not update review.');
                 return;
             }
-
             await this.refresh();
-            this.editModal.hide();
-            this.showMessage('Review updated.', 'success');
+            this.modal.hide();
+            showMessage(this.elements.message, 'Review updated.', 'success');
         } catch (error) {
             console.error('Could not update review:', error);
             this.showEditMessage('Could not update review. Please try again.');
@@ -195,15 +198,14 @@ const ReviewDashboard = {
 
     async deleteReview(reviewId) {
         if (!window.confirm('Delete this review permanently?')) return;
-
         try {
             const response = await fetch(`/api/reviews/${reviewId}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Could not delete review.');
             await this.refresh();
-            this.showMessage('Review deleted.', 'success');
+            showMessage(this.elements.message, 'Review deleted.', 'success');
         } catch (error) {
             console.error('Could not delete review:', error);
-            this.showMessage(error.message, 'danger');
+            showMessage(this.elements.message, error.message, 'danger');
         }
     },
 
@@ -212,41 +214,21 @@ const ReviewDashboard = {
         this.render();
     },
 
-    showMessage(message, type) {
-        this.elements.message.textContent = message;
-        this.elements.message.className = `alert alert-${type}`;
-    },
-
     showEditMessage(message) {
-        this.elements.editMessage.textContent = message;
-        this.elements.editMessage.className = 'alert alert-danger py-2';
+        showMessage(this.elements.editMessage, message, 'danger');
     },
 
     clearEditMessage() {
         this.elements.editMessage.textContent = '';
-        this.elements.editMessage.className = 'alert d-none py-2';
-    },
-
-    createStars(rating) {
-        return '<i class="bi bi-star-fill"></i>'.repeat(rating)
-            + '<i class="bi bi-star"></i>'.repeat(5 - rating);
-    },
-
-    getSubmittedDate(review) {
-        if (!review.created_at) return null;
-        const value = review.created_at;
-        const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
-        const date = new Date(normalized);
-        return Number.isNaN(date.getTime()) ? null : date;
+        this.elements.editMessage.className = 'hidden mb-4 rounded-lg px-4 py-2.5 text-sm';
     },
 
     formatDate(review) {
         const value = review.updated_at || review.created_at;
         if (!value) return '';
-        const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
-        const date = new Date(normalized);
+        const date = parseTimestamp(value);
         const prefix = review.updated_at ? 'Updated ' : 'Submitted ';
-        return prefix + (Number.isNaN(date.getTime()) ? value : date.toLocaleString());
+        return prefix + (date ? formatReviewDate(date) : value);
     }
 };
 

@@ -1,11 +1,11 @@
 ---
 title: ModuleGo - Republic Polytechnic Module Viewer Design Specification
-version: 4.0
+version: 7.0
 date_created: 2026-06-29
-last_updated: 2026-07-17
+last_updated: 2026-07-18
 owner: Developer
-status: 'In progress'
-tags: ['design', 'frontend', 'backend', 'vanilla-js', 'bootstrap', 'flask', 'supabase']
+status: 'Completed'
+tags: ['design', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase']
 ---
 
 # Introduction
@@ -14,10 +14,10 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 
 ## 1. Purpose & Scope
 
-**Purpose:** Define the design system, UI components, and interaction patterns for the ModuleGo application.
+**Purpose:** Define the design system, UI components, and interaction patterns for the ModuleGo application, including the Tailwind CSS-based glassmorphism design system.
 
 **Scope:** Full-stack web application with:
-- Frontend: Vanilla JS, CSS/Bootstrap, and HTML
+- Frontend: Vanilla JS, Tailwind CSS (glassmorphism), and HTML
 - Backend: Python Flask server with Supabase PostgreSQL (modules and reviews)
 - API endpoints for module data and review management
 
@@ -25,7 +25,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 
 **Assumptions:**
 - Module data is stored in Supabase `rp_modules` table and served via `/api/modules`
-- Diploma-to-module mapping is hardcoded in `app/static/data/diploma.json`
+- Course (diploma) data is served via `app/static/data/scrape_diplomas.py` → Supabase `rp_courses` → `/api/courses`
 - Review data (ratings and comments) is stored in Supabase `reviews` table
 - Backend server runs on Python Flask and proxies all Supabase calls
 - SQLite is used only for automated tests
@@ -38,6 +38,8 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 | Diploma | A full-time program of study at RP (e.g., Diploma in Applied AI & Analytics) |
 | School | Academic division at RP (e.g., School of Infocomm) |
 | Client-side filtering | Searching/filtering data in the browser without server requests |
+| Glassmorphism | A UI design trend using translucent backgrounds with blur and border effects |
+| Tailwind CSS | A utility-first CSS framework used for styling the application |
 
 ## 3. Requirements, Constraints & Guidelines
 
@@ -65,20 +67,25 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 ### Constraints
 
 - **CON-001**: Use only Vanilla JavaScript (no frameworks like React, Vue, Angular)
-- **CON-002**: Use Bootstrap 5 for styling and responsive grid
+- **CON-002**: Use Tailwind CSS for styling (via CDN) with glassmorphism design tokens
 - **CON-003**: Use HTML5 semantic elements
 - **CON-004**: Backend uses Python Flask with Supabase PostgreSQL
 - **CON-005**: Module data is stored in Supabase, diploma data is static JSON
 - **CON-006**: Project follows Flask app structure: `app/templates/` for HTML, `app/static/` for assets
 - **CON-007**: Frontend never calls Supabase directly; all requests go through Flask API
+- **CON-008**: Custom modal implementation replaces Bootstrap Modal (no Bootstrap JS dependency)
 
 ### Design Guidelines
 
-- **GUD-001**: Follow RP brand colors: Green (#00A651), Black (#1a1a1a), White (#ffffff)
-- **GUD-002**: Use Bootstrap 5 grid system (12-column)
+- **GUD-001**: Follow RP brand colors with modern emerald/teal palette: Primary (#00A651 mapped to emerald-500), Accent (teal-400)
+- **GUD-002**: Use Tailwind CSS utility classes for layout and responsive design (mobile-first)
 - **GUD-003**: Maintain WCAG AA contrast ratios for accessibility
-- **GUD-004**: Mobile-first responsive approach
-- **GUD-005**: Clean, functional UI prioritizing information hierarchy
+- **GUD-004**: Mobile-first responsive approach using Tailwind breakpoints (sm, md, lg, xl)
+- **GUD-005**: Clean, functional UI with glassmorphism effects (translucent backgrounds, backdrop-blur, subtle borders)
+- **GUD-006**: Use Inter font family for modern, clean typography
+- **GUD-007**: Gradient hero sections using emerald-to-teal-to-cyan color transitions
+- **GUD-008**: Glass cards with `backdrop-blur`, translucent white backgrounds, and hover lift effects
+- **GUD-009**: Smooth transitions using `transition-all duration-300 ease-out` pattern
 
 ## 4. Interfaces & Data Contracts
 
@@ -91,23 +98,48 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
   "description": "string (module description text)",
   "school": "string (e.g., 'School of Applied Science')",
   "url": "string (URL to RP module page)",
-  "features": "string (auto-generated comparison features)",
+  "summary": "string (auto-generated features text for comparison)",
   "suitableFor": "string (auto-generated suitability description)"
 }
 ```
 
 The `/api/modules` endpoint maps Supabase columns (`module_code`,
 `module_name`, `module_description`, `school`, `link`) to the frontend
-format and generates `features` and `suitableFor` fields server-side.
+format and joins with `rp_modules_comparision` table for pre-computed
+`summary` and `suitableFor` fields.
 
-### Diploma Mapping Schema (app/static/data/diploma.json)
+### Diploma Mapping Schema (Supabase `rp_courses` → `/api/courses`)
 
 ```json
 {
-  "A001": ["Diploma in Mechatronics", "Diploma in Engineering"],
-  "A103": ["Diploma in Biomedical Science", "Diploma in Sports Science"]
+  "course_code": "R12",
+  "course_name": "Diploma in Biomedical Science",
+  "school_name": "School of Applied Science",
+  "school_abbr": "SAS",
+  "url": "https://www.rp.edu.sg/...",
+  "general_modules": ["MGT1001", ...],
+  "major_modules": ["BMS2001", ...],
+  "discipline_modules": ["BMS3001", ...],
+  "elective_modules": ["C270", ...],
+  "industry_modules": ["BMS4001", ...]
 }
 ```
+
+Generated by `app/static/data/scrape_diplomas.py` and imported into Supabase.
+
+### Comparison Data Schema (generated by scrape pipeline step 3)
+
+Generated by `step3_generate_comparison.py` from the synopsis JSON:
+
+```json
+{
+  "module_code": "C270",
+  "summary": "Covers DevOps practices through CI/CD, containerisation, and infrastructure automation.",
+  "suitable_for": "Students interested in DevOps, cloud infrastructure, and software deployment."
+}
+```
+
+Output as `rp_modules_comparison.json` (nested) and `rp_modules_comparison.csv` (flat `utf-8-sig` BOM for Excel).
 
 ### Review Schema (Supabase)
 
@@ -146,39 +178,50 @@ ALTER TABLE reviews
 
 ### Page Structure
 
-> [!TIP]
-> **Express equivalent:** `base.html` works like a partial (e.g., `partials/layout.html`) that all pages extend. The `{% raw %}{% block content %}{% endraw %}` placeholder is where page-specific content goes, similar to how you'd `<%- include() %>` shared components in Express.
-
 ```
-app/templates/base.html (Layout Partial - like partials/layout.ejs)
-├── Common HTML head, Bootstrap CDN, meta tags
-├── Header/Nav (shared across all pages)
-├── {% raw %}{% block content %}{% endblock %}{% endraw %} ← page-specific content injected here
-└── Footer (shared across all pages)
+app/templates/base.html (Layout Partial - Tailwind CSS with glassmorphism)
+├── Common HTML head, Tailwind CDN, Inter font, Bootstrap Icons
+├── Glass navbar (sticky, translucent, backdrop-blur)
+├── {% block content %}{% endblock %} ← page-specific content injected here
+├── Glass footer (dark slate background)
+└── Mobile menu toggle script
 
-app/templates/modules/index.html (Home/Search Page - like views/modules/index.html)
-├── {% raw %}{% extends "base.html" %}{% endraw %}
-├── Hero Section (Search Input + School Filter)
+app/templates/modules/index.html (Home/Search Page)
+├── {% extends "base.html" %}
+├── Hero Section (emerald→teal→cyan gradient, glass search bar)
 ├── Search Results Section
-│   ├── Results Count
-│   └── Module Cards List
-│       ├── Module Code
-│       ├── Module Name
-│       ├── Description (truncated)
-│       ├── Category Badge
-│       ├── School
-│       └── External Link Button
-├── Module Detail Modal
+│   ├── Results Count badge
+│   └── Module Cards Grid (glass-card with hover lift)
+│       ├── Module Code (uppercase tracking)
+│       ├── Module Name (bold, hover color change)
+│       ├── Description (truncated, slate-500)
+│       ├── School Badge (rounded-full)
+│       ├── Rating (amber stars)
+│       └── Action Buttons (btn-outline-glass)
+├── Module Detail Modal (custom implementation)
+│   ├── Glass modal overlay (backdrop-blur)
+│   ├── Glass modal panel (rounded-2xl)
 │   ├── Full Module Details
 │   ├── Diploma List
 │   ├── Reviews Section (Rating + Comments)
 │   └── Review Submission Form
 
-app/templates/modules/comparison.html (Comparison Page - like views/modules/comparison.html)
-├── {% raw %}{% extends "base.html" %}{% endraw %}
-├── Comparison Hero Section
-├── Module Search Inputs (2)
-└── Comparison Table
+app/templates/modules/comparison.html (Comparison Page)
+├── {% extends "base.html" %}
+├── Comparison Hero (subtle gradient background)
+├── Glass Comparison Panel
+│   ├── Module Search Inputs (input-glass)
+│   ├── Selected Module Chips (bg-primary-50)
+│   ├── Gradient VS Badge (emerald gradient, shadow-glow)
+│   └── Comparison Table (striped rows, primary-tinted headers)
+
+app/templates/modules/reviews.html (Review Dashboard)
+├── {% extends "base.html" %}
+├── Dashboard Hero (gradient background)
+├── Stat Cards (stat-card with backdrop-blur)
+├── Review Toolbar (input-glass filters)
+├── Review Cards Grid (glass-card)
+└── Edit Review Modal (custom implementation)
 ```
 
 ## 5. Acceptance Criteria
@@ -229,22 +272,27 @@ app/templates/modules/comparison.html (Comparison Page - like views/modules/comp
 ## 7. Rationale & Context
 
 **Design Decisions:**
-1. **Bootstrap 5**: Rapid development, built-in responsive grid, consistent components
-2. **Client-side filtering**: No server needed for search, instant feedback, works offline
-3. **Supabase for modules and reviews**: Managed PostgreSQL with real-time capabilities, no self-hosted database
-4. **Flask app structure**: Standard Python Flask layout with templates, static, and data separation
-5. **Green theme**: Matches RP brand identity for institutional familiarity
+1. **Tailwind CSS (v4 CDN)**: Utility-first approach enables rapid prototyping, consistent design tokens via `@theme`, and zero build step with CDN usage
+2. **Glassmorphism design system**: Modern, visually impressive aesthetic with translucent backgrounds, backdrop-blur, and subtle borders for depth
+3. **Custom modal implementation**: Replaced Bootstrap Modal with vanilla JS modal to eliminate Bootstrap JS dependency while maintaining full control over modal behavior
+4. **Inter font family**: Clean, modern sans-serif optimized for screen readability at all sizes
+5. **Emerald/Teal color palette**: Fresh, modern take on RP brand green with complementary teal accent for interactive elements
+6. **Client-side filtering**: No server needed for search, instant feedback, works offline
+7. **Supabase for modules and reviews**: Managed PostgreSQL with real-time capabilities, no self-hosted database
+8. **Flask app structure**: Standard Python Flask layout with templates, static, and data separation
 
 **Trade-offs:**
 - Client-side filtering requires loading entire dataset upfront
 - No user authentication means reviews are anonymous and not verifiable
 - Supabase dependency means reviews require network connectivity
+- Tailwind CDN adds runtime CSS generation (acceptable for student project scale)
 
 ## 8. Dependencies & External Integrations
 
 ### Data Dependencies
 - **DAT-001**: Supabase `rp_modules` table - Module dataset stored in PostgreSQL
-- **DAT-002**: `app/static/data/diploma.json` - Hardcoded diploma mapping
+- **DAT-002**: Supabase `rp_courses` table - Diploma/course data scraped from RP website
+- **DAT-003**: Supabase `rp_modules_comparision` table - Pre-computed comparison fields
 
 ### External Links
 - **EXT-001**: RP Module Pages - Links to official module information
@@ -252,10 +300,12 @@ app/templates/modules/comparison.html (Comparison Page - like views/modules/comp
 
 ### Infrastructure Dependencies
 - **INF-001**: Modern web browser with JavaScript support
-- **INF-002**: Bootstrap 5 CSS/JS via CDN
-- **INF-003**: Python 3.x runtime
-- **INF-004**: Flask web framework
-- **INF-005**: Supabase project with `rp_modules` and `reviews` tables
+- **INF-002**: Tailwind CSS via CDN (runtime CSS generation)
+- **INF-003**: Inter font via Google Fonts CDN
+- **INF-004**: Lucide Icons via CDN (`unpkg.com/lucide`)
+- **INF-005**: Python 3.x runtime
+- **INF-006**: Flask web framework
+- **INF-007**: Supabase project with `rp_modules` and `reviews` tables
 
 ### Backend Dependencies
 - **DEP-001**: Flask 3.0.3 - Web framework
@@ -295,14 +345,17 @@ app/templates/modules/comparison.html (Comparison Page - like views/modules/comp
 - [x] Loading animations display during data operations
 - [x] External links open in new tabs
 - [x] No JavaScript errors in browser console
-- [x] Bootstrap CDN loads correctly
+- [x] Tailwind CSS CDN loads correctly
+- [x] Glassmorphism effects render properly (backdrop-blur, translucent backgrounds)
+- [x] Custom modals open and close correctly (keyboard, click-outside, close button)
 - [x] Flask backend starts and serves API endpoints
 - [x] Module data loads from Supabase via /api/modules
 - [ ] Cross-browser testing (Chrome, Firefox, Safari, Edge)
 
 ## 11. Related Specifications / Further Reading
 
-- [Bootstrap 5 Documentation](https://getbootstrap.com/docs/5.3/)
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+- [Tailwind CSS Theme Variables](https://tailwindcss.com/docs/theme)
 - [RP Diploma List](https://www.rp.edu.sg/education/diplomas/)
 - [RP Module List](https://www.rp.edu.sg/education/modules/)
 - [RP Updated Modules](https://lcs.rp.edu.sg/RPModuleSynopsis/)
