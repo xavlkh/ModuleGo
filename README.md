@@ -29,7 +29,7 @@ The official RP Module Viewer makes it hard to discover which diplomas offer a g
 - **Instant search** across 537 modules with real-time client-side filtering and pagination
 - **Advanced filtering** by school, diploma, minimum rating, and active status (modules in at least one diploma)
 - **Diploma discovery** showing every program that includes a module
-- **Side-by-side comparison** of module features and suitability
+- **Side-by-side comparison** of module summary and suitability
 - **Community reviews** with 1-5 star ratings stored in Supabase
 
 > [!TIP]
