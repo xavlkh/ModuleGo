@@ -1,11 +1,11 @@
 ---
 goal: ModuleGo - Republic Polytechnic Module Viewer Implementation
-version: 8.0
+version: 10.0
 date_created: 2026-06-29
-last_updated: 2026-07-18
+last_updated: 2026-07-19
 owner: Developer
-status: 'Completed'
-tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'dark-mode']
+status: 'In Progress'
+tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'dark-mode', 'ui-redesign', 'saas-patterns', 'security', 'csrf', 'rate-limiting', 'scraping', 'automation']
 ---
 
 # Introduction
@@ -14,29 +14,45 @@ tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorp
 
 Implementation plan for ModuleGo, a responsive module search application for Republic Polytechnic students. The application uses Vanilla JS, Tailwind CSS (glassmorphism design system), and HTML for the frontend, with Python Flask and Supabase PostgreSQL for the backend. Module data and reviews are stored in Supabase, with Flask proxying all calls so the browser never sees the secret key. SQLite is used only for automated tests.
 
+> **Note:** This plan consolidates the former `plan-security-hardening.md` and `plan-scraping-pipeline.md` files into a single source of truth.
+
 ## 1. Requirements & Constraints
 
 - **REQ-001**: User can enter a search query into an input field
-- **REQ-002**: User can submit the query (via typing, pressing Enter, or clicking search button)
+- **REQ-002**: User can submit the query (via pressing Enter)
 - **REQ-003**: Search filters modules by Module Code, Module Name, Description, Category, or School
 - **REQ-004**: Search results display as a list with Module Code, Name, Description, Category, School
 - **REQ-005**: Clicking a module displays a list of diplomas offering that module
 - **REQ-006**: Each module entry includes a link to the external RP module page
-- **REQ-007**: User can filter modules by School using dropdown filter
+- **REQ-007**: User can filter modules by School using collapsible filter panel
 - **REQ-008**: User can compare two modules side-by-side
 - **REQ-009**: User can leave reviews with ratings (1-5) and comments on modules
 - **REQ-010**: Reviews are stored in Supabase `reviews` table
 - **REQ-011**: User can view existing reviews for each module
+- **REQ-012**: User can filter by diploma (populated from `/api/courses`)
+- **REQ-013**: User can filter by minimum average rating (5 Stars, 4 Stars & Up, etc.)
+- **REQ-014**: User can toggle "Active" filter (modules appearing in at least one diploma)
+- **REQ-015**: Filter state persisted in URL params (`q`, `school`, `diploma`, `rating`, `active`, `page`)
 - **REQ-B01**: Responsive design works on desktop, tablet, and mobile
 - **REQ-B02**: Loading animation displayed during initial data load
 - **REQ-B03**: Module comparison page with side-by-side table view
-- **REQ-B04**: School filter dropdown for narrowing search results
+- **REQ-B04**: Collapsible filter panel for school, diploma, rating, and active filters
+- **REQ-B05**: Preserve all existing functionality during UI redesign
+- **REQ-B06**: Glassmorphism retained ONLY for navbar header; all other surfaces go solid
+- **REQ-B07**: Add `Outfit` (Google Fonts) for display headings; keep `Inter` for body
+- **REQ-B08**: Remove accent teal — single accent (emerald) only
 - **CON-001**: Use only Vanilla JavaScript (no frameworks)
 - **CON-002**: Use Tailwind CSS for styling (via CDN) with glassmorphism design tokens
 - **CON-003**: Use HTML5 semantic elements
 - **CON-004**: Backend uses Python Flask with Supabase PostgreSQL
-- **CON-005**: Module data is stored in Supabase, diploma data is static JSON
+- **CON-005**: Module data is stored in Supabase, diploma data is served via `/api/courses`
+- **CON-006**: No new npm dependencies (Flask + CDN project)
 - **GUD-001**: Follow RP brand colors with modern emerald/teal palette
+- **GUD-002**: SLP spacing rhythm: hero `py-16 md:py-24`, sections `py-12 md:py-20`, cards `gap-6`
+- **GUD-003**: Cards use `bg-white dark:bg-zinc-800` with `shadow-sm`, hover elevates to `shadow-xl`
+- **PAT-001**: SLP header pattern: `h-20`, centered nav, logo left
+- **PAT-002**: SLP card pattern: solid bg + subtle shadow + hover elevation
+- **PAT-003**: SLP footer pattern: multi-column grid with `border-y`
 
 ## 2. Implementation Steps
 
@@ -364,14 +380,14 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 
 ### Implementation Phase 15: Codebase Refactor (Merge JS, Repository Pattern, Macros)
 
-- GOAL-015: Simplify JS from 8 files to 4, add repository pattern in app.py, extract shared Jinja macros
+- GOAL-015: Extract shared utilities into utils.js, add repository pattern in app.py, extract shared Jinja macros
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
 | TASK-115 | Add `parseTimestamp()`, `showMessage()`, `createReviewActionsHTML()`, `createModalController()` to `utils.js` | ✅ | 2026-07-17 |
 | TASK-116 | Merge `search.js` into `ui.js` | ✅ | 2026-07-17 |
 | TASK-117 | Merge `app.js` into `ui.js` as `UIRenderer.initApp()` | ✅ | 2026-07-17 |
-| TASK-118 | Merge `detail.js` review CRUD into `reviews.js` | ✅ | 2026-07-17 |
+| TASK-118 | Merge `detail.js` review CRUD into `reviews.js` | ❌ | |
 | TASK-119 | Update all HTML templates' script tags to reflect merged files | ✅ | 2026-07-17 |
 | TASK-120 | Remove `generate-comparison-fields.js` | ✅ | 2026-07-17 |
 | TASK-121 | Remove proxy methods (`escapeHtml`, `createStars`) from JS files | ✅ | 2026-07-17 |
@@ -382,17 +398,231 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | TASK-126 | Add `.select-chevron` class to `app.css` | ✅ | 2026-07-17 |
 | TASK-127 | Add `@functools.lru_cache` with TTL to `get_modules()` | ✅ | 2026-07-17 |
 
-### Implementation Phase 16: Diploma Data Scraping
+### Implementation Phase 16: Diploma Data Scraping (superseded by Phase 26)
 
-- GOAL-016: Create live scraper for RP diploma pages, yielding structured JSON + CSV for Supabase import
+- GOAL-016: ~~Create live scraper for RP diploma pages~~ — Replaced by automated pipeline in Phase 26.3
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-128 | Create `app/static/data/scrape_diplomas.py` — scrapes listing page for diploma links + metadata | | |
-| TASK-129 | Implement detail page extraction of curriculum modules by category (general, discipline, elective) | | |
-| TASK-130 | Handle conditional paths: split into separate diploma entries with suffixed codes (e.g. R57-BUS, R57-HOS) | | |
-| TASK-131 | Output `rp_diplomas.json` (nested JSON) and `rp_diplomas.csv` (flat CSV) | | |
-| TASK-132 | Define Supabase `rp_diplomas` and `diploma_modules` table schemas | | |
+| TASK-128 | Create `app/static/local-data/scripts/step4_scrape_diplomas.py` — scrapes listing page for diploma links + metadata | ✅ | 2026-07-19 |
+| TASK-129 | Implement detail page extraction of curriculum modules by category (general, discipline, elective) | ✅ | 2026-07-19 |
+| TASK-130 | Handle conditional paths: split into separate diploma entries with suffixed codes (e.g. R57-BUS, R57-HOS) | ✅ | 2026-07-19 |
+| TASK-131 | Output `rp_courses.json` (nested JSON) and `rp_courses.csv` (flat CSV) | ✅ | 2026-07-19 |
+| TASK-132 | Define Supabase `rp_courses` and `course_modules` table schemas | ✅ | 2026-07-19 |
+
+### Implementation Phase 17: Design Tokens & Typography
+
+- GOAL-017: Update Tailwind config and CSS custom properties for the new visual language
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-133 | In `app/templates/base.html`: add Google Fonts `<link>` for `Outfit` (weights 600-800) alongside Inter | | |
+| TASK-134 | In `app/templates/base.html`: update `tailwind.config` — change `fontFamily.display` to `['Outfit', ...]`, add `fontFamily.body` as `['Inter', ...]`. Replace `surface` scale with `zinc` references. Remove `accent` color scale entirely | | |
+| TASK-135 | In `app/static/css/app.css`: update `:root` block — add `--font-display: "Outfit"`, `--font-body: "Inter"`. Remove accent-300/400/500 tokens. Update `--color-primary-*` to slightly desaturated values (reduce chroma from 0.2 to 0.16 on primary-500) | | |
+| TASK-136 | In `app/static/css/app.css`: update body `font-family` to `var(--font-body)`. Add utility class `.font-display` mapping to `var(--font-display)` | | |
+
+### Implementation Phase 18: Surface & Color System
+
+- GOAL-018: Replace glassmorphism with solid surfaces; migrate from slate to zinc
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-137 | In `app/templates/base.html`: change body classes from `bg-slate-50 dark:bg-slate-950` to `bg-zinc-50 dark:bg-zinc-950` | | |
+| TASK-138 | In `app/static/css/app.css`: replace custom `--dark-*` vars with zinc-based values: `--dark-bg: oklch(0.14 0.008 260)`, `--dark-bg-elevated: oklch(0.17 0.008 260)`, `--dark-border: oklch(0.23 0.006 260)`, `--dark-border-subtle: oklch(0.26 0.006 260)`, `--dark-text: oklch(0.92 0.005 260)`, `--dark-text-muted: oklch(0.6 0.005 260)` | | |
+| TASK-139 | In `app/static/css/app.css`: rewrite `.glass-card` to solid surface — `background: white`, `border: 1px solid oklch(0.92 0.005 260)`, remove `backdrop-filter`. Dark variant: `background: var(--dark-bg-elevated)`, `border-color: var(--dark-border)` | | |
+| TASK-140 | In `app/static/css/app.css`: keep `.glass` and `.glass-strong` ONLY for navbar. Add comment documenting this constraint | | |
+| TASK-141 | In `app/static/css/app.css`: rewrite `.stat-card` to solid: `background: white`, remove `backdrop-filter`. Dark: `background: var(--dark-bg-elevated)` | | |
+| TASK-142 | In `app/static/css/app.css`: rewrite `.modal-panel` — light: `background: white`, dark: `background: var(--dark-bg)`. Remove gradient backgrounds | | |
+| TASK-143 | In `app/static/css/app.css`: rewrite `.modal-header` — light: `background: oklch(0.97 0.02 155)`, dark: `background: oklch(0.2 0.03 155)`. Remove backdrop-blur | | |
+
+### Implementation Phase 19: Hero Section Redesign
+
+- GOAL-019: Replace gradient hero with clean minimal hero matching SLP pattern
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-144 | In `app/templates/_macros.html`: rewrite `hero()` macro — remove gradient bg, use `bg-zinc-50 dark:bg-zinc-950` (transparent to page bg). Add `py-16 md:py-24` padding. Headline: `font-display font-bold text-4xl md:text-5xl lg:text-6xl tracking-tight text-zinc-900 dark:text-white`. Remove SVG dot overlay | | |
+| TASK-145 | In `app/templates/modules/index.html`: update hero call — add description text "Search through Republic Polytechnic's 537 modules, compare courses, and read student reviews" | | |
+
+### Implementation Phase 20: Component Restyling
+
+- GOAL-020: Restyle all interactive components to match SLP patterns
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-146 | In `app/static/css/app.css`: rewrite `.btn-primary` — remove gradient, use solid `background: var(--color-primary-500)`, `border-radius: 0.75rem`, no border. Hover: `background: var(--color-primary-600)`, `transform: translateY(-1px)`, `box-shadow: 0 4px 12px oklch(0.66 0.16 149 / 0.3)`. Dark: same but `primary-600` base | | |
+| TASK-147 | In `app/static/css/app.css`: rewrite `.btn-outline` — `background: white`, `border: 1px solid zinc-200`, `color: zinc-700`. Hover: `background: zinc-50`. Dark: `bg-zinc-800`, `border-zinc-700`, `text-zinc-200` | | |
+| TASK-148 | In `app/static/css/app.css`: rewrite `.input-field` — `background: white`, `border: 1px solid oklch(0.9 0.005 260)`, `border-radius: 0.75rem`. Remove `backdrop-filter`. Dark: `bg-zinc-900`, `border-zinc-800` | | |
+| TASK-149 | In `app/static/css/app.css`: update `.select-field` to match input-field styling (solid bg, no blur) | | |
+| TASK-150 | In `app/static/css/app.css`: update `.badge` — `background: oklch(0.97 0.02 155)`, `color: oklch(0.49 0.15 150)`, `border: 1px solid oklch(0.89 0.09 155 / 0.5)`. Dark: `bg oklch(0.2 0.02 150)`, `text oklch(0.85 0.08 150)` | | |
+| TASK-151 | In `app/static/css/app.css`: update `.review-item` — `border-bottom: 1px solid oklch(0.92 0.005 260)` | | |
+| TASK-152 | In `app/static/js/ui.js`: update module card HTML generation — replace `glass-card` class with new solid card class. Keep existing content structure | | |
+
+### Implementation Phase 21: Header & Footer
+
+- GOAL-021: Redesign header to SLP pattern; expand footer
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-153 | In `app/templates/base.html`: update header — height `h-20` (from `h-16`). Add `border-b border-zinc-200 dark:border-zinc-800` bottom border. Background: keep glass-strong for light, use `bg-zinc-900/90` for dark | | |
+| TASK-154 | In `app/templates/base.html`: update logo — use `font-display font-bold` on "ModuleGo" text. Keep the emerald icon box | | |
+| TASK-155 | In `app/templates/_macros.html`: update `navLinks()` — use `font-display font-semibold text-[15px]`, active state: `text-zinc-900 dark:text-white underline underline-offset-4`, hover: `text-zinc-600 dark:text-zinc-300`. Remove icon from nav links (cleaner) | | |
+| TASK-156 | In `app/templates/base.html`: rewrite footer to 3-column grid — col 1: logo + tagline, col 2: quick links (Home, Comparison, Reviews), col 3: data source + GitHub. Use `bg-zinc-50 dark:bg-zinc-950` (same as page bg), `border-t border-zinc-200 dark:border-zinc-800`. Padding: `py-12` | | |
+
+### Implementation Phase 22: Page-Specific Updates
+
+- GOAL-022: Update comparison and reviews pages to match new design system
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-157 | In `app/templates/modules/comparison.html`: update hero call to use new hero macro. Ensure comparison panel uses solid card styling (not glass) | | |
+| TASK-158 | In `app/templates/modules/reviews.html`: update hero call. Ensure stat cards use new `.stat-card` solid styling. Ensure review cards use solid bg | | |
+| TASK-159 | In `app/static/js/comparison.js`: update module card HTML generation — replace `glass-card` class with new solid card class. Keep existing content structure | | |
+
+### Implementation Phase 23: Dark Mode Polish
+
+- GOAL-023: Ensure dark mode parity across all components
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-160 | Audit all `.dark` CSS rules in `app/static/css/app.css` — ensure every component has proper dark variant using updated zinc-based vars | | |
+| TASK-161 | In `app/templates/base.html`: ensure footer dark mode uses `bg-zinc-950` not `bg-slate-950` | | |
+| TASK-162 | Test theme toggle in browser — verify FOUC prevention script still works, light/dark/system all render correctly | | |
+
+### Implementation Phase 24: Verification
+
+- GOAL-024: Verify all pages render correctly in both modes
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-163 | Visual check: home page light mode — hero, search bar, module cards, pagination, footer | | |
+| TASK-164 | Visual check: home page dark mode — same components, verify contrast | | |
+| TASK-165 | Visual check: comparison page light + dark — dual search, VS badge, comparison table | | |
+| TASK-166 | Visual check: reviews page light + dark — stats, filter toolbar, review cards | | |
+| TASK-167 | Functional check: search, filter, sort, pagination, detail modal, review CRUD all work | | |
+| TASK-168 | Mobile check: responsive layout at 375px, 768px, 1024px viewports | | |
+
+### Implementation Phase 25: Security Hardening (Anonymous Ownership, CSRF, Rate Limiting)
+
+- GOAL-025: Address security issues — add anonymous ownership, CSRF protection, and rate limiting
+
+#### Phase 25.1: Backend Security Infrastructure
+
+- GOAL-25.1: Add Flask-WTF CSRF protection and Flask-Limiter rate limiting
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-169 | Add `Flask-WTF>=1.2.0` and `Flask-Limiter>=3.0.0` to `requirements.txt` | ✅ | 2026-07-19 |
+| TASK-170 | Import `CSRFProtect` from `flask_wtf.csrf` and `Limiter` from `flask_limiter` in `app.py` | ✅ | 2026-07-19 |
+| TASK-171 | Initialize `CSRFProtect(app)` — exempt GET routes, apply to POST/PUT/DELETE | ✅ | 2026-07-19 |
+| TASK-172 | Initialize `Limiter(app, default_limits=["200 per hour"])` | ✅ | 2026-07-19 |
+| TASK-173 | Add rate limits on review endpoints: `@limiter.limit("20/hour")` on POST, `@limiter.limit("10/hour")` on PUT and DELETE | ✅ | 2026-07-19 |
+| TASK-174 | Exempt `/api/modules` and `/api/courses` from CSRF (read-only GET endpoints) | ✅ | 2026-07-19 |
+| TASK-175 | Add `WTF_CSRF_ENABLED = False` for test mode (`app.config['TESTING'] = True`) | ✅ | 2026-07-19 |
+| TASK-176 | Exempt all API endpoints from CSRF for non-browser clients (custom header check: `X-Requested-With`) | ✅ | 2026-07-19 |
+
+#### Phase 25.2: Owner Token Database Schema
+
+- GOAL-25.2: Add owner_token column to reviews table for anonymous ownership
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-177 | Add `owner_token TEXT` column to SQLite `init_db()` schema in `app.py` | ✅ | 2026-07-19 |
+| TASK-178 | Create `generate_owner_token()` function — returns `uuid4().hex` (32-char hex string) | ✅ | 2026-07-19 |
+| TASK-179 | Update `ReviewRepository.create()` to accept and store `owner_token` in payload | ✅ | 2026-07-19 |
+| TASK-180 | Update `ReviewRepository.update()` to verify `owner_token` matches before update | ✅ | 2026-07-19 |
+| TASK-181 | Update `ReviewRepository.delete()` to verify `owner_token` matches before delete | ✅ | 2026-07-19 |
+| TASK-182 | Update `review_to_dict()` to include `owner_token` field | ✅ | 2026-07-19 |
+| TASK-183 | Update `validate_review_payload()` to accept optional `owner_token` parameter | ✅ | 2026-07-19 |
+
+#### Phase 25.3: Backend API Route Changes
+
+- GOAL-25.3: Update API routes to validate ownership and handle CSRF
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-184 | Update `add_review()` to extract `X-Owner-Token` from request headers | ✅ | 2026-07-19 |
+| TASK-185 | Update `add_review()` to generate token if not provided, include in response | ✅ | 2026-07-19 |
+| TASK-186 | Update `update_review()` to extract `X-Owner-Token` and pass to repository | ✅ | 2026-07-19 |
+| TASK-187 | Update `delete_review()` to extract `X-Owner-Token` and pass to repository | ✅ | 2026-07-19 |
+| TASK-188 | Add 403 response when owner token does not match (edit/delete) | ✅ | 2026-07-19 |
+| TASK-189 | Add `@csrf.exempt` decorator for API endpoints that use custom header auth | ✅ | 2026-07-19 |
+
+#### Phase 25.4: Frontend Token Management
+
+- GOAL-25.4: Generate and persist owner token in browser, send with review requests
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-190 | Add `getOwnerToken()` to `app/static/js/utils.js` — generates UUID4 on first call, persists to `localStorage key 'modulego_owner_token'` | ✅ | 2026-07-19 |
+| TASK-191 | In `detail.js`: add `X-Owner-Token` header to POST/PUT/DELETE fetch calls in `saveReview()` and `deleteReview()` | ✅ | 2026-07-19 |
+| TASK-192 | In `reviews.js`: add `X-Owner-Token` header to PUT/DELETE fetch calls in `saveEdit()` and `deleteReview()` | ✅ | 2026-07-19 |
+| TASK-193 | In `reviews.js`: store `owner_token` from response on create, persist to localStorage | ✅ | 2026-07-19 |
+| TASK-194 | In `detail.js`: store `owner_token` from response on create, persist to localStorage | ✅ | 2026-07-19 |
+
+#### Phase 25.5: Frontend Edit/Delete Button Visibility
+
+- GOAL-25.5: Only show edit/delete buttons for reviews owned by the current user
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-195 | In `detail.js` `createReviewMarkup()`: check `review.owner_token === getOwnerToken()` before showing action buttons | ✅ | 2026-07-19 |
+| TASK-196 | In `reviews.js` `createReviewCard()`: check `review.owner_token === getOwnerToken()` before showing action buttons | ✅ | 2026-07-19 |
+
+#### Phase 25.6: Testing & Verification
+
+- GOAL-25.6: Verify all security improvements work correctly
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-197 | Run `pytest tests/` to verify existing tests still pass | ✅ | 2026-07-19 |
+| TASK-198 | Test: create review → verify owner_token is stored and returned | ✅ | 2026-07-19 |
+| TASK-199 | Test: edit review with wrong owner_token → verify 403 response | ✅ | 2026-07-19 |
+| TASK-200 | Test: delete review with wrong owner_token → verify 403 response | ✅ | 2026-07-19 |
+| TASK-201 | Test: rate limiting returns 429 after threshold exceeded | ✅ | 2026-07-19 |
+| TASK-202 | Test: existing reviews without owner_token still readable (backward compatible) | ✅ | 2026-07-19 |
+
+### Implementation Phase 26: Automated Scraping Pipeline
+
+- GOAL-26: Automate the scraping pipeline with Supabase sync via GitHub Actions
+
+#### Phase 26.1: Supabase Upsert Script
+
+- GOAL-26.1: Create standalone upsert script for GitHub Actions
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-207 | Create `upsert_to_supabase.py` — standalone CLI script reading JSON output and upserting to Supabase | ✅ | 2026-07-19 |
+| TASK-208 | Implement `upsert_modules()` — map synopsis JSON fields to Supabase `rp_modules` columns | ✅ | 2026-07-19 |
+| TASK-209 | Implement `upsert_comparison()` — map comparison JSON to `rp_modules_comparision` | ✅ | 2026-07-19 |
+| TASK-210 | Implement `upsert_courses()` — map courses JSON to `rp_courses`, extract module code arrays | ✅ | 2026-07-19 |
+| TASK-211 | Fix double-encoding bug — remove `json.dumps()` from module code lists in `upsert_courses()` | ✅ | 2026-07-19 |
+
+#### Phase 26.2: GitHub Actions Workflow
+
+- GOAL-26.2: Automate weekly scraping via GitHub Actions cron
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-212 | Create `.github/workflows/scrape.yml` — weekly cron (Sunday 2am UTC) + `workflow_dispatch` | ✅ | 2026-07-19 |
+| TASK-213 | Add Python + Node.js setup steps for agent-browser dependency | ✅ | 2026-07-19 |
+| TASK-214 | Add agent-browser installation step for step1 CSRF token extraction | ✅ | 2026-07-19 |
+| TASK-215 | Add `run_all.py` + `upsert_to_supabase.py` execution steps | ✅ | 2026-07-19 |
+| TASK-216 | Add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as required repository secrets | ✅ | 2026-07-19 |
+
+#### Phase 26.3: Scraping Script Updates
+
+- GOAL-26.3: Update scraping scripts for reliability and naming consistency
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-217 | Add `os.makedirs(data_dir, exist_ok=True)` to step1, step2, step4 scripts | ✅ | 2026-07-19 |
+| TASK-218 | Add `check_node_npm()` and `close_browser()` to step1 script | ✅ | 2026-07-19 |
+| TASK-219 | Add polling loop for API request capture in step1 (replaces fixed sleep) | ✅ | 2026-07-19 |
+| TASK-220 | Remove `active` column from both step2_scrape_all_modules.py scripts | ✅ | 2026-07-19 |
+| TASK-221 | Rename `rp_diplomas_curriculum.json/csv` → `rp_courses.json/csv` in step4 | ✅ | 2026-07-19 |
+| TASK-222 | Update `run_all.py` — skip step1 if tokens.json exists, add live feedback | ✅ | 2026-07-19 |
+| TASK-223 | Add `.gitignore` rule for `app/static/local-data/data/` (scraping output) | ✅ | 2026-07-19 |
 
 ## 3. Alternatives
 
@@ -403,44 +633,56 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **ALT-005**: Separate rating and comment systems - Rejected in favor of unified review system
 - **ALT-006**: Self-hosted PostgreSQL - Rejected in favor of managed Supabase for simplicity
 - **ALT-007**: Bootstrap Modal with Tailwind CSS - Rejected in favor of fully custom modal to eliminate Bootstrap JS dependency
+- **ALT-008**: Keep glassmorphism but tone it down - Rejected because the SLP pattern of solid surfaces is cleaner and more maintainable. Glassmorphism on cards fights with content hierarchy
+- **ALT-009**: Switch to a different accent color (blue, rose) - Rejected because emerald is RP's brand color and already established in the codebase
+- **ALT-010**: Use a CSS framework like shadcn/ui - Rejected because this is a Flask + Jinja project with no React. The existing Tailwind CDN approach works fine
+- **ALT-011**: Add GSAP scroll animations - Rejected as out of scope. The redesign is visual-only; motion can be added later
 
 ## 4. Dependencies
 
-- **DEP-001**: Tailwind CSS v4 via CDN (runtime CSS generation)
+- **DEP-001**: Tailwind CSS v3 via CDN (runtime CSS generation)
 - **DEP-002**: Inter font via Google Fonts CDN
 - **DEP-003**: Lucide Icons via CDN (icon library)
 - **DEP-004**: Supabase `rp_modules` table (module dataset)
 - **DEP-005**: Supabase `reviews` table (review storage)
-- **DEP-006**: Flask 3.0.3 (Python web framework)
+- **DEP-006**: Flask 3.1.3 (Python web framework)
 - **DEP-007**: supabase 2.31.0 (Python client)
-- **DEP-008**: python-dotenv 1.1.0 (env var loading)
-- **DEP-009**: Python 3.x runtime
-- **DEP-010**: `app/static/data/diploma.json` (static diploma mappings)
-- **DEP-011**: `app/static/data/scrape modules/` — Python scraping scripts (requests, BeautifulSoup, agent-browser)
+- **DEP-008**: python-dotenv 1.2.2 (env var loading)
+- **DEP-009**: Python 3.12+ runtime
+- **DEP-010**: Supabase `rp_courses` table (diploma data from scraping)
+- **DEP-011**: `app/static/local-data/scripts/` — Python scraping scripts (requests, BeautifulSoup, agent-browser)
+- **DEP-012**: Outfit font via Google Fonts CDN (display headings)
+- **DEP-013**: Flask-WTF>=1.2.0 — CSRF protection
+- **DEP-014**: Flask-Limiter>=3.0.0 — Rate limiting
+- **DEP-015**: pytest>=8.0,<10.0 — Test framework
 
 ## 5. Files
 
 | Path | Description |
 |------|-------------|
-| `app/templates/modules/index.html` | Main search and browse page (Tailwind glassmorphism) |
+| `app/templates/modules/index.html` | Main search and browse page with collapsible filter panel |
 | `app/templates/modules/comparison.html` | Module comparison page (Tailwind glassmorphism) |
 | `app/templates/modules/reviews.html` | Review dashboard page (Tailwind glassmorphism) |
 | `app/templates/base.html` | Layout template with glass navbar/footer (Tailwind) |
-| `app/templates/_macros.html` | Shared Jinja macros (hero, navLinks, themeToggle) |
-| `app/static/css/app.css` | Tailwind CSS with `@theme` config and glassmorphism tokens |
-| `app/static/js/utils.js` | Shared utilities (escapeHtml, createStars, parseTimestamp, showMessage, createReviewActionsHTML, createModalController) |
-| `app/static/js/data.js` | Data loading from `/api/modules` |
-| `app/static/js/ui.js` | UI rendering, search, pagination + app initialization (merged from search.js + app.js) |
+| `app/templates/_macros.html` | Shared Jinja macros (hero, navLinks, themeToggle, selectField) |
+| `app/static/css/app.css` | Tailwind CSS with `:root` custom properties and glassmorphism tokens |
+| `app/static/js/utils.js` | Shared utilities (escapeHtml, createStars, parseTimestamp, showMessage, createReviewActionsHTML, createModalController, getOwnerToken) |
+| `app/static/js/data.js` | Data loading from `/api/modules` + `/api/courses` with diploma/rating/active filtering |
+| `app/static/js/ui.js` | UI rendering, search, pagination, filter panel + app initialization (merged from search.js + app.js) |
 | `app/static/js/comparison.js` | Module comparison logic (Tailwind markup) |
+| `app/static/js/detail.js` | Module detail modal + review CRUD (owner token headers) |
 | `app/static/js/reviews.js` | Review dashboard + module detail review CRUD (merged from detail.js) |
-| `app/static/js/theme.js` | Theme toggle logic and localStorage persistence |
-| `app/static/data/diploma.json` | Static diploma mappings |
-| `app/static/data/SCRAPING_GUIDE.md` | Documentation for module scraping pipeline |
-| `app/static/data/scrape modules/` | Python scraping scripts (step1_get_tokens, step2_scrape_all_modules, step3_generate_comparison) |
-| `app/static/data/scrape_diplomas.py` | Diploma scraper (sitemap-based, BeautifulSoup) |
-| `app.py` | Flask backend with Supabase integration + ReviewRepository |
+| `app/static/local-data/scripts/` | Python scraping scripts (step1_get_tokens, step2_scrape_all_modules, step3_generate_comparison, step4_scrape_diplomas) |
+| `app/static/local-data/data/` | Scraping output (gitignored) — tokens.json, rp_modules_synopsis, rp_modules_comparison, rp_courses |
+| `app/static/local-data/SCRAPING_GUIDE.md` | Documentation for module scraping pipeline |
+| `app/static/local-data/run_all.py` | Sequential runner for scraping steps 1-4 |
+| `app.py` | Flask backend with Supabase integration, ReviewRepository, CSRF, rate limiting |
+| `upsert_to_supabase.py` | Standalone CLI for upserting scraped JSON to Supabase (used by GitHub Actions) |
+| `requirements.txt` | Python dependencies (Flask, Flask-WTF, Flask-Limiter, supabase, python-dotenv, pytest) |
 | `tests/test_reviews.py` | Pytest test suite for review API endpoints |
-| `requirements.txt` | Python dependencies |
+| `tests/test_security.py` | Pytest test suite for ownership validation, CSRF, rate limiting |
+| `.github/workflows/scrape.yml` | GitHub Actions workflow for weekly automated scraping |
+| `.github/workflows/ci.yml` | GitHub Actions workflow for CI (lint, compile, test) |
 | `.env.example` | Supabase credential template |
 | `vercel.json` | Vercel serverless function configuration |
 
@@ -466,11 +708,23 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **TEST-018**: Arrow keys navigate pages when pagination focused
 - **TEST-019**: Screen reader announces page changes via aria-live
 - **TEST-020**: All pytest tests pass after JS merge refactor
-- **TEST-021**: Run `python app/static/data/scrape_diplomas.py` — ~44 diploma entries output
+- **TEST-021**: Run `python app/static/local-data/scripts/step4_scrape_diplomas.py` — ~44 diploma entries output
+- **TEST-022**: Visual regression — compare before/after screenshots of all 3 pages in light and dark mode
+- **TEST-023**: Contrast audit — verify WCAG AA (4.5:1) for all text against backgrounds in both modes
+- **TEST-024**: Functional regression — run `pytest tests/` to ensure no API or security tests break
+- **TEST-025**: Mobile responsive — verify no horizontal scroll or layout breaks at 375px width
+- **TEST-026**: Theme toggle — verify FOUC prevention, system preference detection, and manual toggle all work
+- **TEST-027**: Visual check: home page light mode — hero, search bar, module cards, pagination, footer
+- **TEST-028**: Visual check: home page dark mode — same components, verify contrast
+- **TEST-029**: Visual check: comparison page light + dark — dual search, VS badge, comparison table
+- **TEST-030**: Visual check: reviews page light + dark — stats, filter toolbar, review cards
+- **TEST-031**: Functional check: search, filter, sort, pagination, detail modal, review CRUD all work
+- **TEST-032**: Mobile check: responsive layout at 375px, 768px, 1024px viewports
+- **TEST-033**: Cross-browser testing (Chrome, Firefox, Safari, Edge)
 
 ## 7. Risks & Assumptions
 
-- **RISK-001**: Large dataset (4000+ modules) may cause slow initial load - Mitigation: Show loading indicator
+- **RISK-001**: Large dataset (537 modules) may cause slow initial load - Mitigation: Show loading indicator
 - **RISK-002**: Supabase outage would affect both module data and reviews - Mitigation: Acceptable for student project; SQLite fallback for tests
 - **RISK-003**: Diploma mapping may be incomplete - Mitigation: Show "No diploma information available" for unmapped modules
 - **RISK-004**: Flask backend must be running for all functionality - Mitigation: Show error message if server not available
@@ -480,11 +734,20 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **RISK-008**: Dark mode contrast may be insufficient on certain components - Mitigation: Test all combinations with contrast checker, minimum 4.5:1 ratio
 - **RISK-009**: Theme toggle may flash on page load (FOUC) - Mitigation: Inline script in `<head>` to apply theme before render
 - **RISK-010**: Merging detail.js into reviews.js may cause regression in detail modal - Mitigation: Test coverage of review CRUD
+- **RISK-011**: Changing CSS class names on cards may break JS that targets `.glass-card` — verify `ui.js` and `detail.js` selectors
+- **RISK-012**: Dark mode custom oklch vars may produce unexpected contrast on some monitors — test on multiple screens
+- **RISK-013**: Existing reviews in Supabase have no `owner_token` — they become "orphaned" (read-only). Mitigation: Acceptable for existing data; new reviews will have ownership
+- **RISK-014**: Users clearing localStorage lose ownership of their reviews. Mitigation: Acceptable for anonymous system; reviews remain readable
+- **RISK-015**: Flask-Limiter in-memory storage is per-invocation on Vercel serverless — not global rate limiting. Mitigation: Acceptable for student project scale
+- **RISK-016**: Scraping scripts depend on RP website structure — changes may break scraping. Mitigation: Monitor scraping workflow, fix as needed
+- **RISK-017**: Agent-browser dependency requires Node.js for CSRF token extraction in step1. Mitigation: GitHub Actions workflow installs Node.js
+- **RISK-018**: RP session tokens may expire during scraping. Mitigation: Pipeline skips step1 if tokens.json exists; GitHub Actions runs fresh each time
 - **ASSUMPTION-001**: Users have modern browsers with JavaScript support
 - **ASSUMPTION-002**: Tailwind CSS CDN and Google Fonts CDN are accessible
 - **ASSUMPTION-003**: Module data in Supabase is accurate and up-to-date
-- **ASSUMPTION-004**: Python 3.x is installed on the server
+- **ASSUMPTION-004**: Python 3.12+ is installed on the server
 - **ASSUMPTION-005**: Supabase credentials in `.env` are valid
+- **ASSUMPTION-006**: Single-server deployment (Vercel serverless) — in-memory rate limiting is per-invocation, not global
 
 ## 8. Related Specifications / Further Reading
 
@@ -492,8 +755,13 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 - [Tailwind CSS Theme Variables](https://tailwindcss.com/docs/theme)
 - [Flask Documentation](https://flask.palletsprojects.com/)
+- [Flask-WTF Documentation](https://flask-wtf.readthedocs.io/)
+- [Flask-Limiter Documentation](https://flask-limiter.readthedocs.io/)
+- [Supabase Row Level Security](https://supabase.com/docs/guides/auth/row-level-security)
 - [SQLite Documentation](https://www.sqlite.org/docs.html)
 - [RP Diploma List](https://www.rp.edu.sg/education/diplomas/)
 - [RP Module List](https://www.rp.edu.sg/education/modules/)
 - [RP Module Synopsis (OutSystems)](https://lcs.rp.edu.sg/RPModuleSynopsis/)
-- [Scraping Guide](../app/static/data/SCRAPING_GUIDE.md)
+- [Scraping Guide](../app/static/local-data/SCRAPING_GUIDE.md)
+- [SaaS Landing Page Reference](https://saaslandingpage.com/)
+- [oklch Color Picker](https://oklch.com/)
