@@ -15,7 +15,7 @@ def run(cmd, label=""):
     result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
     if result.returncode != 0:
         error = result.stderr.strip() or result.stdout.strip()
-        print(f"FAIL")
+        print("FAIL")
         sys.exit(f"  Failed: {error}")
     print("OK")
     return result.stdout.strip()
