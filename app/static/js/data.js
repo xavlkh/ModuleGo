@@ -2,12 +2,28 @@
  * Handles module data loading, lookup, and search.
  * @module data
  */
+/**
+ * Centralised data layer for modules, diplomas, and ratings.
+ * All data is loaded once from the Flask API and kept in memory for
+ * client-side search and filtering.
+ * @module data
+ */
 const DataManager = {
+    /** @type {Array<Object>} All module objects from /api/modules */
     modules: [],
+    /** @type {Array<Object>} All diploma/course objects from /api/courses */
     diplomas: [],
+    /** @type {Object<string, {average_rating: number|null, review_count: number}>} Rating summaries keyed by module code */
     ratings: {},
+    /** @type {boolean} True after the first successful loadData() call */
     loaded: false,
 
+    /**
+     * Fetch modules, courses, and ratings from the Flask API in parallel.
+     * Populates this.modules, this.diplomas, and this.ratings.
+     * @returns {Promise<Array<Object>>} The loaded modules array.
+     * @throws {Error} If module or course fetch fails.
+     */
     async loadData() {
         try {
             const [moduleResponse, courseResponse, ratingResponse] = await Promise.all([
@@ -33,11 +49,21 @@ const DataManager = {
         }
     },
 
+    /**
+     * Look up a single module by its code (case-insensitive).
+     * @param {string} code - The module code to find.
+     * @returns {Object|undefined} The matching module, or undefined.
+     */
     getModule(code) {
         const lookupCode = (code || '').toLowerCase();
         return this.modules.find(m => (m.code || '').toLowerCase() === lookupCode);
     },
 
+    /**
+     * Get the rating summary for a module code.
+     * @param {string} moduleCode - The module code (case-insensitive).
+     * @returns {{average_rating: number|null, review_count: number}} Rating summary.
+     */
     getRatingSummary(moduleCode) {
         return this.ratings[(moduleCode || '').toUpperCase()] || {
             average_rating: null,
@@ -45,6 +71,10 @@ const DataManager = {
         };
     },
 
+    /**
+     * Re-fetch rating summaries from the API (e.g. after a review mutation).
+     * @returns {Promise<Object>} Updated ratings map.
+     */
     async refreshRatingSummaries() {
         const response = await fetch('/api/ratings');
         if (!response.ok) {
@@ -55,6 +85,12 @@ const DataManager = {
         return this.ratings;
     },
 
+    /**
+     * Find all diplomas that include a given module code.
+     * Searches general, major, discipline, elective, and industry module lists.
+     * @param {string} moduleCode - The module code to look up.
+     * @returns {Array<Object>} Diploma objects with an added `category` field.
+     */
     getDiplomasByModule(moduleCode) {
         if (!moduleCode) {
             return [];
@@ -82,6 +118,13 @@ const DataManager = {
         return results;
     },
 
+    /**
+     * Search modules by query string with weighted relevance scoring.
+     * Matches against code, name, school, synopsis, summary, suitableFor, and url.
+     * Lower score = higher relevance (scores start at 100 and decrease).
+     * @param {string} query - The search query.
+     * @returns {Array<Object>} Matching modules sorted by relevance.
+     */
     searchModules(query) {
         if (!query || query.trim() === '') {
             return this.modules;
@@ -133,6 +176,10 @@ const DataManager = {
         return results.map(r => r.module);
     },
 
+    /**
+     * Get a deduplicated, sorted list of all diplomas for the filter dropdown.
+     * @returns {Array<{code: string, name: string}>} Sorted diploma list.
+     */
     getDiplomaList() {
         const seen = new Set();
         const list = [];
@@ -146,6 +193,15 @@ const DataManager = {
         return list;
     },
 
+    /**
+     * Apply diploma, rating, and active filters to a module list.
+     * @param {Array<Object>} modules - The modules to filter.
+     * @param {Object} [filters={}] - Filter criteria.
+     * @param {string} [filters.diploma] - Course code to filter by, or 'all'.
+     * @param {string} [filters.rating] - Minimum average rating, or 'all'.
+     * @param {string} [filters.active] - 'true' to show only active modules.
+     * @returns {Array<Object>} Filtered modules.
+     */
     filterModules(modules, filters = {}) {
         let results = modules ? [...modules] : [...this.modules];
         const { diploma, rating, active } = filters;
@@ -181,6 +237,11 @@ const DataManager = {
         return results;
     },
 
+    /**
+     * Normalise text for search: lowercase, replace non-alphanumeric with spaces, trim.
+     * @param {*} value - The value to normalise.
+     * @returns {string} Normalised search text.
+     */
     normalizeSearchText(value) {
         return String(value || '')
             .toLowerCase()

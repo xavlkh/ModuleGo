@@ -16,10 +16,11 @@ Read the project specification (`docs/spec-modulego-design.md`) and plan (`docs/
 ## Project Conventions
 - **ReviewRepository** class in `app.py` encapsulates Supabase/SQLite dual-branch logic (all review CRUD routes use it)
 - **Jinja macros** in `app/templates/_macros.html` — use existing macros (`hero`, `navLinks`, `themeToggle`, `btnPrimary`, `glassCard`, `modalOverlay`, etc.) before authoring new elements
-- **JS modules:** `utils.js` (shared utilities), `data.js` (data loading/search), `ui.js` (home page + pagination + filter panel), `comparison.js`, `reviews.js` (dashboard + detail modal CRUD)
+- **JS modules:** `utils.js` (shared utilities), `data.js` (data loading/search), `ui.js` (home page + pagination + filter panel), `detail.js` (module detail modal + review CRUD), `comparison.js` (side-by-side comparison), `reviews.js` (review dashboard + edit modal)
 - **API endpoints:** All Supabase calls go through Flask; browser never sees the secret key
 - **Data sources:** Modules from Supabase `rp_modules` + `rp_modules_comparision`; courses/diplomas from `rp_courses` via scraping; reviews from `reviews` table
 - **Scraping:** Scripts in `app/static/local-data/scripts/`; output in `app/static/local-data/data/` (gitignored); run `python run_all.py` from `app/static/local-data/`
+- **Security:** Anonymous ownership via `owner_token` (UUID hex, stored in `localStorage`); sent as `X-Owner-Token` header on review create/update/delete; CSRF via Flask-WTF (all API endpoints exempt); rate limiting via Flask-Limiter (`memory://` storage)
 
 ## Formatting & Style Guides
 - **Python (Flask):** [PEP 8](https://python.org), include docstrings for view functions and context processors
