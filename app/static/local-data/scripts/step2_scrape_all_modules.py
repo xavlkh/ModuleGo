@@ -113,7 +113,8 @@ def get_school_abbr(school_name):
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    token_path = os.path.join(script_dir, "tokens.json")
+    data_dir = os.path.join(script_dir, "..", "data")
+    token_path = os.path.join(data_dir, "tokens.json")
     with open(token_path, "r", encoding="utf-8") as f:
         tokens = json.load(f)
     csrf = tokens.get("csrf", "")
@@ -157,7 +158,7 @@ def main():
 
     print(f"\nTotal unique modules: {len(all_modules)}")
 
-    # Enrich with school_abbr, url, active
+    # Enrich with school_abbr, url
     output = []
     for m in all_modules:
         code = m["module_code"]
@@ -171,18 +172,21 @@ def main():
             "school_name": school_name,
             "school_abbr": school_abbr,
             "url": f"https://www.rp.edu.sg/education/modules/{code.lower()}",
-            "active": True,
         })
 
-    json_path = os.path.join(script_dir, "rp_modules_synopsis.json")
+    output.sort(key=lambda m: m["module_code"])
+
+    os.makedirs(data_dir, exist_ok=True)
+
+    json_path = os.path.join(data_dir, "rp_modules_synopsis.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
     print(f"Written {json_path}")
 
-    csv_path = os.path.join(script_dir, "rp_modules_synopsis.csv")
+    csv_path = os.path.join(data_dir, "rp_modules_synopsis.csv")
     with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=[
-            "module_code", "module_name", "synopsis", "school_name", "school_abbr", "url", "active"
+            "module_code", "module_name", "synopsis", "school_name", "school_abbr", "url"
         ])
         writer.writeheader()
         writer.writerows(output)

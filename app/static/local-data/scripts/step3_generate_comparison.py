@@ -141,9 +141,10 @@ def generate_summary(module):
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    input_path = os.path.join(script_dir, "rp_modules_synopsis.json")
-    output_csv = os.path.join(script_dir, "rp_modules_comparison.csv")
-    output_json = os.path.join(script_dir, "rp_modules_comparison.json")
+    data_dir = os.path.join(script_dir, "..", "data")
+    input_path = os.path.join(data_dir, "rp_modules_synopsis.json")
+    output_csv = os.path.join(data_dir, "rp_modules_comparison.csv")
+    output_json = os.path.join(data_dir, "rp_modules_comparison.json")
 
     with open(input_path, "r", encoding="utf-8") as f:
         modules = json.load(f)
