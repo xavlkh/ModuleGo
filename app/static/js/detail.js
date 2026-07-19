@@ -1,24 +1,40 @@
 /**
- * Shows module details and manages the review lifecycle in the detail modal.
+ * Module detail modal: shows full module info, diploma list, and manages
+ * the review lifecycle (read / create / edit / delete) within the modal.
  * @module detail
  */
 const DetailManager = {
+    /** @type {string|null} Module code currently shown in the modal. */
     currentModuleCode: null,
+    /** @type {Map<number, Object>} Reviews for the current module, keyed by ID. */
     currentReviews: new Map(),
+    /** @type {number|null} ID of the review being edited, or null for create mode. */
     editingReviewId: null,
+    /** @type {{show: Function, hide: Function, init: Function}|null} Modal controller. */
     modal: null,
 
+    /**
+     * Initialise the modal controller for the module detail overlay.
+     */
     init() {
         this.modal = createModalController({
             overlayId: 'moduleModalOverlay',
-            closeBtnId: 'moduleModalClose'
+            closeBtnId: 'moduleModalClose',
         });
         this.modal.init();
     },
 
+    /** Show the module detail modal. */
     showModal() { this.modal.show(); },
+
+    /** Hide the module detail modal. */
     hideModal() { this.modal.hide(); },
 
+    /**
+     * Open the detail modal for a module, populate its content, and
+     * kick off an async review load.
+     * @param {string} moduleCode - The module code to display.
+     */
     showModuleDetail(moduleCode) {
         const module = DataManager.getModule(moduleCode);
         if (!module) return;
@@ -37,6 +53,12 @@ const DetailManager = {
         lucide.createIcons();
     },
 
+    /**
+     * Build the HTML for the module detail body (header, synopsis, source
+     * link, diploma list, reviews section, and review form).
+     * @param {Object} module - The module data object.
+     * @returns {string} Inner HTML string for the modal body.
+     */
     createDetailContent(module) {
         const diplomas = DataManager.getDiplomasByModule(module.code);
         const diplomasHTML = diplomas.length > 0
@@ -46,7 +68,7 @@ const DetailManager = {
                     'Major': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
                     'Discipline': 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
                     'Elective': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-                    'Industry': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                    'Industry': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
                 };
                 const catClass = catColors[d.category] || 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300';
                 const diplomaUrl = d.url ? escapeHtml(d.url) : '#';
@@ -62,7 +84,7 @@ const DetailManager = {
                     </a>
                 </li>`;
             }).join('')
-            : `<li class="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 px-4 py-6 text-center text-zinc-400 dark:text-zinc-400 text-sm">No diploma information available for this module.</li>`;
+            : '<li class="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 px-4 py-6 text-center text-zinc-400 dark:text-zinc-400 text-sm">No diploma information available for this module.</li>';
 
         return `
             <div class="module-header rounded-xl p-6 mb-6">
@@ -113,13 +135,17 @@ const DetailManager = {
                     <p class="mt-1.5 text-xs text-zinc-400 dark:text-zinc-400">Optional, maximum 500 characters.</p>
                 </div>
                 <div class="flex gap-3 pt-1">
-                    <button id="submitReviewBtn" class="rounded-xl bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-primary-600 hover:shadow active:tranzinc-y-0" type="button">Submit Review</button>
-                    <button id="cancelEditReviewBtn" class="hidden rounded-xl border border-zinc-200 dark:border-zinc-700 px-6 py-3 text-sm font-semibold text-zinc-600 dark:text-zinc-400 transition-all duration-300 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-800 dark:hover:text-zinc-200 active:tranzinc-y-0" type="button">Cancel edit</button>
+                    <button id="submitReviewBtn" class="rounded-xl bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-primary-600 hover:shadow active:translate-y-0" type="button">Submit Review</button>
+                    <button id="cancelEditReviewBtn" class="hidden rounded-xl border border-zinc-200 dark:border-zinc-700 px-6 py-3 text-sm font-semibold text-zinc-600 dark:text-zinc-400 transition-all duration-300 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-800 dark:hover:text-zinc-200 active:translate-y-0" type="button">Cancel edit</button>
                 </div>
             </div>
         `;
     },
 
+    /**
+     * Fetch reviews for a module from the API and render them in the modal.
+     * @param {string} moduleCode - The module code to load reviews for.
+     */
     async loadReviews(moduleCode) {
         const reviewsList = document.getElementById('reviewsList');
         if (!reviewsList) return;
@@ -151,6 +177,11 @@ const DetailManager = {
         }
     },
 
+    /**
+     * Build the HTML for a single review card.
+     * @param {Object} review - The review object from the API.
+     * @returns {string} HTML string for the review.
+     */
     createReviewMarkup(review) {
         const comment = review.comment
             ? escapeHtml(review.comment)
@@ -158,6 +189,7 @@ const DetailManager = {
         const updated = review.updated_at
             ? `<span class="ml-2 text-zinc-400 dark:text-zinc-400">Edited ${formatTimestamp(review.updated_at)}</span>`
             : '';
+        const isOwner = review.owner_token && review.owner_token === getOwnerToken();
 
         return `
             <article class="review-item" data-review-id="${review.id}">
@@ -169,12 +201,16 @@ const DetailManager = {
                         <p class="text-sm text-zinc-700 dark:text-zinc-300 mb-1">${comment}</p>
                         <small class="text-xs text-zinc-400 dark:text-zinc-400">${formatTimestamp(review.created_at)}${updated}</small>
                     </div>
-                    ${createReviewActionsHTML(review.id)}
+                    ${createReviewActionsHTML(review.id, isOwner)}
                 </div>
             </article>
         `;
     },
 
+    /**
+     * Render the review summary badge (average rating + count) in the modal.
+     * @param {Array<Object>} reviews - Reviews for the current module.
+     */
     renderReviewSummary(reviews) {
         const summary = document.getElementById('reviewSummary');
         if (!summary) return;
@@ -189,6 +225,11 @@ const DetailManager = {
         lucide.createIcons();
     },
 
+    /**
+     * Switch the review form into edit mode, pre-filling the rating and
+     * comment fields and showing the cancel button.
+     * @param {number} reviewId - The ID of the review to edit.
+     */
     startEditReview(reviewId) {
         const review = this.currentReviews.get(reviewId);
         if (!review) return;
@@ -202,6 +243,9 @@ const DetailManager = {
         document.getElementById('reviewFormCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     },
 
+    /**
+     * Reset the review form back to create mode.
+     */
     resetReviewForm() {
         this.editingReviewId = null;
         document.getElementById('reviewFormTitle').textContent = 'Leave a Review';
@@ -212,6 +256,11 @@ const DetailManager = {
         clearElementMessage('reviewFormMessage');
     },
 
+    /**
+     * Submit a new review or update an existing one, then refresh the
+     * review list and rating display.
+     * @param {string} moduleCode - The module code (used for new reviews).
+     */
     async saveReview(moduleCode) {
         const rating = Number(document.getElementById('reviewRating').value);
         const comment = document.getElementById('reviewComment').value.trim();
@@ -226,15 +275,19 @@ const DetailManager = {
         clearElementMessage('reviewFormMessage');
 
         try {
+            const headers = { 'Content-Type': 'application/json', 'X-Owner-Token': getOwnerToken() };
             const response = await fetch(endpoint, {
                 method: isEditing ? 'PUT' : 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                headers,
+                body: JSON.stringify(payload),
             });
             const result = await response.json();
             if (!response.ok) {
                 showFormMessage(result.error || 'Could not save review.', 'danger');
                 return;
+            }
+            if (result.owner_token) {
+                localStorage.setItem(OWNER_TOKEN_KEY, result.owner_token);
             }
             this.resetReviewForm();
             await this.refreshReviewViews(moduleCode);
@@ -248,10 +301,17 @@ const DetailManager = {
         }
     },
 
+    /**
+     * Delete a review after confirmation, then refresh the views.
+     * @param {number} reviewId - The review to delete.
+     */
     async deleteReview(reviewId) {
         if (!window.confirm('Delete this review permanently?')) return;
         try {
-            const response = await fetch(`/api/reviews/${reviewId}`, { method: 'DELETE' });
+            const response = await fetch(`/api/reviews/${reviewId}`, {
+                method: 'DELETE',
+                headers: { 'X-Owner-Token': getOwnerToken() },
+            });
             if (!response.ok) {
                 const result = await response.json();
                 throw new Error(result.error || 'Could not delete review.');
@@ -265,18 +325,33 @@ const DetailManager = {
         }
     },
 
+    /**
+     * Reload reviews and rating summaries, then update the UI.
+     * @param {string} moduleCode - The module to refresh.
+     */
     async refreshReviewViews(moduleCode) {
         await this.loadReviews(moduleCode);
         await DataManager.refreshRatingSummaries();
         UIRenderer.updateRatingDisplay(moduleCode);
-    }
+    },
 };
 
+/* ── Private helper functions (module scope) ────────────────────────── */
+
+/**
+ * Display a message in the review form's message area.
+ * @param {string} message - The message text.
+ * @param {'success'|'danger'} type - The message type.
+ */
 function showFormMessage(message, type) {
     const el = document.getElementById('reviewFormMessage');
     if (el) showMessage(el, message, type);
 }
 
+/**
+ * Clear the review form's message area.
+ * @param {string} elementId - The ID of the message element.
+ */
 function clearElementMessage(elementId) {
     const el = document.getElementById(elementId);
     if (el) {
@@ -285,6 +360,11 @@ function clearElementMessage(elementId) {
     }
 }
 
+/**
+ * Format a timestamp string for display in review cards.
+ * @param {string} value - ISO or space-separated timestamp.
+ * @returns {string} Formatted date string, or the raw value if unparseable.
+ */
 function formatTimestamp(value) {
     const date = parseTimestamp(value);
     return date ? formatReviewDate(date) : escapeHtml(value);

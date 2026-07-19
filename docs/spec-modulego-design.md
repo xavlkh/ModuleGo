@@ -158,7 +158,8 @@ CREATE TABLE reviews (
     rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment text NOT NULL DEFAULT '',
     created_at timestamptz DEFAULT now(),
-    updated_at timestamptz
+    updated_at timestamptz,
+    owner_token text
 );
 
 -- Index for fast per-module lookups.
@@ -170,11 +171,18 @@ ALTER TABLE reviews
     FOREIGN KEY (module_code) REFERENCES rp_modules(module_code);
 ```
 
+**Ownership model:** Reviews use anonymous token-based ownership. The
+client generates a random UUID hex token (stored in `localStorage`) and
+sends it as an `X-Owner-Token` header on create/update/delete. The
+server stores this token in the `owner_token` column and validates it
+before allowing mutations.
+
 ### Backend API Endpoints
 
 | Endpoint | Method | Description | Request Body | Response |
 |----------|--------|-------------|--------------|----------|
 | `/api/modules` | GET | List all modules from Supabase | - | Array of module objects |
+| `/api/courses` | GET | List all courses (diplomas) from Supabase | - | Array of course objects |
 | `/api/reviews` | GET | List all reviews (dashboard) | - | Array of review objects |
 | `/api/reviews` | POST | Create a new review | `{ module_code, rating, comment }` | Review object |
 | `/api/reviews/<module_code>` | GET | Get reviews for a module | - | Array of review objects |
@@ -329,8 +337,10 @@ app/templates/modules/reviews.html (Review Dashboard)
 - **DEP-001**: Flask 3.1.3 - Web framework
 - **DEP-002**: supabase 2.31.0 - Supabase Python client
 - **DEP-003**: python-dotenv 1.2.2 - Environment variable loading
-- **DEP-004**: SQLite3 - Database (automated tests only)
+- **DEP-004**: SQLite3 - Local review database (tests and offline fallback)
 - **DEP-005**: pytest>=8.0,<10.0 - Test framework
+- **DEP-006**: Flask-WTF>=1.2.0 - CSRF protection (API routes exempt)
+- **DEP-007**: Flask-Limiter>=3.0.0 - Rate limiting (20/hr POST, 10/hr PUT/DELETE)
 
 ## 9. Examples & Edge Cases
 

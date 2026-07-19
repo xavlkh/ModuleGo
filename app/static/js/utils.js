@@ -3,6 +3,22 @@
  * @module utils
  */
 
+const OWNER_TOKEN_KEY = 'modulego_owner_token';
+
+/**
+ * Get or create the anonymous owner token for review ownership.
+ * Stored in localStorage for persistence across sessions.
+ * @returns {string} A 32-char hex token.
+ */
+function getOwnerToken() {
+    let token = localStorage.getItem(OWNER_TOKEN_KEY);
+    if (!token) {
+        token = crypto.randomUUID().replace(/-/g, '');
+        localStorage.setItem(OWNER_TOKEN_KEY, token);
+    }
+    return token;
+}
+
 /**
  * Escape HTML special characters to prevent XSS attacks.
  * @param {string|*} value - The value to escape.
@@ -59,9 +75,11 @@ function showMessage(element, message, type) {
 /**
  * Generate HTML for review edit/delete action buttons.
  * @param {number} reviewId - The review ID.
+ * @param {boolean} [isOwner=false] - Whether the current user owns this review.
  * @returns {string} HTML string for the action buttons.
  */
-function createReviewActionsHTML(reviewId) {
+function createReviewActionsHTML(reviewId, isOwner = false) {
+    if (!isOwner) return '';
     return `
         <div class="flex gap-1.5 flex-shrink-0">
             <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-400 hover:border-primary-300 dark:hover:border-primary-500 hover:text-primary-500 dark:hover:text-primary-400 transition-all edit-review-btn" type="button" data-review-id="${reviewId}" aria-label="Edit review">
