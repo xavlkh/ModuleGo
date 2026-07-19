@@ -4,16 +4,15 @@
 {% block title %}Reviews{% endblock %}
 
 {% block content %}
-<section class="relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-500 to-accent-400 py-12 sm:py-16">
-    <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyem0wLTRWMjhIMjR2Mmgxem0tMS0zdi0ySDI0djJoMTF6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-40"></div>
-    <div class="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+<section class="py-16 md:py-24">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
             <div class="lg:max-w-lg">
-                <span class="inline-block text-xs font-bold uppercase tracking-widest text-white/70 mb-3">Student feedback</span>
-                <h1 class="text-3xl sm:text-4xl font-extrabold text-white mb-3">Review Dashboard</h1>
-                <p class="text-white/80 text-lg">Browse recent student feedback across RP modules.</p>
+                <span class="inline-block text-xs font-bold uppercase tracking-widest text-primary-600 dark:text-primary-400 mb-4 font-body">Student feedback</span>
+                <h1 class="font-display font-bold text-4xl md:text-5xl tracking-tight text-zinc-900 dark:text-white mb-4">Review Dashboard</h1>
+                <p class="text-lg text-zinc-500 dark:text-zinc-400 leading-relaxed">Browse recent student feedback across RP modules.</p>
             </div>
-            <div class="grid grid-cols-3 gap-3 lg:min-w-[380px]">
+            <div class="grid grid-cols-3 gap-4 lg:min-w-[380px]">
                 {{ statCard('0', 'Reviews', id='dashboardReviewCount') }}
                 {{ statCard('0', 'This Month', id='dashboardMonthlyReviewCount') }}
                 {{ statCard('0', 'Modules', id='dashboardModuleCount') }}
@@ -26,8 +25,8 @@
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
             <div>
-                <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-0.5">All reviews</h2>
-                <p id="dashboardResultCount" class="text-sm text-slate-500 dark:text-slate-400">Loading reviews...</p>
+                <h2 class="text-xl font-bold text-zinc-900 dark:text-white mb-0.5">All reviews</h2>
+                <p id="dashboardResultCount" class="text-sm text-zinc-500 dark:text-zinc-400">Loading reviews...</p>
             </div>
             <div class="flex flex-col sm:flex-row gap-2 sm:max-w-lg w-full">
                 {{ inputSearch('reviewSearch', 'Search module or comment', 'flex-1') }}
@@ -38,11 +37,11 @@
                     ('3', '3 stars'),
                     ('2', '2 stars'),
                     ('1', '1 star')
-                ], 'rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-sm') }}
+                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm') }}
                 {{ selectField('reviewSort', [
                     ('newest', 'Newest first'),
                     ('oldest', 'Oldest first')
-                ], 'rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-sm') }}
+                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm') }}
             </div>
         </div>
 
@@ -57,17 +56,17 @@
 <div id="editReviewModalOverlay" class="hidden modal-overlay">
     <div class="modal-panel" style="max-width: 28rem;">
         <div class="modal-header">
-            <h2 class="text-lg font-bold text-slate-900 dark:text-white" id="editReviewModalLabel">Edit Review</h2>
-            <button id="editReviewModalClose" class="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors" aria-label="Close">
+            <h2 class="text-lg font-bold text-zinc-900 dark:text-white" id="editReviewModalLabel">Edit Review</h2>
+            <button id="editReviewModalClose" class="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 dark:text-zinc-400 hover:bg-white/60 dark:hover:bg-zinc-700 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors" aria-label="Close">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
         <div class="modal-body px-6 py-5">
             <div id="dashboardEditMessage" class="hidden mb-4 rounded-lg px-4 py-2.5 text-sm" role="alert"></div>
-            <p id="editReviewModule" class="mb-4 font-semibold text-slate-900 dark:text-white"></p>
+            <p id="editReviewModule" class="mb-4 font-semibold text-zinc-900 dark:text-white"></p>
             <div class="mb-4">
-                <label for="editReviewRating" class="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">Rating</label>
-                <select id="editReviewRating" class="select-field w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 shadow-sm pl-4 pr-10 py-2.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400 cursor-pointer">
+                <label for="editReviewRating" class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300">Rating</label>
+                <select id="editReviewRating" class="select-field w-full rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-sm pl-4 pr-10 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400 cursor-pointer">
                     <option value="5">5 - Excellent</option>
                     <option value="4">4 - Good</option>
                     <option value="3">3 - Average</option>
@@ -76,13 +75,13 @@
                 </select>
             </div>
             <div>
-                <label for="editReviewComment" class="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">Comment</label>
-                <textarea id="editReviewComment" class="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 shadow-sm px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400" rows="4" maxlength="500"></textarea>
-                <p class="mt-1.5 text-xs text-slate-400 dark:text-slate-400">Optional, maximum 500 characters.</p>
+                <label for="editReviewComment" class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300">Comment</label>
+                <textarea id="editReviewComment" class="w-full rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-sm px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400" rows="4" maxlength="500"></textarea>
+                <p class="mt-1.5 text-xs text-zinc-400 dark:text-zinc-400">Optional, maximum 500 characters.</p>
             </div>
         </div>
-        <div class="flex items-center justify-end gap-3 border-t border-slate-200/60 dark:border-slate-700 px-6 py-4 flex-shrink-0">
-            <button type="button" id="editReviewCancelBtn" class="truncate rounded-xl border border-slate-200 dark:border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-400 transition-all duration-300 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-800 dark:hover:text-slate-200 active:translate-y-0">Cancel</button>
+        <div class="flex items-center justify-end gap-3 border-t border-zinc-200/60 dark:border-zinc-700 px-6 py-4 flex-shrink-0">
+            <button type="button" id="editReviewCancelBtn" class="truncate rounded-xl border border-zinc-200 dark:border-zinc-700 px-5 py-2.5 text-sm font-semibold text-zinc-600 dark:text-zinc-400 transition-all duration-300 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-800 dark:hover:text-zinc-200 active:translate-y-0">Cancel</button>
             <button id="saveDashboardReviewBtn" type="button" class="truncate rounded-xl bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-primary-600 hover:shadow active:translate-y-0">Save Changes</button>
         </div>
     </div>
