@@ -12,6 +12,9 @@ const ComparisonManager = {
         two: { page: 1, perPage: 15, loading: false, hasMore: true, query: '' }
     },
 
+    /**
+     * Bootstrap the comparison page: cache elements, load data, bind search inputs.
+     */
     async init() {
         this.cacheElements();
         if (!this.elements.searchOne || !this.elements.searchTwo) return;
@@ -23,6 +26,9 @@ const ComparisonManager = {
         this.showStarterResults();
     },
 
+    /**
+     * Cache frequently accessed DOM elements to avoid repeated queries.
+     */
     cacheElements() {
         this.elements = {
             searchOne: document.getElementById('compareSearchOne'),
@@ -39,6 +45,10 @@ const ComparisonManager = {
         };
     },
 
+    /**
+     * Bind input and focus event listeners for a search slot.
+     * @param {string} slot - 'one' or 'two'
+     */
     bindSearch(slot) {
         const input = this.getSlotElement(slot, 'search');
         input.addEventListener('input', () => {
@@ -53,6 +63,9 @@ const ComparisonManager = {
         });
     },
 
+    /**
+     * Render initial empty search results for both slots and set up infinite scroll.
+     */
     showStarterResults() {
         this.renderSearchResults('one', '');
         this.renderSearchResults('two', '');
@@ -78,7 +91,7 @@ const ComparisonManager = {
         pag.hasMore = batch.length < matches.length;
 
         if (matches.length === 0) {
-            resultsElement.innerHTML = '<div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-4 py-3 text-sm text-slate-400 dark:text-slate-400">No matching modules found</div>';
+            resultsElement.innerHTML = '<div class="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700 bg-zinc-50/60 dark:bg-zinc-800/60 px-4 py-3 text-sm text-zinc-400 dark:text-zinc-400">No matching modules found</div>';
             return;
         }
 
@@ -94,10 +107,10 @@ const ComparisonManager = {
      */
     buildButtonsHtml(modules, slot) {
         return modules.map(m => `
-            <button class="w-full text-left rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm px-4 py-3 transition-all hover:border-primary-300 dark:hover:border-primary-500 hover:shadow-md" type="button" data-slot="${slot}" data-code="${escapeHtml(m.code)}">
+            <button class="w-full text-left rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 shadow-sm px-4 py-3 transition-all hover:border-primary-300 dark:hover:border-primary-500 hover:shadow-md" type="button" data-slot="${slot}" data-code="${escapeHtml(m.code)}">
                 <div class="text-xs font-bold text-primary-600 dark:text-primary-400 mb-0.5">${escapeHtml(m.code)}</div>
-                <div class="text-sm font-semibold text-slate-900 dark:text-white leading-snug">${escapeHtml(m.name)}</div>
-                <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${escapeHtml(m.school || 'School not listed')}</div>
+                <div class="text-sm font-semibold text-zinc-900 dark:text-white leading-snug">${escapeHtml(m.name)}</div>
+                <div class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">${escapeHtml(m.school || 'School not listed')}</div>
             </button>
         `).join('');
     },
@@ -108,7 +121,7 @@ const ComparisonManager = {
      */
     buildSentinelHtml(show, slot) {
         if (!show) return '';
-        return `<div id="scrollSentinel-${slot}" class="flex justify-center py-3"><div class="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-primary-500"></div></div>`;
+        return `<div id="scrollSentinel-${slot}" class="flex justify-center py-3"><div class="h-5 w-5 animate-spin rounded-full border-2 border-zinc-300 border-t-primary-500"></div></div>`;
     },
 
     /**
@@ -208,7 +221,7 @@ const ComparisonManager = {
         selectedEl.innerHTML = `
             <span class="flex-1">
                 <strong class="text-primary-700 dark:text-primary-400 mr-1">${escapeHtml(module.code)}</strong>
-                <span class="text-slate-900 dark:text-white">${escapeHtml(module.name)}</span>
+                <span class="text-zinc-900 dark:text-white">${escapeHtml(module.name)}</span>
             </span>
             <button type="button" class="flex h-7 w-7 items-center justify-center rounded-lg module-code-box text-primary-600 dark:text-primary-300 hover:bg-primary-500 hover:text-white transition-all" aria-label="Clear selected module" data-slot="${slot}">
                 <i data-lucide="x" class="w-3.5 h-3.5"></i>
@@ -220,6 +233,10 @@ const ComparisonManager = {
         this.renderComparison();
     },
 
+    /**
+     * Clear the selected module for a slot and restore search results.
+     * @param {string} slot - 'one' or 'two'
+     */
     clearSelection(slot) {
         this.selected[slot] = null;
         this.getSlotElement(slot, 'selected').classList.add('hidden');
@@ -228,6 +245,10 @@ const ComparisonManager = {
         this.renderComparison();
     },
 
+    /**
+     * Render the comparison table for the two selected modules.
+     * Shows a message if fewer than two distinct modules are selected.
+     */
     renderComparison() {
         const first = this.selected.one;
         const second = this.selected.two;
@@ -246,7 +267,7 @@ const ComparisonManager = {
         this.elements.headerOne.textContent = `${first.code} - ${first.name}`;
         this.elements.headerTwo.textContent = `${second.code} - ${second.name}`;
 
-        const placeholder = '<span class="text-slate-400 dark:text-slate-400">Not available</span>';
+        const placeholder = '<span class="text-zinc-400 dark:text-zinc-400">Not available</span>';
         const rows = [
             ['Module code', escapeHtml(first.code), escapeHtml(second.code)],
             ['Module name', escapeHtml(first.name), escapeHtml(second.name)],
@@ -258,19 +279,29 @@ const ComparisonManager = {
         this.elements.tableBody.innerHTML = rows.map(([label, v1, v2], i) => `
             <tr class="${i < 2 ? 'bg-primary-50/40 dark:bg-primary-900/20' : ''}">
                 <th scope="row" class="px-5 py-3.5 text-sm font-semibold text-primary-800 dark:text-primary-200 whitespace-nowrap">${escapeHtml(label)}</th>
-                <td class="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300">${v1}</td>
-                <td class="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300">${v2}</td>
+                <td class="px-5 py-3.5 text-sm text-zinc-700 dark:text-zinc-300">${v1}</td>
+                <td class="px-5 py-3.5 text-sm text-zinc-700 dark:text-zinc-300">${v2}</td>
             </tr>
         `).join('');
         lucide.createIcons();
     },
 
+    /**
+     * Display a message and hide the comparison table.
+     * @param {string} text - The message text.
+     */
     showMessage(text) {
         this.elements.message.textContent = text;
         this.elements.message.classList.remove('hidden');
         this.elements.tableWrap.classList.add('hidden');
     },
 
+    /**
+     * Get a cached DOM element by slot and type.
+     * @param {string} slot - 'one' or 'two'
+     * @param {string} type - Element type prefix (e.g. 'search', 'results', 'selected')
+     * @returns {HTMLElement} The matching DOM element.
+     */
     getSlotElement(slot, type) {
         return this.elements[`${type}${slot.charAt(0).toUpperCase()}${slot.slice(1)}`];
     }

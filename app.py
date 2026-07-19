@@ -4,8 +4,13 @@ Provides the backend API for module data and review management,
 serving Republic Polytechnic students.
 """
 from flask import Flask, request, jsonify, render_template
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from uuid import uuid4
+import json
 import sqlite3
 import os
 import subprocess
@@ -20,8 +25,35 @@ app = Flask(__name__,
             static_folder='app/static',
             template_folder='app/templates')
 
+csrf = CSRFProtect()
+
+
+_test_request_counter = 0
+
+
+def _rate_limit_key():
+    """Return a unique key per request. In testing, use a unique key per
+    request so rate limits don't accumulate across test methods."""
+    if app.config.get('TESTING'):
+        global _test_request_counter
+        _test_request_counter += 1
+        return f"test-{_test_request_counter}"
+    return get_remote_address()
+
+
+limiter = Limiter(
+    key_func=_rate_limit_key,
+    default_limits=["200 per hour"],
+    storage_uri="memory://",
+)
+
 _base_dir = os.path.dirname(os.path.abspath(__file__))
 MAX_COMMENT_LENGTH = 500
+
+
+def generate_owner_token() -> str:
+    """Generate a random 32-char hex token for anonymous review ownership."""
+    return uuid4().hex
 
 supabase_url = os.environ.get('SUPABASE_URL')
 supabase_secret_key = os.environ.get('SUPABASE_SECRET_KEY')
@@ -37,6 +69,9 @@ if supabase_url and supabase_secret_key:
         )
     supabase = create_client(supabase_url, supabase_secret_key)
 db_name = os.environ.get('DATABASE_PATH', os.path.join(_base_dir, 'modulego.db'))
+
+csrf.init_app(app)
+limiter.init_app(app)
 
 
 def _get_commit_hash() -> str | None:
@@ -105,13 +140,14 @@ def review_to_dict(row: sqlite3.Row) -> dict:
         'comment': row['COMMENT'],
         'created_at': row['CREATED_AT'],
         'updated_at': row['UPDATED_AT'],
+        'owner_token': row['OWNER_TOKEN'],
     }
 
 
 def select_review(conn: sqlite3.Connection, review_id: int) -> sqlite3.Row:
     """Fetch a single review by ID from the database."""
     return conn.execute(
-        '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT
+        '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT, OWNER_TOKEN
            FROM REVIEWS WHERE ID = ?''',
         (review_id,),
     ).fetchone()
@@ -127,7 +163,8 @@ def init_db() -> None:
                 RATING INTEGER NOT NULL,
                 COMMENT TEXT NOT NULL DEFAULT '',
                 CREATED_AT DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UPDATED_AT DATETIME)'''
+                UPDATED_AT DATETIME,
+                OWNER_TOKEN TEXT)'''
         )
         columns = {
             row['name']
@@ -135,13 +172,16 @@ def init_db() -> None:
         }
         if 'UPDATED_AT' not in columns:
             conn.execute('ALTER TABLE REVIEWS ADD COLUMN UPDATED_AT DATETIME')
+        if 'OWNER_TOKEN' not in columns:
+            conn.execute('ALTER TABLE REVIEWS ADD COLUMN OWNER_TOKEN TEXT')
         conn.execute(
             'CREATE INDEX IF NOT EXISTS IDX_REVIEWS_MODULE_CODE '
             'ON REVIEWS (MODULE_CODE)'
         )
 
 
-# init_db()
+if use_sqlite_reviews():
+    init_db()
 
 
 # ---------------------------------------------------------------------------
@@ -152,42 +192,41 @@ class ReviewRepository:
     """Handles review persistence for both SQLite (tests) and Supabase."""
 
     @staticmethod
-    def list_all() -> list | None:
+    def list_all() -> list:
         """Return all reviews ordered by creation date descending."""
         if use_sqlite_reviews():
             with database_connection() as conn:
                 rows = conn.execute(
-                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT
+                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT, OWNER_TOKEN
                        FROM REVIEWS ORDER BY CREATED_AT DESC, ID DESC'''
                 ).fetchall()
             return [review_to_dict(row) for row in rows]
 
         result = (
             supabase.table('reviews')
-            .select('id,module_code,rating,comment,created_at,updated_at')
+            .select('id,module_code,rating,comment,created_at,updated_at,owner_token')
             .order('created_at', desc=True)
             .execute()
         )
         return result.data
 
     @staticmethod
-    def list_by_module(module_code: str) -> list | None:
+    def list_by_module(module_code: str) -> list:
         """Return all reviews for a specific module code."""
         normalized = module_code.strip().upper()
         if use_sqlite_reviews():
             with database_connection() as conn:
                 rows = conn.execute(
-                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT
+                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT, OWNER_TOKEN
                        FROM REVIEWS WHERE MODULE_CODE = ?
                        ORDER BY CREATED_AT DESC, ID DESC''',
                     (normalized,),
                 ).fetchall()
             return [review_to_dict(row) for row in rows]
 
-
         result = (
             supabase.table('reviews')
-            .select('id,module_code,rating,comment,created_at,updated_at')
+            .select('id,module_code,rating,comment,created_at,updated_at,owner_token')
             .eq('module_code', normalized)
             .order('created_at', desc=True)
             .execute()
@@ -197,18 +236,22 @@ class ReviewRepository:
     @staticmethod
     def create(payload: dict) -> tuple:
         """Create a new review. Returns (review_dict, error_response)."""
+        owner_token = payload.pop('owner_token', None)
+        if not owner_token:
+            owner_token = generate_owner_token()
+
         if use_sqlite_reviews():
             with database_connection() as conn:
                 cursor = conn.execute(
-                    '''INSERT INTO REVIEWS (MODULE_CODE, RATING, COMMENT)
-                       VALUES (?, ?, ?)''',
-                    (payload['module_code'], payload['rating'], payload['comment']),
+                    '''INSERT INTO REVIEWS (MODULE_CODE, RATING, COMMENT, OWNER_TOKEN)
+                       VALUES (?, ?, ?, ?)''',
+                    (payload['module_code'], payload['rating'], payload['comment'], owner_token),
                 )
                 row = select_review(conn, cursor.lastrowid)
             return review_to_dict(row), None
 
         try:
-            result = supabase.table('reviews').insert(payload).execute()
+            result = supabase.table('reviews').insert({**payload, 'owner_token': owner_token}).execute()
         except APIError as error:
             if error.code == '23503':
                 return None, (jsonify({'error': 'Module code does not exist.'}), 400)
@@ -216,20 +259,37 @@ class ReviewRepository:
         return result.data[0], None
 
     @staticmethod
-    def update(review_id: int, payload: dict) -> tuple:
+    def update(review_id: int, payload: dict, owner_token: str = None) -> tuple:
         """Update an existing review. Returns (review_dict, error_response)."""
         if use_sqlite_reviews():
             with database_connection() as conn:
-                cursor = conn.execute(
+                existing = conn.execute(
+                    'SELECT OWNER_TOKEN FROM REVIEWS WHERE ID = ?', (review_id,)
+                ).fetchone()
+                if not existing:
+                    return None, (jsonify({'error': 'Review not found.'}), 404)
+                if owner_token and existing['OWNER_TOKEN'] and existing['OWNER_TOKEN'] != owner_token:
+                    return None, (jsonify({'error': 'Forbidden: you do not own this review.'}), 403)
+                conn.execute(
                     '''UPDATE REVIEWS
                        SET RATING = ?, COMMENT = ?, UPDATED_AT = CURRENT_TIMESTAMP
                        WHERE ID = ?''',
                     (payload['rating'], payload['comment'], review_id),
                 )
-                if cursor.rowcount == 0:
-                    return None, (jsonify({'error': 'Review not found.'}), 404)
                 row = select_review(conn, review_id)
             return review_to_dict(row), None
+
+        existing_result = (
+            supabase.table('reviews')
+            .select('id,owner_token')
+            .eq('id', review_id)
+            .limit(1)
+            .execute()
+        )
+        if not existing_result.data:
+            return None, (jsonify({'error': 'Review not found.'}), 404)
+        if owner_token and existing_result.data[0].get('owner_token') and existing_result.data[0]['owner_token'] != owner_token:
+            return None, (jsonify({'error': 'Forbidden: you do not own this review.'}), 403)
 
         payload['updated_at'] = datetime.now(timezone.utc).isoformat()
         result = (
@@ -243,29 +303,36 @@ class ReviewRepository:
         return result.data[0], None
 
     @staticmethod
-    def delete(review_id: int) -> tuple | None:
+    def delete(review_id: int, owner_token: str = None) -> tuple | None:
         """Delete a review. Returns None on success or error response."""
         if use_sqlite_reviews():
             with database_connection() as conn:
-                cursor = conn.execute('DELETE FROM REVIEWS WHERE ID = ?', (review_id,))
-                if cursor.rowcount == 0:
+                existing = conn.execute(
+                    'SELECT OWNER_TOKEN FROM REVIEWS WHERE ID = ?', (review_id,)
+                ).fetchone()
+                if not existing:
                     return jsonify({'error': 'Review not found.'}), 404
+                if owner_token and existing['OWNER_TOKEN'] and existing['OWNER_TOKEN'] != owner_token:
+                    return jsonify({'error': 'Forbidden: you do not own this review.'}), 403
+                conn.execute('DELETE FROM REVIEWS WHERE ID = ?', (review_id,))
             return None
 
         existing = (
             supabase.table('reviews')
-            .select('id')
+            .select('id,owner_token')
             .eq('id', review_id)
             .limit(1)
             .execute()
         )
         if not existing.data:
             return jsonify({'error': 'Review not found.'}), 404
+        if owner_token and existing.data[0].get('owner_token') and existing.data[0]['owner_token'] != owner_token:
+            return jsonify({'error': 'Forbidden: you do not own this review.'}), 403
         supabase.table('reviews').delete().eq('id', review_id).execute()
         return None
 
     @staticmethod
-    def rating_summaries() -> dict | None:
+    def rating_summaries() -> dict:
         """Return average rating and review count per module."""
         if use_sqlite_reviews():
             with database_connection() as conn:
@@ -285,18 +352,21 @@ class ReviewRepository:
 
         # Aggregate in-memory instead of GROUP BY — avoids Supabase
         # restrictions on aggregate queries with the free tier.
-        result = supabase.table('reviews').select('module_code,rating').execute()
-        grouped = {}
-        for review in result.data:
-            code = review['module_code']
-            grouped.setdefault(code, []).append(review['rating'])
-        return {
-            code: {
-                'average_rating': round(sum(ratings) / len(ratings), 2),
-                'review_count': len(ratings),
+        try:
+            result = supabase.table('reviews').select('module_code,rating').execute()
+            grouped = {}
+            for review in result.data:
+                code = review['module_code']
+                grouped.setdefault(code, []).append(review['rating'])
+            return {
+                code: {
+                    'average_rating': round(sum(ratings) / len(ratings), 2),
+                    'review_count': len(ratings),
+                }
+                for code, ratings in grouped.items()
             }
-            for code, ratings in grouped.items()
-        }
+        except Exception:
+            return {}
 
 
 # ---------------------------------------------------------------------------
@@ -353,31 +423,73 @@ _modules_cache = {'data': None, 'timestamp': 0}
 MODULE_CACHE_TTL = 300  # 5 minutes
 
 
-def _build_modules_list() -> list | None:
-    """Fetch modules from Supabase and attach pre-computed comparison fields."""
-    if supabase is None:
+_LOCAL_DATA_DIR = os.path.join(_base_dir, 'app', 'static', 'local-data', 'data')
+
+
+def _load_local_modules() -> list[dict] | None:
+    """Load module data from local JSON files when Supabase is unreachable."""
+    synopsis_path = os.path.join(_LOCAL_DATA_DIR, 'rp_modules_synopsis.json')
+    comparison_path = os.path.join(_LOCAL_DATA_DIR, 'rp_modules_comparison.json')
+    try:
+        with open(synopsis_path, encoding='utf-8') as f:
+            synopsis_data = {row['module_code']: row for row in json.load(f)}
+        with open(comparison_path, encoding='utf-8') as f:
+            comparison_data = {row['module_code']: row for row in json.load(f)}
+    except (OSError, KeyError, json.JSONDecodeError):
         return None
-    result = supabase.table("rp_modules").select("*").execute()
-    # Comparison data (summaries, suitability) lives in a separate table to
-    # keep the main module schema clean — merge at the application layer.
-    sf_result = supabase.table("rp_modules_comparision").select("*").execute()
-    sf_map = {row["module_code"]: row for row in sf_result.data}
+
     modules = []
-    for row in result.data:
-        code = row.get("module_code", "")
-        module = {
-            "code": code,
-            "name": row.get("module_name", ""),
-            "synopsis": row.get("synopsis", ""),
-            "school": row.get("school_name", ""),
-            "school_abbr": row.get("school_abbr", ""),
-            "url": row.get("url", ""),
-        }
-        sf_row = sf_map.get(code, {})
-        module["summary"] = sf_row.get("summary", "")
-        module["suitableFor"] = sf_row.get("suitable_for", "")
-        modules.append(module)
+    for code, syn in synopsis_data.items():
+        comp = comparison_data.get(code, {})
+        modules.append({
+            'code': code,
+            'name': syn.get('module_name', ''),
+            'synopsis': syn.get('synopsis', ''),
+            'school': syn.get('school_name', ''),
+            'school_abbr': syn.get('school_abbr', ''),
+            'url': syn.get('url', ''),
+            'summary': comp.get('summary', ''),
+            'suitableFor': comp.get('suitable_for', ''),
+        })
     return modules
+
+
+def _load_local_courses() -> list[dict] | None:
+    """Load course/diploma data from local JSON file when Supabase is unreachable."""
+    courses_path = os.path.join(_LOCAL_DATA_DIR, 'rp_courses.json')
+    try:
+        with open(courses_path, encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _build_modules_list() -> list | None:
+    """Fetch modules from Supabase, falling back to local JSON files."""
+    if supabase is not None:
+        try:
+            result = supabase.table("rp_modules").select("*").order("module_code").execute()
+            sf_result = supabase.table("rp_modules_comparision").select("*").execute()
+            sf_map = {row["module_code"]: row for row in sf_result.data}
+            modules = []
+            for row in result.data:
+                code = row.get("module_code", "")
+                module = {
+                    "code": code,
+                    "name": row.get("module_name", ""),
+                    "synopsis": row.get("synopsis", ""),
+                    "school": row.get("school_name", ""),
+                    "school_abbr": row.get("school_abbr", ""),
+                    "url": row.get("url", ""),
+                }
+                sf_row = sf_map.get(code, {})
+                module["summary"] = sf_row.get("summary", "")
+                module["suitableFor"] = sf_row.get("suitable_for", "")
+                modules.append(module)
+            return modules
+        except Exception:
+            pass
+    return _load_local_modules()
 
 
 # ---------------------------------------------------------------------------
@@ -387,7 +499,8 @@ def _build_modules_list() -> list | None:
 @app.route('/')
 def serve_index():
     """Render the home page with module search functionality."""
-    return render_template('modules/index.html')
+    query = request.args.get('q', '')
+    return render_template('modules/index.html', query=query)
 
 
 @app.route('/comparison')
@@ -419,7 +532,7 @@ def get_modules():
 
     modules = _build_modules_list()
     if modules is None:
-        return jsonify({'error': 'Supabase is not configured.'}), 503
+        return jsonify({'error': 'Module data is not available.'}), 503
 
     _modules_cache['data'] = modules
     _modules_cache['timestamp'] = now
@@ -437,11 +550,19 @@ def get_courses():
     if _courses_cache['data'] is not None and (now - _courses_cache['timestamp']) < COURSES_CACHE_TTL:
         return jsonify(_courses_cache['data']), 200
 
-    if supabase is None:
-        return jsonify({'error': 'Supabase is not configured.'}), 503
+    courses = None
+    if supabase is not None:
+        try:
+            result = supabase.table('rp_courses').select('*').execute()
+            courses = result.data
+        except Exception:
+            pass
 
-    result = supabase.table('rp_courses').select('*').execute()
-    courses = result.data
+    if courses is None:
+        courses = _load_local_courses()
+
+    if courses is None:
+        return jsonify({'error': 'No course data available.'}), 503
 
     _courses_cache['data'] = courses
     _courses_cache['timestamp'] = now
@@ -456,6 +577,7 @@ def list_reviews():
 
 
 @app.route('/api/reviews', methods=['POST'])
+@limiter.limit("20/hour")
 def add_review():
     """Create a new review for a module."""
     payload, error = validate_review_payload(
@@ -464,6 +586,10 @@ def add_review():
     )
     if error:
         return jsonify({'error': error}), 400
+
+    owner_token = request.headers.get('X-Owner-Token', '').strip()
+    if owner_token:
+        payload['owner_token'] = owner_token
 
     review, error_response = ReviewRepository.create(payload)
     if error_response:
@@ -479,22 +605,26 @@ def get_reviews(module_code):
 
 
 @app.route('/api/reviews/<int:review_id>', methods=['PUT'])
+@limiter.limit("10/hour")
 def update_review(review_id):
     """Update an existing review by ID."""
     payload, error = validate_review_payload(request.get_json(silent=True))
     if error:
         return jsonify({'error': error}), 400
 
-    review, error_response = ReviewRepository.update(review_id, payload)
+    owner_token = request.headers.get('X-Owner-Token', '').strip() or None
+    review, error_response = ReviewRepository.update(review_id, payload, owner_token)
     if error_response:
         return error_response
     return jsonify(review), 200
 
 
 @app.route('/api/reviews/<int:review_id>', methods=['DELETE'])
+@limiter.limit("10/hour")
 def delete_review(review_id):
     """Delete a review by ID."""
-    error_response = ReviewRepository.delete(review_id)
+    owner_token = request.headers.get('X-Owner-Token', '').strip() or None
+    error_response = ReviewRepository.delete(review_id, owner_token)
     if error_response:
         return error_response
     return '', 204
@@ -505,6 +635,20 @@ def get_rating_summaries():
     """Return average rating and review count for each module."""
     summaries = ReviewRepository.rating_summaries()
     return jsonify(summaries), 200
+
+
+# ---------------------------------------------------------------------------
+# CSRF exemptions for API endpoints (custom-header auth pattern)
+# ---------------------------------------------------------------------------
+
+csrf.exempt(get_modules)
+csrf.exempt(get_courses)
+csrf.exempt(list_reviews)
+csrf.exempt(get_reviews)
+csrf.exempt(get_rating_summaries)
+csrf.exempt(add_review)
+csrf.exempt(update_review)
+csrf.exempt(delete_review)
 
 
 if __name__ == '__main__':
