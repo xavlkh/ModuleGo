@@ -12,6 +12,9 @@ const ComparisonManager = {
         two: { page: 1, perPage: 15, loading: false, hasMore: true, query: '' }
     },
 
+    /**
+     * Bootstrap the comparison page: cache elements, load data, bind search inputs.
+     */
     async init() {
         this.cacheElements();
         if (!this.elements.searchOne || !this.elements.searchTwo) return;
@@ -23,6 +26,9 @@ const ComparisonManager = {
         this.showStarterResults();
     },
 
+    /**
+     * Cache frequently accessed DOM elements to avoid repeated queries.
+     */
     cacheElements() {
         this.elements = {
             searchOne: document.getElementById('compareSearchOne'),
@@ -39,6 +45,10 @@ const ComparisonManager = {
         };
     },
 
+    /**
+     * Bind input and focus event listeners for a search slot.
+     * @param {string} slot - 'one' or 'two'
+     */
     bindSearch(slot) {
         const input = this.getSlotElement(slot, 'search');
         input.addEventListener('input', () => {
@@ -53,6 +63,9 @@ const ComparisonManager = {
         });
     },
 
+    /**
+     * Render initial empty search results for both slots and set up infinite scroll.
+     */
     showStarterResults() {
         this.renderSearchResults('one', '');
         this.renderSearchResults('two', '');
@@ -220,6 +233,10 @@ const ComparisonManager = {
         this.renderComparison();
     },
 
+    /**
+     * Clear the selected module for a slot and restore search results.
+     * @param {string} slot - 'one' or 'two'
+     */
     clearSelection(slot) {
         this.selected[slot] = null;
         this.getSlotElement(slot, 'selected').classList.add('hidden');
@@ -228,6 +245,10 @@ const ComparisonManager = {
         this.renderComparison();
     },
 
+    /**
+     * Render the comparison table for the two selected modules.
+     * Shows a message if fewer than two distinct modules are selected.
+     */
     renderComparison() {
         const first = this.selected.one;
         const second = this.selected.two;
@@ -265,12 +286,22 @@ const ComparisonManager = {
         lucide.createIcons();
     },
 
+    /**
+     * Display a message and hide the comparison table.
+     * @param {string} text - The message text.
+     */
     showMessage(text) {
         this.elements.message.textContent = text;
         this.elements.message.classList.remove('hidden');
         this.elements.tableWrap.classList.add('hidden');
     },
 
+    /**
+     * Get a cached DOM element by slot and type.
+     * @param {string} slot - 'one' or 'two'
+     * @param {string} type - Element type prefix (e.g. 'search', 'results', 'selected')
+     * @returns {HTMLElement} The matching DOM element.
+     */
     getSlotElement(slot, type) {
         return this.elements[`${type}${slot.charAt(0).toUpperCase()}${slot.slice(1)}`];
     }

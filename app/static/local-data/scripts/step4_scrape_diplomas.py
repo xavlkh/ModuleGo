@@ -129,7 +129,7 @@ results.sort(key=lambda d: d["course_code"])
 
 # Save JSON
 os.makedirs(BASE_DIR, exist_ok=True)
-json_path = os.path.join(BASE_DIR, "rp_diplomas_curriculum.json")
+json_path = os.path.join(BASE_DIR, "rp_courses.json")
 with open(json_path, "w", encoding="utf-8") as f:
     json.dump(results, f, indent=2, ensure_ascii=False)
 print(f"\nSaved {len(results)} diplomas to {json_path}")
@@ -151,7 +151,7 @@ for d in results:
     })
 
 fields = ["course_code", "course_name", "school_name", "school_abbr", "url", "general_modules", "major_modules", "discipline_modules", "elective_modules", "industry_modules"]
-csv_path = os.path.join(BASE_DIR, "rp_diplomas_curriculum.csv")
+csv_path = os.path.join(BASE_DIR, "rp_courses.csv")
 with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
     w = csv.DictWriter(f, fieldnames=fields)
     w.writeheader()

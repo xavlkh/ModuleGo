@@ -154,7 +154,8 @@ CREATE TABLE reviews (
     rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment text NOT NULL DEFAULT '',
     created_at timestamptz DEFAULT now(),
-    updated_at timestamptz
+    updated_at timestamptz,
+    owner_token text
 );
 
 CREATE INDEX idx_reviews_module_code ON reviews (module_code);
@@ -204,7 +205,7 @@ After scraping, import the CSV files into Supabase:
 2. Click "Insert" → "Import from CSV"
 3. Upload `app/static/local-data/data/rp_modules_synopsis.csv`
 4. Repeat for `rp_modules_comparison.csv` → `rp_modules_comparision` table
-5. Repeat for `rp_diplomas_curriculum.csv` → `rp_courses` table
+5. Repeat for `rp_courses.csv` → `rp_courses` table
 
 ### 4. Configure Environment
 
@@ -267,6 +268,7 @@ ModuleGo/
 │   │   │   ├── utils.js            # Shared utilities
 │   │   │   ├── data.js             # Data loading + filtering
 │   │   │   ├── ui.js               # Home page rendering + pagination
+│   │   │   ├── detail.js           # Module detail modal + review CRUD
 │   │   │   ├── comparison.js       # Comparison logic
 │   │   │   └── reviews.js          # Review dashboard + CRUD
 │   │   └── local-data/

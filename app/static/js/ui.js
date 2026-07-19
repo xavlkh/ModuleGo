@@ -71,10 +71,10 @@ const UIRenderer = {
 
         if (filterToggle && filterPanel) {
             filterToggle.addEventListener('click', () => {
-                const isHidden = filterPanel.classList.contains('hidden');
-                filterPanel.classList.toggle('hidden');
+                const isClosed = filterPanel.style.gridTemplateRows === '0fr';
+                filterPanel.style.gridTemplateRows = isClosed ? '1fr' : '0fr';
                 const chevron = document.getElementById('filterChevron');
-                if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+                if (chevron) chevron.style.transform = isClosed ? 'rotate(180deg)' : 'rotate(0deg)';
             });
         }
 
@@ -92,6 +92,23 @@ const UIRenderer = {
                     : ACTIVE_BTN_CLASSES.active;
                 const label = this.activeFilter.querySelector('span');
                 if (label) label.textContent = isActive ? 'All' : 'Active';
+                triggerSearch();
+            });
+        }
+
+        const clearFilters = document.getElementById('clearFilters');
+        if (clearFilters) {
+            clearFilters.addEventListener('click', () => {
+                if (this.schoolFilter) this.schoolFilter.value = 'all';
+                if (this.diplomaFilter) this.diplomaFilter.value = 'all';
+                if (this.ratingFilter) this.ratingFilter.value = 'all';
+                if (this.activeFilter) {
+                    this.activeFilter.dataset.active = 'false';
+                    this.activeFilter.className = ACTIVE_BTN_CLASSES.inactive;
+                    const label = this.activeFilter.querySelector('span');
+                    if (label) label.textContent = 'All';
+                }
+                this.searchInput.value = '';
                 triggerSearch();
             });
         }

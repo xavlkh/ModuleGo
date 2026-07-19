@@ -456,7 +456,7 @@ def _load_local_modules() -> list[dict] | None:
 
 def _load_local_courses() -> list[dict] | None:
     """Load course/diploma data from local JSON file when Supabase is unreachable."""
-    courses_path = os.path.join(_LOCAL_DATA_DIR, 'rp_diplomas_curriculum.json')
+    courses_path = os.path.join(_LOCAL_DATA_DIR, 'rp_courses.json')
     try:
         with open(courses_path, encoding='utf-8') as f:
             return json.load(f)
@@ -468,7 +468,7 @@ def _build_modules_list() -> list | None:
     """Fetch modules from Supabase, falling back to local JSON files."""
     if supabase is not None:
         try:
-            result = supabase.table("rp_modules").select("*").execute()
+            result = supabase.table("rp_modules").select("*").order("module_code").execute()
             sf_result = supabase.table("rp_modules_comparision").select("*").execute()
             sf_map = {row["module_code"]: row for row in sf_result.data}
             modules = []
@@ -638,7 +638,7 @@ def get_rating_summaries():
 
 
 # ---------------------------------------------------------------------------
-# CSRF exemptions for API endpoints (read-only and custom-header auth)
+# CSRF exemptions for API endpoints (custom-header auth pattern)
 # ---------------------------------------------------------------------------
 
 csrf.exempt(get_modules)
