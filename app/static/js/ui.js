@@ -31,17 +31,57 @@ const UIRenderer = {
 
     initSearch() {
         const searchInput = document.getElementById('searchInput');
-        const searchBtn = document.getElementById('searchBtn');
+        const filterToggle = document.getElementById('filterToggle');
+        const filterPanel = document.getElementById('filterPanel');
+        const filterChevron = document.getElementById('filterChevron');
         const schoolFilter = document.getElementById('schoolFilter');
+        const diplomaFilter = document.getElementById('diplomaFilter');
+        const ratingFilter = document.getElementById('ratingFilter');
+        const activeFilter = document.getElementById('activeFilter');
 
         searchInput.addEventListener('input', (e) => this.handleInput(e.target.value));
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.handleSearch(e.target.value);
         });
-        searchBtn.addEventListener('click', () => this.handleSearch(searchInput.value));
-        if (schoolFilter) {
-            schoolFilter.addEventListener('change', () => this.handleSearch(searchInput.value));
+        if (filterToggle && filterPanel) {
+            filterToggle.addEventListener('click', () => {
+                const isHidden = filterPanel.classList.contains('hidden');
+                filterPanel.classList.toggle('hidden');
+                const chevron = document.getElementById('filterChevron');
+                if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+            });
         }
+        const triggerSearch = () => this.handleSearch(searchInput.value);
+        if (schoolFilter) schoolFilter.addEventListener('change', triggerSearch);
+        if (diplomaFilter) diplomaFilter.addEventListener('change', triggerSearch);
+        if (ratingFilter) ratingFilter.addEventListener('change', triggerSearch);
+        if (activeFilter) {
+            activeFilter.addEventListener('click', () => {
+                const isActive = activeFilter.dataset.active === 'true';
+                activeFilter.dataset.active = isActive ? 'false' : 'true';
+                const label = activeFilter.querySelector('span');
+                if (isActive) {
+                    activeFilter.className = 'w-28 bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all duration-200 shrink-0';
+                    if (label) label.textContent = 'All';
+                } else {
+                    activeFilter.className = 'w-28 bg-zinc-200 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded-xl py-3 text-sm font-semibold text-zinc-900 dark:text-white hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-all duration-200 shrink-0';
+                    if (label) label.textContent = 'Active';
+                }
+                triggerSearch();
+            });
+        }
+    },
+
+    populateDiplomaFilter() {
+        const select = document.getElementById('diplomaFilter');
+        if (!select) return;
+        const diplomas = DataManager.getDiplomaList();
+        diplomas.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.code;
+            opt.textContent = d.name;
+            select.appendChild(opt);
+        });
     },
 
     initKeyboardNav() {
@@ -67,14 +107,50 @@ const UIRenderer = {
         this.debounceTimer = setTimeout(() => this.handleSearch(value), 300);
     },
 
-    handleSearch(query) {
+    handleSearch(query, page = 1) {
         clearTimeout(this.debounceTimer);
         this.currentQuery = query;
-        // Monotonically increasing run ID kills stale setTimeout callbacks,
-        // preventing a fast typist from seeing flash of wrong results.
-        const runId = ++this.searchRunId;
         const schoolFilter = document.getElementById('schoolFilter');
+        const diplomaFilter = document.getElementById('diplomaFilter');
+        const ratingFilter = document.getElementById('ratingFilter');
+        const activeFilter = document.getElementById('activeFilter');
         const selectedSchool = schoolFilter ? schoolFilter.value : 'all';
+        const selectedDiploma = diplomaFilter ? diplomaFilter.value : 'all';
+        const selectedRating = ratingFilter ? ratingFilter.value : 'all';
+        const selectedActive = activeFilter ? activeFilter.dataset.active : 'false';
+        const url = new URL(window.location);
+        if (query) {
+            url.searchParams.set('q', query);
+        } else {
+            url.searchParams.delete('q');
+        }
+        if (selectedSchool && selectedSchool !== 'all') {
+            url.searchParams.set('school', selectedSchool);
+        } else {
+            url.searchParams.delete('school');
+        }
+        if (selectedDiploma && selectedDiploma !== 'all') {
+            url.searchParams.set('diploma', selectedDiploma);
+        } else {
+            url.searchParams.delete('diploma');
+        }
+        if (selectedRating && selectedRating !== 'all') {
+            url.searchParams.set('rating', selectedRating);
+        } else {
+            url.searchParams.delete('rating');
+        }
+        if (selectedActive === 'true') {
+            url.searchParams.set('active', 'true');
+        } else {
+            url.searchParams.delete('active');
+        }
+        if (page > 1) {
+            url.searchParams.set('page', page);
+        } else {
+            url.searchParams.delete('page');
+        }
+        window.history.replaceState({}, '', url);
+        const runId = ++this.searchRunId;
 
         this.showLoading();
 
@@ -90,7 +166,12 @@ const UIRenderer = {
             if (selectedSchool !== 'all') {
                 results = results.filter(m => m.school === selectedSchool);
             }
-            this.currentPage = 1;
+            results = DataManager.filterModules(results, {
+                diploma: selectedDiploma,
+                rating: selectedRating,
+                active: selectedActive
+            });
+            this.currentPage = page;
             this.filteredModules = results;
             this.renderPaginatedResults(results);
             this.updateResultsCount(results.length);
@@ -145,8 +226,8 @@ const UIRenderer = {
         nav.className = 'inline-flex items-center gap-1';
 
         const btnBase = 'inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-primary-400/40';
-        const btnIdle = 'w-9 h-9 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60';
-        const btnDisabled = 'w-9 h-9 text-slate-300 dark:text-slate-600 cursor-not-allowed pointer-events-none';
+        const btnIdle = 'w-9 h-9 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/60';
+        const btnDisabled = 'w-9 h-9 text-zinc-300 dark:text-zinc-600 cursor-not-allowed pointer-events-none';
         const btnActive = 'w-9 h-9 bg-primary-500 text-white shadow-sm';
 
         const prevBtn = document.createElement('button');
@@ -162,7 +243,7 @@ const UIRenderer = {
         pages.forEach(p => {
             if (p === '...') {
                 const ellipsis = document.createElement('span');
-                ellipsis.className = 'w-9 h-9 inline-flex items-center justify-center text-slate-300 dark:text-slate-600 select-none text-sm';
+                ellipsis.className = 'w-9 h-9 inline-flex items-center justify-center text-zinc-300 dark:text-zinc-600 select-none text-sm';
                 ellipsis.textContent = '\u2026';
                 ellipsis.setAttribute('aria-hidden', 'true');
                 nav.appendChild(ellipsis);
@@ -218,6 +299,13 @@ const UIRenderer = {
         this.currentPage = page;
         this.renderPaginatedResults(this.filteredModules);
         this.resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const url = new URL(window.location);
+        if (page > 1) {
+            url.searchParams.set('page', page);
+        } else {
+            url.searchParams.delete('page');
+        }
+        window.history.replaceState({}, '', url);
         const totalPages = Math.ceil(this.filteredModules.length / this.perPage);
         if (this.paginationAnnouncer) {
             this.paginationAnnouncer.textContent = `Page ${page} of ${totalPages}`;
@@ -246,19 +334,19 @@ const UIRenderer = {
         col.innerHTML = `
             <div class="glass-card p-5 h-full flex flex-col cursor-pointer group" data-code="${module.code}">
                 <div class="text-xs font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400 mb-1.5">${module.code}</div>
-                <h3 class="text-base font-bold text-slate-900 dark:text-white mb-2 leading-snug group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">${escapeHtml(module.name)}</h3>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mb-3 flex-1 line-clamp-3">${truncatedDesc}</p>
+                <h3 class="text-base font-bold text-zinc-900 dark:text-white mb-2 leading-snug group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">${escapeHtml(module.name)}</h3>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-3 flex-1 line-clamp-3">${truncatedDesc}</p>
                 <div class="mb-3">
-                    <span class="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300">${school}</span>
+                    <span class="inline-flex items-center rounded-full bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300">${school}</span>
                 </div>
                 <div class="flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400 mb-3" data-rating-code="${module.code}">
                     ${this.createRatingMarkup(module.code)}
                 </div>
-                <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700/50">
+                <div class="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-700/50">
                     <button class="btn-outline text-xs py-1.5 px-3 view-details-btn" data-code="${module.code}">
                         <i data-lucide="info" class="w-3.5 h-3.5 mr-1 inline-block"></i>View Details
                     </button>
-                    <a href="${url}" target="_blank" class="text-xs text-slate-400 dark:text-slate-400 hover:text-primary-500 dark:hover:text-primary-400 transition-colors px-2 py-1" onclick="event.stopPropagation()">
+                    <a href="${url}" target="_blank" class="text-xs text-zinc-400 dark:text-zinc-400 hover:text-primary-500 dark:hover:text-primary-400 transition-colors px-2 py-1" onclick="event.stopPropagation()">
                         <i data-lucide="external-link" class="w-3.5 h-3.5 mr-1 inline-block"></i>Source
                     </a>
                 </div>
@@ -271,13 +359,13 @@ const UIRenderer = {
     createRatingMarkup(moduleCode) {
         const summary = DataManager.getRatingSummary(moduleCode);
         if (!summary.review_count) {
-            return `<i data-lucide="star" class="w-4 h-4 inline-block" aria-hidden="true"></i><span class="text-slate-400 dark:text-slate-400">No reviews yet</span>`;
+            return `<i data-lucide="star" class="w-4 h-4 inline-block" aria-hidden="true"></i><span class="text-zinc-400 dark:text-zinc-400">No reviews yet</span>`;
         }
         const label = summary.review_count === 1 ? 'review' : 'reviews';
         return `
             <i data-lucide="star" class="w-4 h-4 inline-block fill-amber-400 text-amber-400" aria-hidden="true"></i>
             <span class="font-semibold">${Number(summary.average_rating).toFixed(1)}</span>
-            <span class="text-slate-400 dark:text-slate-400">(${summary.review_count} ${label})</span>
+            <span class="text-zinc-400 dark:text-zinc-400">(${summary.review_count} ${label})</span>
         `;
     },
 
@@ -312,9 +400,47 @@ async function initHomePage() {
         DetailManager.init();
         UIRenderer.showLoading();
         await DataManager.loadData();
-        UIRenderer.filteredModules = DataManager.modules;
-        UIRenderer.renderPaginatedResults(DataManager.modules);
-        UIRenderer.updateResultsCount(DataManager.modules.length);
+        UIRenderer.populateDiplomaFilter();
+        const urlParams = new URL(window.location);
+        const initialQuery = urlParams.searchParams.get('q') || (typeof INITIAL_QUERY !== 'undefined' ? INITIAL_QUERY : '');
+        const initialSchool = urlParams.searchParams.get('school') || 'all';
+        const initialDiploma = urlParams.searchParams.get('diploma') || 'all';
+        const initialRating = urlParams.searchParams.get('rating') || 'all';
+        const initialActive = urlParams.searchParams.get('active') || 'false';
+        const initialPage = parseInt(urlParams.searchParams.get('page'), 10) || 1;
+        const hasFilters = initialSchool !== 'all' || initialDiploma !== 'all' || initialRating !== 'all' || initialActive === 'true';
+        const schoolEl = document.getElementById('schoolFilter');
+        if (schoolEl && initialSchool !== 'all') {
+            schoolEl.value = initialSchool;
+        }
+        const diplomaEl = document.getElementById('diplomaFilter');
+        if (diplomaEl && initialDiploma !== 'all') {
+            diplomaEl.value = initialDiploma;
+        }
+        const ratingEl = document.getElementById('ratingFilter');
+        if (ratingEl && initialRating !== 'all') {
+            ratingEl.value = initialRating;
+        }
+        if (initialActive === 'true') {
+            const activeBtn = document.getElementById('activeFilter');
+            if (activeBtn && activeBtn.dataset.active === 'false') {
+                activeBtn.dataset.active = 'true';
+                activeBtn.className = 'w-28 bg-zinc-200 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded-xl py-3 text-sm font-semibold text-zinc-900 dark:text-white hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-all duration-200 shrink-0';
+                const label = activeBtn.querySelector('span');
+                if (label) label.textContent = 'Active';
+            }
+        }
+        if (initialQuery || hasFilters) {
+            if (initialQuery) {
+                document.getElementById('searchInput').value = initialQuery;
+            }
+            UIRenderer.handleSearch(initialQuery, initialPage);
+        } else {
+            UIRenderer.filteredModules = DataManager.modules;
+            UIRenderer.currentPage = initialPage;
+            UIRenderer.renderPaginatedResults(DataManager.modules);
+            UIRenderer.updateResultsCount(DataManager.modules.length);
+        }
     } catch (error) {
         console.error('Failed to initialize app:', error);
         const spinner = document.getElementById('loadingSpinner');
@@ -324,8 +450,8 @@ async function initHomePage() {
                 <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-900/30 mb-4">
                     <i data-lucide="triangle-alert" class="w-8 h-8 text-red-500 dark:text-red-400"></i>
                 </div>
-                <h3 class="text-xl font-semibold text-slate-700 dark:text-slate-200 mb-1">Failed to load module data</h3>
-                <p class="text-slate-500 dark:text-slate-400">Please refresh the page or try again later.</p>
+                <h3 class="text-xl font-semibold text-zinc-700 dark:text-zinc-200 mb-1">Failed to load module data</h3>
+                <p class="text-zinc-500 dark:text-zinc-400">Please refresh the page or try again later.</p>
             </div>
         `;
         lucide.createIcons();

@@ -6,6 +6,7 @@ serving Republic Polytechnic students.
 from flask import Flask, request, jsonify, render_template
 from contextlib import contextmanager
 from datetime import datetime, timezone
+import json
 import sqlite3
 import os
 import subprocess
@@ -162,13 +163,21 @@ class ReviewRepository:
                 ).fetchall()
             return [review_to_dict(row) for row in rows]
 
-        result = (
-            supabase.table('reviews')
-            .select('id,module_code,rating,comment,created_at,updated_at')
-            .order('created_at', desc=True)
-            .execute()
-        )
-        return result.data
+        try:
+            result = (
+                supabase.table('reviews')
+                .select('id,module_code,rating,comment,created_at,updated_at')
+                .order('created_at', desc=True)
+                .execute()
+            )
+            return result.data
+        except Exception:
+            with database_connection() as conn:
+                rows = conn.execute(
+                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT
+                       FROM REVIEWS ORDER BY CREATED_AT DESC, ID DESC'''
+                ).fetchall()
+            return [review_to_dict(row) for row in rows]
 
     @staticmethod
     def list_by_module(module_code: str) -> list | None:
@@ -184,15 +193,24 @@ class ReviewRepository:
                 ).fetchall()
             return [review_to_dict(row) for row in rows]
 
-
-        result = (
-            supabase.table('reviews')
-            .select('id,module_code,rating,comment,created_at,updated_at')
-            .eq('module_code', normalized)
-            .order('created_at', desc=True)
-            .execute()
-        )
-        return result.data
+        try:
+            result = (
+                supabase.table('reviews')
+                .select('id,module_code,rating,comment,created_at,updated_at')
+                .eq('module_code', normalized)
+                .order('created_at', desc=True)
+                .execute()
+            )
+            return result.data
+        except Exception:
+            with database_connection() as conn:
+                rows = conn.execute(
+                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT
+                       FROM REVIEWS WHERE MODULE_CODE = ?
+                       ORDER BY CREATED_AT DESC, ID DESC''',
+                    (normalized,),
+                ).fetchall()
+            return [review_to_dict(row) for row in rows]
 
     @staticmethod
     def create(payload: dict) -> tuple:
@@ -285,18 +303,21 @@ class ReviewRepository:
 
         # Aggregate in-memory instead of GROUP BY — avoids Supabase
         # restrictions on aggregate queries with the free tier.
-        result = supabase.table('reviews').select('module_code,rating').execute()
-        grouped = {}
-        for review in result.data:
-            code = review['module_code']
-            grouped.setdefault(code, []).append(review['rating'])
-        return {
-            code: {
-                'average_rating': round(sum(ratings) / len(ratings), 2),
-                'review_count': len(ratings),
+        try:
+            result = supabase.table('reviews').select('module_code,rating').execute()
+            grouped = {}
+            for review in result.data:
+                code = review['module_code']
+                grouped.setdefault(code, []).append(review['rating'])
+            return {
+                code: {
+                    'average_rating': round(sum(ratings) / len(ratings), 2),
+                    'review_count': len(ratings),
+                }
+                for code, ratings in grouped.items()
             }
-            for code, ratings in grouped.items()
-        }
+        except Exception:
+            return {}
 
 
 # ---------------------------------------------------------------------------
@@ -353,31 +374,73 @@ _modules_cache = {'data': None, 'timestamp': 0}
 MODULE_CACHE_TTL = 300  # 5 minutes
 
 
-def _build_modules_list() -> list | None:
-    """Fetch modules from Supabase and attach pre-computed comparison fields."""
-    if supabase is None:
+_LOCAL_DATA_DIR = os.path.join(_base_dir, 'app', 'static', 'local-data', 'data')
+
+
+def _load_local_modules() -> list[dict] | None:
+    """Load module data from local JSON files when Supabase is unreachable."""
+    synopsis_path = os.path.join(_LOCAL_DATA_DIR, 'rp_modules_synopsis.json')
+    comparison_path = os.path.join(_LOCAL_DATA_DIR, 'rp_modules_comparison.json')
+    try:
+        with open(synopsis_path, encoding='utf-8') as f:
+            synopsis_data = {row['module_code']: row for row in json.load(f)}
+        with open(comparison_path, encoding='utf-8') as f:
+            comparison_data = {row['module_code']: row for row in json.load(f)}
+    except (OSError, KeyError, json.JSONDecodeError):
         return None
-    result = supabase.table("rp_modules").select("*").execute()
-    # Comparison data (summaries, suitability) lives in a separate table to
-    # keep the main module schema clean — merge at the application layer.
-    sf_result = supabase.table("rp_modules_comparision").select("*").execute()
-    sf_map = {row["module_code"]: row for row in sf_result.data}
+
     modules = []
-    for row in result.data:
-        code = row.get("module_code", "")
-        module = {
-            "code": code,
-            "name": row.get("module_name", ""),
-            "synopsis": row.get("synopsis", ""),
-            "school": row.get("school_name", ""),
-            "school_abbr": row.get("school_abbr", ""),
-            "url": row.get("url", ""),
-        }
-        sf_row = sf_map.get(code, {})
-        module["summary"] = sf_row.get("summary", "")
-        module["suitableFor"] = sf_row.get("suitable_for", "")
-        modules.append(module)
+    for code, syn in synopsis_data.items():
+        comp = comparison_data.get(code, {})
+        modules.append({
+            'code': code,
+            'name': syn.get('module_name', ''),
+            'synopsis': syn.get('synopsis', ''),
+            'school': syn.get('school_name', ''),
+            'school_abbr': syn.get('school_abbr', ''),
+            'url': syn.get('url', ''),
+            'summary': comp.get('summary', ''),
+            'suitableFor': comp.get('suitable_for', ''),
+        })
     return modules
+
+
+def _load_local_courses() -> list[dict] | None:
+    """Load course/diploma data from local JSON file when Supabase is unreachable."""
+    courses_path = os.path.join(_LOCAL_DATA_DIR, 'rp_diplomas_curriculum.json')
+    try:
+        with open(courses_path, encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _build_modules_list() -> list | None:
+    """Fetch modules from Supabase, falling back to local JSON files."""
+    if supabase is not None:
+        try:
+            result = supabase.table("rp_modules").select("*").execute()
+            sf_result = supabase.table("rp_modules_comparision").select("*").execute()
+            sf_map = {row["module_code"]: row for row in sf_result.data}
+            modules = []
+            for row in result.data:
+                code = row.get("module_code", "")
+                module = {
+                    "code": code,
+                    "name": row.get("module_name", ""),
+                    "synopsis": row.get("synopsis", ""),
+                    "school": row.get("school_name", ""),
+                    "school_abbr": row.get("school_abbr", ""),
+                    "url": row.get("url", ""),
+                }
+                sf_row = sf_map.get(code, {})
+                module["summary"] = sf_row.get("summary", "")
+                module["suitableFor"] = sf_row.get("suitable_for", "")
+                modules.append(module)
+            return modules
+        except Exception:
+            pass
+    return _load_local_modules()
 
 
 # ---------------------------------------------------------------------------
@@ -387,7 +450,8 @@ def _build_modules_list() -> list | None:
 @app.route('/')
 def serve_index():
     """Render the home page with module search functionality."""
-    return render_template('modules/index.html')
+    query = request.args.get('q', '')
+    return render_template('modules/index.html', query=query)
 
 
 @app.route('/comparison')
@@ -419,7 +483,7 @@ def get_modules():
 
     modules = _build_modules_list()
     if modules is None:
-        return jsonify({'error': 'Supabase is not configured.'}), 503
+        return jsonify({'error': 'Module data is not available.'}), 503
 
     _modules_cache['data'] = modules
     _modules_cache['timestamp'] = now
@@ -437,11 +501,19 @@ def get_courses():
     if _courses_cache['data'] is not None and (now - _courses_cache['timestamp']) < COURSES_CACHE_TTL:
         return jsonify(_courses_cache['data']), 200
 
-    if supabase is None:
-        return jsonify({'error': 'Supabase is not configured.'}), 503
+    courses = None
+    if supabase is not None:
+        try:
+            result = supabase.table('rp_courses').select('*').execute()
+            courses = result.data
+        except Exception:
+            pass
 
-    result = supabase.table('rp_courses').select('*').execute()
-    courses = result.data
+    if courses is None:
+        courses = _load_local_courses()
+
+    if courses is None:
+        return jsonify({'error': 'No course data available.'}), 503
 
     _courses_cache['data'] = courses
     _courses_cache['timestamp'] = now

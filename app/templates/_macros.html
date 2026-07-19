@@ -7,15 +7,15 @@
 {# Navigation                                                             #}
 {# --------------------------------------------------------------------- #}
 
-{% macro navLinks() %}
-<a href="{{ url_for('serve_index') }}" class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-slate-800 transition-all">
-    <i data-lucide="home" class="w-4 h-4 mr-1.5 inline-block"></i>Home
+{% macro navLinks(active='serve_index') %}
+<a href="{{ url_for('serve_index') }}" class="font-display font-semibold text-[15px] {% if active == 'serve_index' %}text-zinc-900 dark:text-white underline underline-offset-4{% else %}text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white{% endif %} px-4 py-2 rounded-lg transition-all">
+    Home
 </a>
-<a href="{{ url_for('serve_comparison') }}" class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-slate-800 transition-all">
-    <i data-lucide="layout-grid" class="w-4 h-4 mr-1.5 inline-block"></i>Comparison
+<a href="{{ url_for('serve_comparison') }}" class="font-display font-semibold text-[15px] {% if active == 'serve_comparison' %}text-zinc-900 dark:text-white underline underline-offset-4{% else %}text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white{% endif %} px-4 py-2 rounded-lg transition-all">
+    Comparison
 </a>
-<a href="{{ url_for('serve_reviews') }}" class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-slate-800 transition-all">
-    <i data-lucide="message-square" class="w-4 h-4 mr-1.5 inline-block"></i>Reviews
+<a href="{{ url_for('serve_reviews') }}" class="font-display font-semibold text-[15px] {% if active == 'serve_reviews' %}text-zinc-900 dark:text-white underline underline-offset-4{% else %}text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white{% endif %} px-4 py-2 rounded-lg transition-all">
+    Reviews
 </a>
 {% endmacro %}
 
@@ -24,7 +24,7 @@
 {# --------------------------------------------------------------------- #}
 
 {% macro themeToggle() %}
-<div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+<div class="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-0.5">
     <button data-theme="light" class="theme-btn p-1.5 rounded-md transition-all" aria-label="Light mode">
         <i data-lucide="sun" class="w-4 h-4"></i>
     </button>
@@ -42,14 +42,13 @@
 {# --------------------------------------------------------------------- #}
 
 {% macro hero(subtitle, title, description) %}
-<section class="relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-500 to-accent-400 py-12 sm:py-16">
-    <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyem0wLTRWMjhIMjR2Mmgxem0tMS0zdi0ySDI0djJoMTF6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-40"></div>
-    <div class="relative mx-auto max-w-4xl px-4 text-center">
+<section class="py-16 md:py-24">
+    <div class="mx-auto max-w-4xl px-4 text-center">
         {% if subtitle %}
-        <span class="inline-block text-xs font-bold uppercase tracking-widest text-white/70 mb-3">{{ subtitle }}</span>
+        <span class="inline-block text-xs font-bold uppercase tracking-widest text-primary-600 dark:text-primary-400 mb-4 font-body">{{ subtitle }}</span>
         {% endif %}
-        <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-3 tracking-tight">{{ title }}</h1>
-        <p class="text-white/80 text-lg max-w-2xl mx-auto">{{ description }}</p>
+        <h1 class="font-display font-bold text-4xl md:text-5xl lg:text-6xl tracking-tight text-zinc-900 dark:text-white mb-4">{{ title }}</h1>
+        <p class="text-lg text-zinc-500 dark:text-zinc-400 max-w-2xl mx-auto leading-relaxed">{{ description }}</p>
     </div>
 </section>
 {% endmacro %}
@@ -60,6 +59,12 @@
 
 {% macro btnPrimary(text, icon=None, type='button', id=None, attrs='') %}
 <button type="{{ type }}"{% if id %} id="{{ id }}"{% endif %} class="btn-primary rounded-xl text-base shrink-0 truncate {{ attrs }}">
+    {% if icon %}<i data-lucide="{{ icon }}" class="w-4 h-4 mr-2 inline-block"></i>{% endif %}{{ text }}
+</button>
+{% endmacro %}
+
+{% macro btnSearch(text, icon=None, type='button', id=None, attrs='') %}
+<button type="{{ type }}"{% if id %} id="{{ id }}"{% endif %} class="rounded-xl bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 shadow-sm px-5 py-3.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 transition-all duration-200 shrink-0 truncate {{ attrs }}">
     {% if icon %}<i data-lucide="{{ icon }}" class="w-4 h-4 mr-2 inline-block"></i>{% endif %}{{ text }}
 </button>
 {% endmacro %}
@@ -83,12 +88,12 @@
 {% macro inputText(id, placeholder='', icon=None, attrs='') %}
 <div class="relative">
     {% if icon %}
-    <i data-lucide="{{ icon }}" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-400"></i>
+    <i data-lucide="{{ icon }}" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-400"></i>
     {% endif %}
     <input
         id="{{ id }}"
         type="text"
-        class="input-field {% if icon %}pl-10{% else %}pl-4{% endif %} pr-4 py-3 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 truncate {{ attrs }}"
+        class="input-field {% if icon %}pl-10{% else %}pl-4{% endif %} pr-4 py-3 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-400 truncate {{ attrs }}"
         placeholder="{{ placeholder }}"
         autocomplete="off"
     >
@@ -97,11 +102,11 @@
 
 {% macro inputSearch(id, placeholder='Search...', attrs='') %}
 <div class="relative">
-    <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-400"></i>
+    <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-400"></i>
     <input
         id="{{ id }}"
         type="search"
-        class="w-full rounded-xl bg-white/95 dark:bg-slate-800 shadow-sm pl-10 pr-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate {{ attrs }}"
+        class="w-full rounded-xl bg-white/95 dark:bg-zinc-800 shadow-sm pl-10 pr-4 py-3 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate {{ attrs }}"
         placeholder="{{ placeholder }}"
     >
 </div>
@@ -110,7 +115,7 @@
 {% macro selectField(id, options, attrs='') %}
 <select
     id="{{ id }}"
-    class="select-field bg-white/95 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-4 pr-10 py-3 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate {{ attrs }}"
+    class="select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate {{ attrs }}"
 >
     {% for value, label in options %}
     <option value="{{ value }}">{{ label }}</option>
@@ -121,7 +126,7 @@
 {% macro textarea(id, placeholder='', rows=4, maxlength=500, attrs='') %}
 <textarea
     id="{{ id }}"
-    class="input-field px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 {{ attrs }}"
+    class="input-field px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-400 {{ attrs }}"
     rows="{{ rows }}"
     maxlength="{{ maxlength }}"
     placeholder="{{ placeholder }}"
@@ -129,13 +134,13 @@
 {% endmacro %}
 
 {% macro label(text, for_id=None, required=false) %}
-<label {% if for_id %}for="{{ for_id }}"{% endif %} class="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+<label {% if for_id %}for="{{ for_id }}"{% endif %} class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300">
     {{ text }}{% if required %} <span class="text-red-500">*</span>{% endif %}
 </label>
 {% endmacro %}
 
 {% macro helperText(text) %}
-<p class="mt-1 text-xs text-slate-400 dark:text-slate-400">{{ text }}</p>
+<p class="mt-1 text-xs text-zinc-400 dark:text-zinc-400">{{ text }}</p>
 {% endmacro %}
 
 {# --------------------------------------------------------------------- #}
@@ -163,7 +168,7 @@
 {% macro statCard(value, label, id=None, attrs='') %}
 <div class="stat-card" {{ attrs }}>
     <span{% if id %} id="{{ id }}"{% endif %} class="block text-2xl sm:text-3xl font-bold text-primary-600 dark:text-primary-300 leading-tight">{{ value }}</span>
-    <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400 font-medium">{{ label }}</span>
+    <span class="mt-1 block text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ label }}</span>
 </div>
 {% endmacro %}
 
@@ -185,8 +190,8 @@
 
 {% macro modalHeader(title, close_id, close_label='Close') %}
 <div class="modal-header">
-    <h2 class="text-lg font-bold text-slate-900 dark:text-white">{{ title }}</h2>
-    <button id="{{ close_id }}" class="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors" aria-label="{{ close_label }}">
+    <h2 class="text-lg font-bold text-zinc-900 dark:text-white">{{ title }}</h2>
+    <button id="{{ close_id }}" class="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 dark:text-zinc-400 hover:bg-white/60 dark:hover:bg-zinc-700 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors" aria-label="{{ close_label }}">
         <i data-lucide="x" class="w-5 h-5"></i>
     </button>
 </div>
@@ -199,7 +204,7 @@
 {% endmacro %}
 
 {% macro modalFooter(attrs='') %}
-<div class="flex items-center justify-end gap-3 border-t border-slate-200/60 dark:border-slate-700 px-6 py-4 {{ attrs }}">
+<div class="flex items-center justify-end gap-3 border-t border-zinc-200/60 dark:border-zinc-700 px-6 py-4 {{ attrs }}">
     {{ caller() }}
 </div>
 {% endmacro %}
@@ -213,17 +218,17 @@
     <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
         <div class="h-6 w-6 animate-spin rounded-full border-[3px] border-primary-500 border-t-transparent"></div>
     </div>
-    <p class="mt-4 text-slate-500 dark:text-slate-400 font-medium">{{ text }}</p>
+    <p class="mt-4 text-zinc-500 dark:text-zinc-400 font-medium">{{ text }}</p>
 </div>
 {% endmacro %}
 
 {% macro emptyState(icon, title, description) %}
 <div class="py-16 text-center">
-    <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800 mb-4">
-        <i data-lucide="{{ icon }}" class="w-8 h-8 text-slate-400 dark:text-slate-400"></i>
+    <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800 mb-4">
+        <i data-lucide="{{ icon }}" class="w-8 h-8 text-zinc-400 dark:text-zinc-400"></i>
     </div>
-    <h3 class="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-1">{{ title }}</h3>
-    <p class="text-slate-500 dark:text-slate-400">{{ description }}</p>
+    <h3 class="text-xl font-semibold text-zinc-700 dark:text-zinc-300 mb-1">{{ title }}</h3>
+    <p class="text-zinc-500 dark:text-zinc-400">{{ description }}</p>
 </div>
 {% endmacro %}
 
@@ -249,7 +254,7 @@
 
 {% macro sectionHeader(title, icon=None, badge_text=None, badge_id=None) %}
 <div class="flex items-center justify-between mb-6">
-    <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+    <h2 class="text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
         {% if icon %}<i data-lucide="{{ icon }}" class="w-5 h-5 text-primary-500"></i>{% endif %}{{ title }}
     </h2>
     {% if badge_text %}
@@ -260,9 +265,9 @@
 
 {% macro sectionHeading(title, description=None) %}
 <div>
-    <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-0.5">{{ title }}</h2>
+    <h2 class="text-xl font-bold text-zinc-900 dark:text-white mb-0.5">{{ title }}</h2>
     {% if description %}
-    <p class="text-sm text-slate-500 dark:text-slate-400">{{ description }}</p>
+    <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ description }}</p>
     {% endif %}
 </div>
 {% endmacro %}

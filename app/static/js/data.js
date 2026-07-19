@@ -133,6 +133,54 @@ const DataManager = {
         return results.map(r => r.module);
     },
 
+    getDiplomaList() {
+        const seen = new Set();
+        const list = [];
+        for (const course of this.diplomas) {
+            if (!seen.has(course.course_code)) {
+                seen.add(course.course_code);
+                list.push({ code: course.course_code, name: course.course_name });
+            }
+        }
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        return list;
+    },
+
+    filterModules(modules, filters = {}) {
+        let results = modules ? [...modules] : [...this.modules];
+        const { diploma, rating, active } = filters;
+
+        if (diploma && diploma !== 'all') {
+            const course = this.diplomas.find(c => c.course_code === diploma);
+            if (course) {
+                const codes = new Set();
+                for (const key of ['general_modules', 'major_modules', 'discipline_modules', 'elective_modules', 'industry_modules']) {
+                    const arr = course[key];
+                    if (Array.isArray(arr)) {
+                        for (const m of arr) {
+                            codes.add(typeof m === 'string' ? m : m.code);
+                        }
+                    }
+                }
+                results = results.filter(m => codes.has(m.code));
+            }
+        }
+
+        if (rating && rating !== 'all') {
+            const min = parseInt(rating, 10);
+            results = results.filter(m => {
+                const s = this.getRatingSummary(m.code);
+                return s.review_count > 0 && s.average_rating !== null && s.average_rating >= min;
+            });
+        }
+
+        if (active === 'true') {
+            results = results.filter(m => this.getDiplomasByModule(m.code).length > 0);
+        }
+
+        return results;
+    },
+
     normalizeSearchText(value) {
         return String(value || '')
             .toLowerCase()

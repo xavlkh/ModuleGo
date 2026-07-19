@@ -78,7 +78,7 @@ const ComparisonManager = {
         pag.hasMore = batch.length < matches.length;
 
         if (matches.length === 0) {
-            resultsElement.innerHTML = '<div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 px-4 py-3 text-sm text-slate-400 dark:text-slate-400">No matching modules found</div>';
+            resultsElement.innerHTML = '<div class="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700 bg-zinc-50/60 dark:bg-zinc-800/60 px-4 py-3 text-sm text-zinc-400 dark:text-zinc-400">No matching modules found</div>';
             return;
         }
 
@@ -94,10 +94,10 @@ const ComparisonManager = {
      */
     buildButtonsHtml(modules, slot) {
         return modules.map(m => `
-            <button class="w-full text-left rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm px-4 py-3 transition-all hover:border-primary-300 dark:hover:border-primary-500 hover:shadow-md" type="button" data-slot="${slot}" data-code="${escapeHtml(m.code)}">
+            <button class="w-full text-left rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 shadow-sm px-4 py-3 transition-all hover:border-primary-300 dark:hover:border-primary-500 hover:shadow-md" type="button" data-slot="${slot}" data-code="${escapeHtml(m.code)}">
                 <div class="text-xs font-bold text-primary-600 dark:text-primary-400 mb-0.5">${escapeHtml(m.code)}</div>
-                <div class="text-sm font-semibold text-slate-900 dark:text-white leading-snug">${escapeHtml(m.name)}</div>
-                <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${escapeHtml(m.school || 'School not listed')}</div>
+                <div class="text-sm font-semibold text-zinc-900 dark:text-white leading-snug">${escapeHtml(m.name)}</div>
+                <div class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">${escapeHtml(m.school || 'School not listed')}</div>
             </button>
         `).join('');
     },
@@ -108,7 +108,7 @@ const ComparisonManager = {
      */
     buildSentinelHtml(show, slot) {
         if (!show) return '';
-        return `<div id="scrollSentinel-${slot}" class="flex justify-center py-3"><div class="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-primary-500"></div></div>`;
+        return `<div id="scrollSentinel-${slot}" class="flex justify-center py-3"><div class="h-5 w-5 animate-spin rounded-full border-2 border-zinc-300 border-t-primary-500"></div></div>`;
     },
 
     /**
@@ -208,7 +208,7 @@ const ComparisonManager = {
         selectedEl.innerHTML = `
             <span class="flex-1">
                 <strong class="text-primary-700 dark:text-primary-400 mr-1">${escapeHtml(module.code)}</strong>
-                <span class="text-slate-900 dark:text-white">${escapeHtml(module.name)}</span>
+                <span class="text-zinc-900 dark:text-white">${escapeHtml(module.name)}</span>
             </span>
             <button type="button" class="flex h-7 w-7 items-center justify-center rounded-lg module-code-box text-primary-600 dark:text-primary-300 hover:bg-primary-500 hover:text-white transition-all" aria-label="Clear selected module" data-slot="${slot}">
                 <i data-lucide="x" class="w-3.5 h-3.5"></i>
@@ -246,7 +246,7 @@ const ComparisonManager = {
         this.elements.headerOne.textContent = `${first.code} - ${first.name}`;
         this.elements.headerTwo.textContent = `${second.code} - ${second.name}`;
 
-        const placeholder = '<span class="text-slate-400 dark:text-slate-400">Not available</span>';
+        const placeholder = '<span class="text-zinc-400 dark:text-zinc-400">Not available</span>';
         const rows = [
             ['Module code', escapeHtml(first.code), escapeHtml(second.code)],
             ['Module name', escapeHtml(first.name), escapeHtml(second.name)],
@@ -258,8 +258,8 @@ const ComparisonManager = {
         this.elements.tableBody.innerHTML = rows.map(([label, v1, v2], i) => `
             <tr class="${i < 2 ? 'bg-primary-50/40 dark:bg-primary-900/20' : ''}">
                 <th scope="row" class="px-5 py-3.5 text-sm font-semibold text-primary-800 dark:text-primary-200 whitespace-nowrap">${escapeHtml(label)}</th>
-                <td class="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300">${v1}</td>
-                <td class="px-5 py-3.5 text-sm text-slate-700 dark:text-slate-300">${v2}</td>
+                <td class="px-5 py-3.5 text-sm text-zinc-700 dark:text-zinc-300">${v1}</td>
+                <td class="px-5 py-3.5 text-sm text-zinc-700 dark:text-zinc-300">${v2}</td>
             </tr>
         `).join('');
         lucide.createIcons();

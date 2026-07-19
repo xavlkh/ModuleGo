@@ -64,10 +64,10 @@ function showMessage(element, message, type) {
 function createReviewActionsHTML(reviewId) {
     return `
         <div class="flex gap-1.5 flex-shrink-0">
-            <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-400 hover:border-primary-300 dark:hover:border-primary-500 hover:text-primary-500 dark:hover:text-primary-400 transition-all edit-review-btn" type="button" data-review-id="${reviewId}" aria-label="Edit review">
+            <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-400 hover:border-primary-300 dark:hover:border-primary-500 hover:text-primary-500 dark:hover:text-primary-400 transition-all edit-review-btn" type="button" data-review-id="${reviewId}" aria-label="Edit review">
                 <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
             </button>
-            <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-400 hover:border-red-300 dark:hover:border-red-500 hover:text-red-500 dark:hover:text-red-400 transition-all delete-review-btn" type="button" data-review-id="${reviewId}" aria-label="Delete review">
+            <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-400 hover:border-red-300 dark:hover:border-red-500 hover:text-red-500 dark:hover:text-red-400 transition-all delete-review-btn" type="button" data-review-id="${reviewId}" aria-label="Delete review">
                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
             </button>
         </div>
