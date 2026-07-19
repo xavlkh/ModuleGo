@@ -102,7 +102,7 @@ const DetailManager = {
                 </a>
             </div>
             <div class="mb-6">
-                <h6 class="text-sm font-bold text-slate-900 dark:text-white mb-2">Diplomas offering this module(${diplomas.length})</h6>
+                <h6 class="text-sm font-bold text-slate-900 dark:text-white mb-2">Diplomas offering this module (${diplomas.length})</h6>
                 <ul class="grid gap-2">${diplomasHTML}</ul>
             </div>
             <hr class="border-zinc-200 dark:border-zinc-700 my-6">
