@@ -79,6 +79,9 @@ const DataManager = {
                 }
             }
         }
+        results.sort((a, b) =>
+        (a.course_code || '').localeCompare(b.course_code || '')
+    );
         return results;
     },
 
