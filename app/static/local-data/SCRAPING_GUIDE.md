@@ -31,7 +31,7 @@ All output is written to `data/` (gitignored).
 |------|-------------|
 | `rp_modules_synopsis.json` | Modules with code, name, synopsis, school, URL |
 | `rp_modules_comparison.json` | Summary + suitable_for text per module |
-| `rp_diplomas_curriculum.json` | Diplomas with nested module lists |
+| `rp_courses.json` | Diplomas with nested module lists |
 | `tokens.json` | Auth tokens (auto-generated, session-based) |
 
 CSV equivalents are generated alongside each JSON file.
@@ -52,3 +52,20 @@ CSV equivalents are generated alongside each JSON file.
 - Tokens expire per session — re-extract if step 2 returns 403
 - API returns double-encoded UTF-8 (mojibake) — fixed automatically in step 2
 - When the same module code appears under multiple schools, `should_keep()` picks the one matching the prefix's owning school
+
+## Importing to Supabase
+
+After scraping, upsert the JSON output to Supabase:
+
+```bash
+cd ../../  # project root
+python upsert_to_supabase.py
+```
+
+Requires `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env`. Reads the JSON files from `data/` and upserts to `rp_modules`, `rp_modules_comparision`, and `rp_courses`.
+
+## Automated Pipeline
+
+The scraping pipeline runs automatically via GitHub Actions every Sunday at 2am UTC. It can also be triggered manually from the Actions tab.
+
+The workflow (`.github/workflows/scrape.yml`) installs Python + Node.js, runs `run_all.py`, then `upsert_to_supabase.py`. Requires `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as repository secrets.

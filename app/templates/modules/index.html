@@ -26,33 +26,42 @@
                     <i data-lucide="chevron-down" class="w-4 h-4 shrink-0 transition-transform duration-200" id="filterChevron"></i>
                 </button>
             </div>
-            <div id="filterPanel" class="hidden mt-2 pt-2 border-t border-zinc-200/50 dark:border-zinc-700/50">
-                <div class="flex flex-col sm:flex-row gap-2 items-stretch">
-                    {{ selectField('schoolFilter', [
-                        ('all', 'All Schools'),
-                        ('School of Applied Science', 'School of Applied Science'),
-                        ('School of Business', 'School of Business'),
-                        ('School of Engineering', 'School of Engineering'),
-                        ('School of Hospitality', 'School of Hospitality'),
-                        ('School of Infocomm', 'School of Infocomm'),
-                        ('School of Sports and Health', 'School of Sports and Health'),
-                        ('School of Technology for Arts, Media and Design', 'School of Technology for Arts, Media and Design'),
-                        ('CENTRE FOR FOUNDATIONAL STUDIES', 'Centre for Foundational Studies')
-                    ], 'w-full') }}
-                    {{ selectField('diplomaFilter', [('all', 'All Diplomas')], 'w-full') }}
-                </div>
-                <div class="flex flex-col sm:flex-row gap-2 items-stretch mt-2">
-                    {{ selectField('ratingFilter', [
-                        ('all', 'All Ratings'),
-                        ('5', '5 Stars'),
-                        ('4', '4 Stars & Up'),
-                        ('3', '3 Stars & Up'),
-                        ('2', '2 Stars & Up'),
-                        ('1', '1 Star & Up')
-                    ], 'w-full') }}
-                    <button id="activeFilter" data-active="false" class="w-28 bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all duration-200 shrink-0">
-                        <span>All</span>
-                    </button>
+            <div id="filterPanel" class="grid transition-[grid-template-rows] duration-300 ease-out" style="grid-template-rows: 0fr;">
+                <div class="overflow-hidden">
+                    <div class="pt-2 border-t border-zinc-200/50 dark:border-zinc-700/50">
+                        <div class="flex flex-col sm:flex-row gap-2 items-stretch">
+                            {{ selectField('schoolFilter', [
+                                ('all', 'All Schools'),
+                                ('School of Applied Science', 'School of Applied Science'),
+                                ('School of Business', 'School of Business'),
+                                ('School of Engineering', 'School of Engineering'),
+                                ('School of Hospitality', 'School of Hospitality'),
+                                ('School of Infocomm', 'School of Infocomm'),
+                                ('School of Sports and Health', 'School of Sports and Health'),
+                                ('School of Technology for Arts, Media and Design', 'School of Technology for Arts, Media and Design'),
+                                ('CENTRE FOR FOUNDATIONAL STUDIES', 'Centre for Foundational Studies')
+                            ], 'w-full') }}
+                            {{ selectField('diplomaFilter', [('all', 'All Diplomas')], 'w-full') }}
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-2 items-stretch mt-2">
+                            {{ selectField('ratingFilter', [
+                                ('all', 'All Ratings'),
+                                ('5', '5 Stars'),
+                                ('4', '4 Stars & Up'),
+                                ('3', '3 Stars & Up'),
+                                ('2', '2 Stars & Up'),
+                                ('1', '1 Star & Up')
+                            ], 'w-full') }}
+                            <button id="activeFilter" data-active="false" class="w-28 bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all duration-200 shrink-0">
+                                <span>All</span>
+                            </button>
+                        </div>
+                        <div class="flex justify-end mt-2">
+                            <button id="clearFilters" class="px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors duration-200">
+                                Clear All
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

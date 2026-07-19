@@ -202,26 +202,27 @@ app/templates/base.html (Layout Partial - Tailwind CSS with glassmorphism)
 
 app/templates/modules/index.html (Home/Search Page)
 ├── {% extends "base.html" %}
-├── Hero Section (emerald→teal→cyan gradient, glass search bar)
+├── Hero Section (emerald→teal→cyan gradient, search bar)
 ├── Search Input + Filters Toggle Button
-├── Collapsible Filter Panel
+├── Collapsible Filter Panel (animated grid-rows transition)
 │   ├── School Dropdown
 │   ├── Diploma Dropdown (populated from /api/courses)
 │   ├── Rating Dropdown (5 Stars, 4 Stars & Up, etc.)
-│   └── Active Toggle (modules in at least one diploma)
+│   ├── Active Toggle (modules in at least one diploma)
+│   └── Clear All button
 ├── Search Results Section
 │   ├── Results Count badge
-│   └── Module Cards Grid (glass-card with hover lift)
+│   └── Module Cards Grid (solid bg, hover lift shadow-xl)
 │       ├── Module Code (uppercase tracking)
 │       ├── Module Name (bold, hover color change)
 │       ├── Description (truncated, slate-500)
 │       ├── School Badge (rounded-full)
 │       ├── Rating (amber stars)
-│       └── Action Buttons (btn-outline-glass)
+│       └── Action Buttons (Source link)
 ├── Pagination (9 per page, ellipsis, keyboard nav)
 ├── Module Detail Modal (custom implementation)
-│   ├── Glass modal overlay (backdrop-blur)
-│   ├── Glass modal panel (rounded-2xl)
+│   ├── Modal overlay (backdrop-blur)
+│   ├── Modal panel (rounded-2xl, solid bg)
 │   ├── Full Module Details
 │   ├── Diploma List
 │   ├── Reviews Section (Rating + Comments)
@@ -230,18 +231,18 @@ app/templates/modules/index.html (Home/Search Page)
 app/templates/modules/comparison.html (Comparison Page)
 ├── {% extends "base.html" %}
 ├── Comparison Hero (subtle gradient background)
-├── Glass Comparison Panel
-│   ├── Module Search Inputs (input-glass)
-│   ├── Selected Module Chips (bg-primary-50)
-│   ├── Gradient VS Badge (emerald gradient, shadow-glow)
+├── Comparison Panel (solid card)
+│   ├── Module Search Inputs
+│   ├── Selected Module Chips
+│   ├── VS Badge (emerald gradient, shadow-glow)
 │   └── Comparison Table (striped rows, primary-tinted headers)
 
 app/templates/modules/reviews.html (Review Dashboard)
 ├── {% extends "base.html" %}
 ├── Dashboard Hero (gradient background)
-├── Stat Cards (stat-card with backdrop-blur)
-├── Review Toolbar (input-glass filters)
-├── Review Cards Grid (glass-card)
+├── Stat Cards (solid bg)
+├── Review Toolbar (filters)
+├── Review Cards Grid (solid bg)
 └── Edit Review Modal (custom implementation)
 ```
 

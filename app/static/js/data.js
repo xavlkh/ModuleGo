@@ -1,8 +1,4 @@
 /**
- * Handles module data loading, lookup, and search.
- * @module data
- */
-/**
  * Centralised data layer for modules, diplomas, and ratings.
  * All data is loaded once from the Flask API and kept in memory for
  * client-side search and filtering.

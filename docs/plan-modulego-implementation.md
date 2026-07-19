@@ -1,11 +1,11 @@
 ---
 goal: ModuleGo - Republic Polytechnic Module Viewer Implementation
-version: 9.0
+version: 10.0
 date_created: 2026-06-29
 last_updated: 2026-07-19
 owner: Developer
 status: 'In Progress'
-tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'dark-mode', 'ui-redesign', 'saas-patterns']
+tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'dark-mode', 'ui-redesign', 'saas-patterns', 'security', 'csrf', 'rate-limiting', 'scraping', 'automation']
 ---
 
 # Introduction
@@ -13,6 +13,8 @@ tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorp
 ![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
 
 Implementation plan for ModuleGo, a responsive module search application for Republic Polytechnic students. The application uses Vanilla JS, Tailwind CSS (glassmorphism design system), and HTML for the frontend, with Python Flask and Supabase PostgreSQL for the backend. Module data and reviews are stored in Supabase, with Flask proxying all calls so the browser never sees the secret key. SQLite is used only for automated tests.
+
+> **Note:** This plan consolidates the former `plan-security-hardening.md` and `plan-scraping-pipeline.md` files into a single source of truth.
 
 ## 1. Requirements & Constraints
 
@@ -378,14 +380,14 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 
 ### Implementation Phase 15: Codebase Refactor (Merge JS, Repository Pattern, Macros)
 
-- GOAL-015: Simplify JS from 8 files to 4, add repository pattern in app.py, extract shared Jinja macros
+- GOAL-015: Extract shared utilities into utils.js, add repository pattern in app.py, extract shared Jinja macros
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
 | TASK-115 | Add `parseTimestamp()`, `showMessage()`, `createReviewActionsHTML()`, `createModalController()` to `utils.js` | ✅ | 2026-07-17 |
 | TASK-116 | Merge `search.js` into `ui.js` | ✅ | 2026-07-17 |
 | TASK-117 | Merge `app.js` into `ui.js` as `UIRenderer.initApp()` | ✅ | 2026-07-17 |
-| TASK-118 | Merge `detail.js` review CRUD into `reviews.js` | ✅ | 2026-07-17 |
+| TASK-118 | Merge `detail.js` review CRUD into `reviews.js` | ❌ | |
 | TASK-119 | Update all HTML templates' script tags to reflect merged files | ✅ | 2026-07-17 |
 | TASK-120 | Remove `generate-comparison-fields.js` | ✅ | 2026-07-17 |
 | TASK-121 | Remove proxy methods (`escapeHtml`, `createStars`) from JS files | ✅ | 2026-07-17 |
@@ -396,17 +398,17 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | TASK-126 | Add `.select-chevron` class to `app.css` | ✅ | 2026-07-17 |
 | TASK-127 | Add `@functools.lru_cache` with TTL to `get_modules()` | ✅ | 2026-07-17 |
 
-### Implementation Phase 16: Diploma Data Scraping
+### Implementation Phase 16: Diploma Data Scraping (superseded by Phase 26)
 
-- GOAL-016: Create live scraper for RP diploma pages, yielding structured JSON + CSV for Supabase import
+- GOAL-016: ~~Create live scraper for RP diploma pages~~ — Replaced by automated pipeline in Phase 26.3
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-128 | Create `app/static/local-data/scripts/step4_scrape_diplomas.py` — scrapes listing page for diploma links + metadata | | |
-| TASK-129 | Implement detail page extraction of curriculum modules by category (general, discipline, elective) | | |
-| TASK-130 | Handle conditional paths: split into separate diploma entries with suffixed codes (e.g. R57-BUS, R57-HOS) | | |
-| TASK-131 | Output `rp_diplomas.json` (nested JSON) and `rp_diplomas.csv` (flat CSV) | | |
-| TASK-132 | Define Supabase `rp_diplomas` and `diploma_modules` table schemas | | |
+| TASK-128 | Create `app/static/local-data/scripts/step4_scrape_diplomas.py` — scrapes listing page for diploma links + metadata | ✅ | 2026-07-19 |
+| TASK-129 | Implement detail page extraction of curriculum modules by category (general, discipline, elective) | ✅ | 2026-07-19 |
+| TASK-130 | Handle conditional paths: split into separate diploma entries with suffixed codes (e.g. R57-BUS, R57-HOS) | ✅ | 2026-07-19 |
+| TASK-131 | Output `rp_courses.json` (nested JSON) and `rp_courses.csv` (flat CSV) | ✅ | 2026-07-19 |
+| TASK-132 | Define Supabase `rp_courses` and `course_modules` table schemas | ✅ | 2026-07-19 |
 
 ### Implementation Phase 17: Design Tokens & Typography
 
@@ -500,6 +502,128 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | TASK-167 | Functional check: search, filter, sort, pagination, detail modal, review CRUD all work | | |
 | TASK-168 | Mobile check: responsive layout at 375px, 768px, 1024px viewports | | |
 
+### Implementation Phase 25: Security Hardening (Anonymous Ownership, CSRF, Rate Limiting)
+
+- GOAL-025: Address security issues — add anonymous ownership, CSRF protection, and rate limiting
+
+#### Phase 25.1: Backend Security Infrastructure
+
+- GOAL-25.1: Add Flask-WTF CSRF protection and Flask-Limiter rate limiting
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-169 | Add `Flask-WTF>=1.2.0` and `Flask-Limiter>=3.0.0` to `requirements.txt` | ✅ | 2026-07-19 |
+| TASK-170 | Import `CSRFProtect` from `flask_wtf.csrf` and `Limiter` from `flask_limiter` in `app.py` | ✅ | 2026-07-19 |
+| TASK-171 | Initialize `CSRFProtect(app)` — exempt GET routes, apply to POST/PUT/DELETE | ✅ | 2026-07-19 |
+| TASK-172 | Initialize `Limiter(app, default_limits=["200 per hour"])` | ✅ | 2026-07-19 |
+| TASK-173 | Add rate limits on review endpoints: `@limiter.limit("20/hour")` on POST, `@limiter.limit("10/hour")` on PUT and DELETE | ✅ | 2026-07-19 |
+| TASK-174 | Exempt `/api/modules` and `/api/courses` from CSRF (read-only GET endpoints) | ✅ | 2026-07-19 |
+| TASK-175 | Add `WTF_CSRF_ENABLED = False` for test mode (`app.config['TESTING'] = True`) | ✅ | 2026-07-19 |
+| TASK-176 | Exempt all API endpoints from CSRF for non-browser clients (custom header check: `X-Requested-With`) | ✅ | 2026-07-19 |
+
+#### Phase 25.2: Owner Token Database Schema
+
+- GOAL-25.2: Add owner_token column to reviews table for anonymous ownership
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-177 | Add `owner_token TEXT` column to SQLite `init_db()` schema in `app.py` | ✅ | 2026-07-19 |
+| TASK-178 | Create `generate_owner_token()` function — returns `uuid4().hex` (32-char hex string) | ✅ | 2026-07-19 |
+| TASK-179 | Update `ReviewRepository.create()` to accept and store `owner_token` in payload | ✅ | 2026-07-19 |
+| TASK-180 | Update `ReviewRepository.update()` to verify `owner_token` matches before update | ✅ | 2026-07-19 |
+| TASK-181 | Update `ReviewRepository.delete()` to verify `owner_token` matches before delete | ✅ | 2026-07-19 |
+| TASK-182 | Update `review_to_dict()` to include `owner_token` field | ✅ | 2026-07-19 |
+| TASK-183 | Update `validate_review_payload()` to accept optional `owner_token` parameter | ✅ | 2026-07-19 |
+
+#### Phase 25.3: Backend API Route Changes
+
+- GOAL-25.3: Update API routes to validate ownership and handle CSRF
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-184 | Update `add_review()` to extract `X-Owner-Token` from request headers | ✅ | 2026-07-19 |
+| TASK-185 | Update `add_review()` to generate token if not provided, include in response | ✅ | 2026-07-19 |
+| TASK-186 | Update `update_review()` to extract `X-Owner-Token` and pass to repository | ✅ | 2026-07-19 |
+| TASK-187 | Update `delete_review()` to extract `X-Owner-Token` and pass to repository | ✅ | 2026-07-19 |
+| TASK-188 | Add 403 response when owner token does not match (edit/delete) | ✅ | 2026-07-19 |
+| TASK-189 | Add `@csrf.exempt` decorator for API endpoints that use custom header auth | ✅ | 2026-07-19 |
+
+#### Phase 25.4: Frontend Token Management
+
+- GOAL-25.4: Generate and persist owner token in browser, send with review requests
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-190 | Add `getOwnerToken()` to `app/static/js/utils.js` — generates UUID4 on first call, persists to `localStorage key 'modulego_owner_token'` | ✅ | 2026-07-19 |
+| TASK-191 | In `detail.js`: add `X-Owner-Token` header to POST/PUT/DELETE fetch calls in `saveReview()` and `deleteReview()` | ✅ | 2026-07-19 |
+| TASK-192 | In `reviews.js`: add `X-Owner-Token` header to PUT/DELETE fetch calls in `saveEdit()` and `deleteReview()` | ✅ | 2026-07-19 |
+| TASK-193 | In `reviews.js`: store `owner_token` from response on create, persist to localStorage | ✅ | 2026-07-19 |
+| TASK-194 | In `detail.js`: store `owner_token` from response on create, persist to localStorage | ✅ | 2026-07-19 |
+
+#### Phase 25.5: Frontend Edit/Delete Button Visibility
+
+- GOAL-25.5: Only show edit/delete buttons for reviews owned by the current user
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-195 | In `detail.js` `createReviewMarkup()`: check `review.owner_token === getOwnerToken()` before showing action buttons | ✅ | 2026-07-19 |
+| TASK-196 | In `reviews.js` `createReviewCard()`: check `review.owner_token === getOwnerToken()` before showing action buttons | ✅ | 2026-07-19 |
+
+#### Phase 25.6: Testing & Verification
+
+- GOAL-25.6: Verify all security improvements work correctly
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-197 | Run `pytest tests/` to verify existing tests still pass | ✅ | 2026-07-19 |
+| TASK-198 | Test: create review → verify owner_token is stored and returned | ✅ | 2026-07-19 |
+| TASK-199 | Test: edit review with wrong owner_token → verify 403 response | ✅ | 2026-07-19 |
+| TASK-200 | Test: delete review with wrong owner_token → verify 403 response | ✅ | 2026-07-19 |
+| TASK-201 | Test: rate limiting returns 429 after threshold exceeded | ✅ | 2026-07-19 |
+| TASK-202 | Test: existing reviews without owner_token still readable (backward compatible) | ✅ | 2026-07-19 |
+
+### Implementation Phase 26: Automated Scraping Pipeline
+
+- GOAL-26: Automate the scraping pipeline with Supabase sync via GitHub Actions
+
+#### Phase 26.1: Supabase Upsert Script
+
+- GOAL-26.1: Create standalone upsert script for GitHub Actions
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-207 | Create `upsert_to_supabase.py` — standalone CLI script reading JSON output and upserting to Supabase | ✅ | 2026-07-19 |
+| TASK-208 | Implement `upsert_modules()` — map synopsis JSON fields to Supabase `rp_modules` columns | ✅ | 2026-07-19 |
+| TASK-209 | Implement `upsert_comparison()` — map comparison JSON to `rp_modules_comparision` | ✅ | 2026-07-19 |
+| TASK-210 | Implement `upsert_courses()` — map courses JSON to `rp_courses`, extract module code arrays | ✅ | 2026-07-19 |
+| TASK-211 | Fix double-encoding bug — remove `json.dumps()` from module code lists in `upsert_courses()` | ✅ | 2026-07-19 |
+
+#### Phase 26.2: GitHub Actions Workflow
+
+- GOAL-26.2: Automate weekly scraping via GitHub Actions cron
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-212 | Create `.github/workflows/scrape.yml` — weekly cron (Sunday 2am UTC) + `workflow_dispatch` | ✅ | 2026-07-19 |
+| TASK-213 | Add Python + Node.js setup steps for agent-browser dependency | ✅ | 2026-07-19 |
+| TASK-214 | Add agent-browser installation step for step1 CSRF token extraction | ✅ | 2026-07-19 |
+| TASK-215 | Add `run_all.py` + `upsert_to_supabase.py` execution steps | ✅ | 2026-07-19 |
+| TASK-216 | Add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as required repository secrets | ✅ | 2026-07-19 |
+
+#### Phase 26.3: Scraping Script Updates
+
+- GOAL-26.3: Update scraping scripts for reliability and naming consistency
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-217 | Add `os.makedirs(data_dir, exist_ok=True)` to step1, step2, step4 scripts | ✅ | 2026-07-19 |
+| TASK-218 | Add `check_node_npm()` and `close_browser()` to step1 script | ✅ | 2026-07-19 |
+| TASK-219 | Add polling loop for API request capture in step1 (replaces fixed sleep) | ✅ | 2026-07-19 |
+| TASK-220 | Remove `active` column from both step2_scrape_all_modules.py scripts | ✅ | 2026-07-19 |
+| TASK-221 | Rename `rp_diplomas_curriculum.json/csv` → `rp_courses.json/csv` in step4 | ✅ | 2026-07-19 |
+| TASK-222 | Update `run_all.py` — skip step1 if tokens.json exists, add live feedback | ✅ | 2026-07-19 |
+| TASK-223 | Add `.gitignore` rule for `app/static/local-data/data/` (scraping output) | ✅ | 2026-07-19 |
+
 ## 3. Alternatives
 
 - **ALT-001**: React/Vue framework - Rejected due to constraint CON-001 (Vanilla JS only)
@@ -528,6 +652,9 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **DEP-010**: Supabase `rp_courses` table (diploma data from scraping)
 - **DEP-011**: `app/static/local-data/scripts/` — Python scraping scripts (requests, BeautifulSoup, agent-browser)
 - **DEP-012**: Outfit font via Google Fonts CDN (display headings)
+- **DEP-013**: Flask-WTF>=1.2.0 — CSRF protection
+- **DEP-014**: Flask-Limiter>=3.0.0 — Rate limiting
+- **DEP-015**: pytest>=8.0,<10.0 — Test framework
 
 ## 5. Files
 
@@ -539,17 +666,23 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | `app/templates/base.html` | Layout template with glass navbar/footer (Tailwind) |
 | `app/templates/_macros.html` | Shared Jinja macros (hero, navLinks, themeToggle, selectField) |
 | `app/static/css/app.css` | Tailwind CSS with `:root` custom properties and glassmorphism tokens |
-| `app/static/js/utils.js` | Shared utilities (escapeHtml, createStars, parseTimestamp, showMessage, createReviewActionsHTML, createModalController) |
+| `app/static/js/utils.js` | Shared utilities (escapeHtml, createStars, parseTimestamp, showMessage, createReviewActionsHTML, createModalController, getOwnerToken) |
 | `app/static/js/data.js` | Data loading from `/api/modules` + `/api/courses` with diploma/rating/active filtering |
 | `app/static/js/ui.js` | UI rendering, search, pagination, filter panel + app initialization (merged from search.js + app.js) |
 | `app/static/js/comparison.js` | Module comparison logic (Tailwind markup) |
+| `app/static/js/detail.js` | Module detail modal + review CRUD (owner token headers) |
 | `app/static/js/reviews.js` | Review dashboard + module detail review CRUD (merged from detail.js) |
 | `app/static/local-data/scripts/` | Python scraping scripts (step1_get_tokens, step2_scrape_all_modules, step3_generate_comparison, step4_scrape_diplomas) |
-| `app/static/local-data/data/` | Scraping output (gitignored) — tokens.json, rp_modules_synopsis, rp_modules_comparison, rp_diplomas_curriculum |
+| `app/static/local-data/data/` | Scraping output (gitignored) — tokens.json, rp_modules_synopsis, rp_modules_comparison, rp_courses |
 | `app/static/local-data/SCRAPING_GUIDE.md` | Documentation for module scraping pipeline |
-| `app.py` | Flask backend with Supabase integration + ReviewRepository |
+| `app/static/local-data/run_all.py` | Sequential runner for scraping steps 1-4 |
+| `app.py` | Flask backend with Supabase integration, ReviewRepository, CSRF, rate limiting |
+| `upsert_to_supabase.py` | Standalone CLI for upserting scraped JSON to Supabase (used by GitHub Actions) |
+| `requirements.txt` | Python dependencies (Flask, Flask-WTF, Flask-Limiter, supabase, python-dotenv, pytest) |
 | `tests/test_reviews.py` | Pytest test suite for review API endpoints |
-| `requirements.txt` | Python dependencies |
+| `tests/test_security.py` | Pytest test suite for ownership validation, CSRF, rate limiting |
+| `.github/workflows/scrape.yml` | GitHub Actions workflow for weekly automated scraping |
+| `.github/workflows/ci.yml` | GitHub Actions workflow for CI (lint, compile, test) |
 | `.env.example` | Supabase credential template |
 | `vercel.json` | Vercel serverless function configuration |
 
@@ -581,6 +714,13 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **TEST-024**: Functional regression — run `pytest tests/` to ensure no API or security tests break
 - **TEST-025**: Mobile responsive — verify no horizontal scroll or layout breaks at 375px width
 - **TEST-026**: Theme toggle — verify FOUC prevention, system preference detection, and manual toggle all work
+- **TEST-027**: Visual check: home page light mode — hero, search bar, module cards, pagination, footer
+- **TEST-028**: Visual check: home page dark mode — same components, verify contrast
+- **TEST-029**: Visual check: comparison page light + dark — dual search, VS badge, comparison table
+- **TEST-030**: Visual check: reviews page light + dark — stats, filter toolbar, review cards
+- **TEST-031**: Functional check: search, filter, sort, pagination, detail modal, review CRUD all work
+- **TEST-032**: Mobile check: responsive layout at 375px, 768px, 1024px viewports
+- **TEST-033**: Cross-browser testing (Chrome, Firefox, Safari, Edge)
 
 ## 7. Risks & Assumptions
 
@@ -596,11 +736,18 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **RISK-010**: Merging detail.js into reviews.js may cause regression in detail modal - Mitigation: Test coverage of review CRUD
 - **RISK-011**: Changing CSS class names on cards may break JS that targets `.glass-card` — verify `ui.js` and `detail.js` selectors
 - **RISK-012**: Dark mode custom oklch vars may produce unexpected contrast on some monitors — test on multiple screens
+- **RISK-013**: Existing reviews in Supabase have no `owner_token` — they become "orphaned" (read-only). Mitigation: Acceptable for existing data; new reviews will have ownership
+- **RISK-014**: Users clearing localStorage lose ownership of their reviews. Mitigation: Acceptable for anonymous system; reviews remain readable
+- **RISK-015**: Flask-Limiter in-memory storage is per-invocation on Vercel serverless — not global rate limiting. Mitigation: Acceptable for student project scale
+- **RISK-016**: Scraping scripts depend on RP website structure — changes may break scraping. Mitigation: Monitor scraping workflow, fix as needed
+- **RISK-017**: Agent-browser dependency requires Node.js for CSRF token extraction in step1. Mitigation: GitHub Actions workflow installs Node.js
+- **RISK-018**: RP session tokens may expire during scraping. Mitigation: Pipeline skips step1 if tokens.json exists; GitHub Actions runs fresh each time
 - **ASSUMPTION-001**: Users have modern browsers with JavaScript support
 - **ASSUMPTION-002**: Tailwind CSS CDN and Google Fonts CDN are accessible
 - **ASSUMPTION-003**: Module data in Supabase is accurate and up-to-date
 - **ASSUMPTION-004**: Python 3.12+ is installed on the server
 - **ASSUMPTION-005**: Supabase credentials in `.env` are valid
+- **ASSUMPTION-006**: Single-server deployment (Vercel serverless) — in-memory rate limiting is per-invocation, not global
 
 ## 8. Related Specifications / Further Reading
 
@@ -608,6 +755,9 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 - [Tailwind CSS Theme Variables](https://tailwindcss.com/docs/theme)
 - [Flask Documentation](https://flask.palletsprojects.com/)
+- [Flask-WTF Documentation](https://flask-wtf.readthedocs.io/)
+- [Flask-Limiter Documentation](https://flask-limiter.readthedocs.io/)
+- [Supabase Row Level Security](https://supabase.com/docs/guides/auth/row-level-security)
 - [SQLite Documentation](https://www.sqlite.org/docs.html)
 - [RP Diploma List](https://www.rp.edu.sg/education/diplomas/)
 - [RP Module List](https://www.rp.edu.sg/education/modules/)
