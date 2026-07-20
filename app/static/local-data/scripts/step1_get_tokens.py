@@ -1,133 +1,152 @@
-import subprocess
+"""Extract RP API session tokens with Playwright.
+
+The scraper uses the installed Google Chrome when available. A Playwright-
+managed Chromium installation is used as a fallback for CI and machines that
+do not have Chrome.
+"""
+
 import json
-import re
 import os
-import time
+import re
 import sys
+import time
 from urllib.parse import unquote
 
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import sync_playwright
+
+
 URL = "https://lcs.rp.edu.sg/RPModuleSynopsis/"
+REQUEST_NAME = "ScreenDataSet"
+SEARCH_INPUT = "#InputSearchModuleCode"
+SEARCH_BUTTON = "button[data-button]"
+TOKEN_TIMEOUT_SECONDS = 10
 
 
-def run(cmd, label=""):
-    prefix = f"  {label}... " if label else ""
-    print(f"{prefix}", end="", flush=True)
-    result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
-    if result.returncode != 0:
-        error = result.stderr.strip() or result.stdout.strip()
-        print("FAIL")
-        sys.exit(f"  Failed: {error}")
-    print("OK")
-    return result.stdout.strip()
+def environment_flag(name, default=False):
+    """Return a boolean environment variable using common true values."""
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def close_browser():
-    subprocess.run("npx.cmd agent-browser close", capture_output=True, text=True, shell=True)
-
-
-def check_node_npm():
-    for cmd, name in [("node --version", "Node.js"), ("npm --version", "npm")]:
-        result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
-        if result.returncode != 0:
-            sys.exit(f"  {name} is not installed. Install it from https://nodejs.org")
-
-
-def ensure_agent_browser():
-    result = subprocess.run("npx.cmd agent-browser --version", capture_output=True, text=True, shell=True)
-    if result.returncode == 0:
-        return True
-    print("  agent-browser not found.")
-    if "--no-install" not in sys.argv:
-        print("  Installing agent-browser...")
-        subprocess.run("npm install -g agent-browser", shell=True, check=True)
-        print("  [OK] agent-browser installed")
-    else:
-        sys.exit("Install manually: npm install -g agent-browser")
-
-
-def get_csrf():
-    run(f'npx.cmd agent-browser open "{URL}"', "Opening RP page")
-    raw = run('npx.cmd agent-browser eval "document.cookie"', "Reading cookie")
-    cookie_js = raw.strip('"')
-    match = re.search(r"(?:crf%3[Dd]|crf=)([a-zA-Z0-9%+=\/]+?)(?:%3[bB]|$)", cookie_js)
-    if not match:
-        close_browser()
-        sys.exit("  Could not find CSRF token in cookie")
-    csrf_raw = match.group(1)
-    csrf = unquote(csrf_raw)
-    print(f"  [OK] CSRF token: {csrf}")
-    return csrf, cookie_js
-
-
-def get_module_version():
-    run("npx.cmd agent-browser network requests --clear", "Clearing network log")
-    run('npx.cmd agent-browser type "A"', 'Typing "A" into search')
-    run('npx.cmd agent-browser click "button[data-button]"', "Clicking search")
-
-    print("  Waiting for API request", end="", flush=True)
-    net_json = None
-    for attempt in range(10):
-        time.sleep(0.5)
-        print(".", end="", flush=True)
-        net_json = run('npx.cmd agent-browser network requests --filter "ScreenDataSet" --json', "")
-        if net_json and "requests" in net_json:
-            print(" Done")
-            break
-    else:
-        print(" TIMEOUT")
-        close_browser()
-        sys.exit("  Could not capture API request after 5s")
-
+def launch_browser(playwright, headed):
+    """Launch signed system Chrome, falling back to Playwright Chromium."""
+    launch_options = {"headless": not headed}
     try:
-        net_data = json.loads(net_json)
-    except json.JSONDecodeError as e:
-        close_browser()
-        sys.exit(f"  Failed to parse network data: {e}")
+        return playwright.chromium.launch(channel="chrome", **launch_options)
+    except PlaywrightError as chrome_error:
+        try:
+            return playwright.chromium.launch(**launch_options)
+        except PlaywrightError as chromium_error:
+            raise RuntimeError(
+                "Could not launch Chrome or Playwright Chromium. Install a "
+                "browser with: python -m playwright install chromium"
+            ) from chromium_error
 
-    requests_list = (
-        net_data.get("data", net_data).get("requests", [])
-        if isinstance(net_data, dict) else net_data
+
+def extract_csrf(cookie_text):
+    """Extract the OutSystems CSRF value from document.cookie."""
+    match = re.search(
+        r"(?:crf%3[Dd]|crf=)([a-zA-Z0-9%+=/]+?)(?:%3[bB]|$)",
+        cookie_text,
     )
+    if not match:
+        raise RuntimeError("Could not find the CSRF token in the RP cookie.")
+    return unquote(match.group(1))
 
-    for req in requests_list:
-        post_data = req.get("postData", "") or req.get("request", {}).get("postData", "")
+
+def extract_module_version(captured_requests):
+    """Return moduleVersion from a captured RP ScreenDataSet request."""
+    for post_data in captured_requests:
         if not post_data:
             continue
         try:
-            body = json.loads(post_data) if isinstance(post_data, str) else post_data
-            mv = body.get("versionInfo", {}).get("moduleVersion", "")
-            if mv:
-                print(f"  [OK] Module version: {mv}")
-                return mv
+            body = json.loads(post_data)
         except json.JSONDecodeError:
             continue
+        module_version = body.get("versionInfo", {}).get("moduleVersion", "")
+        if module_version:
+            return module_version
+    return ""
 
-    close_browser()
-    sys.exit("  Could not extract moduleVersion from network request")
+
+def capture_tokens(headed=False):
+    """Open the RP page and capture its CSRF and module-version tokens."""
+    captured_requests = []
+
+    with sync_playwright() as playwright:
+        browser = launch_browser(playwright, headed)
+        try:
+            context = browser.new_context()
+            page = context.new_page()
+
+            def remember_request(request):
+                if REQUEST_NAME in request.url:
+                    captured_requests.append(request.post_data)
+
+            page.on("request", remember_request)
+
+            print(f"  Opening RP page ({'headed' if headed else 'headless'})... ", end="", flush=True)
+            page.goto(URL, wait_until="networkidle", timeout=60_000)
+            print("OK")
+
+            cookie_text = page.evaluate("document.cookie")
+            csrf = extract_csrf(cookie_text)
+            print("  [OK] CSRF token captured")
+
+            page.locator(SEARCH_INPUT).fill("A")
+            page.locator(SEARCH_BUTTON).click()
+
+            deadline = time.monotonic() + TOKEN_TIMEOUT_SECONDS
+            module_version = ""
+            print("  Waiting for RP API request", end="", flush=True)
+            while time.monotonic() < deadline:
+                module_version = extract_module_version(captured_requests)
+                if module_version:
+                    break
+                page.wait_for_timeout(500)
+                print(".", end="", flush=True)
+            print()
+
+            if not module_version:
+                raise RuntimeError(
+                    "Could not capture moduleVersion from the RP API request."
+                )
+
+            print("  [OK] Module version captured")
+            return {
+                "csrf": csrf,
+                "moduleVersion": module_version,
+                "cookie": cookie_text,
+            }
+        finally:
+            browser.close()
 
 
 def main():
+    """Capture tokens and save them in the gitignored local data folder."""
     print(f"\nExtracting tokens from {URL}")
     print("-" * 50)
 
-    check_node_npm()
-    ensure_agent_browser()
-    csrf, cookie_js = get_csrf()
-    module_version = get_module_version()
+    headed = environment_flag(
+        "PLAYWRIGHT_HEADED",
+        default=environment_flag("AGENT_BROWSER_HEADED"),
+    )
 
-    tokens = {
-        "csrf": csrf,
-        "moduleVersion": module_version,
-        "cookie": cookie_js,
-    }
+    try:
+        tokens = capture_tokens(headed=headed)
+    except (PlaywrightError, RuntimeError) as error:
+        sys.exit(f"  Failed: {error}")
 
-    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+    data_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "data")
+    )
     os.makedirs(data_dir, exist_ok=True)
     path = os.path.join(data_dir, "tokens.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(tokens, f, indent=2)
-
-    close_browser()
+    with open(path, "w", encoding="utf-8") as token_file:
+        json.dump(tokens, token_file, indent=2)
 
     print("-" * 50)
     print(f"[OK] Saved to {path}")

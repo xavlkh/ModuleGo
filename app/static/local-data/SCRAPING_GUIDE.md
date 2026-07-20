@@ -12,13 +12,13 @@ Runs all 4 steps sequentially. Step 1 is skipped if `data/tokens.json` already e
 ### Prerequisites
 
 - Python 3.12+ with dependencies from `requirements.txt`
-- [Node.js](https://nodejs.org) 18+ and npm (for `agent-browser`, used by step 1)
+- Python [Playwright](https://playwright.dev/python/) and either Google Chrome or Playwright Chromium
 
 ## Pipeline
 
 | Step | Script | Purpose |
 |------|--------|---------|
-| 1 | `scripts/step1_get_tokens.py` | Extract CSRF + moduleVersion tokens via agent-browser |
+| 1 | `scripts/step1_get_tokens.py` | Extract CSRF + moduleVersion tokens via Playwright |
 | 2 | `scripts/step2_scrape_all_modules.py` | Scrape modules from RP API (A-Z prefix iteration) |
 | 3 | `scripts/step3_generate_comparison.py` | Generate comparison summary + suitable_for fields |
 | 4 | `scripts/step4_scrape_diplomas.py` | Scrape diploma pages via BeautifulSoup |
@@ -68,4 +68,14 @@ Requires `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env`. Reads the JSON file
 
 The scraping pipeline runs automatically via GitHub Actions every Sunday at 2am UTC. It can also be triggered manually from the Actions tab.
 
-The workflow (`.github/workflows/scrape.yml`) installs Python + Node.js, runs `run_all.py`, then `upsert_to_supabase.py`. Requires `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as repository secrets.
+The workflow (`.github/workflows/scrape.yml`) installs Python + Playwright Chromium, runs `run_all.py`, then `upsert_to_supabase.py`. Requires `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as repository secrets.
+
+## Visible Browser Mode
+
+Playwright runs headless by default. To watch the token extraction in a visible browser:
+
+```powershell
+$env:PLAYWRIGHT_HEADED = "true"
+python run_all.py
+Remove-Item Env:PLAYWRIGHT_HEADED
+```

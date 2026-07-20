@@ -20,16 +20,11 @@ jobs:
           python-version: '3.12'
           cache: pip
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Install agent-browser
-        run: npm install -g agent-browser
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
 
       - name: Run scraping pipeline
         run: python app/static/local-data/run_all.py

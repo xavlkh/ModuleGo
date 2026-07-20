@@ -605,8 +605,8 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
 | TASK-212 | Create `.github/workflows/scrape.yml` — weekly cron (Sunday 2am UTC) + `workflow_dispatch` | ✅ | 2026-07-19 |
-| TASK-213 | Add Python + Node.js setup steps for agent-browser dependency | ✅ | 2026-07-19 |
-| TASK-214 | Add agent-browser installation step for step1 CSRF token extraction | ✅ | 2026-07-19 |
+| TASK-213 | Add Python Playwright setup for browser-based token extraction | ✅ | 2026-07-20 |
+| TASK-214 | Install Playwright Chromium in the scraping workflow | ✅ | 2026-07-20 |
 | TASK-215 | Add `run_all.py` + `upsert_to_supabase.py` execution steps | ✅ | 2026-07-19 |
 | TASK-216 | Add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as required repository secrets | ✅ | 2026-07-19 |
 
@@ -650,7 +650,7 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **DEP-008**: python-dotenv 1.2.2 (env var loading)
 - **DEP-009**: Python 3.12+ runtime
 - **DEP-010**: Supabase `rp_courses` table (diploma data from scraping)
-- **DEP-011**: `app/static/local-data/scripts/` — Python scraping scripts (requests, BeautifulSoup, agent-browser)
+- **DEP-011**: `app/static/local-data/scripts/` — Python scraping scripts (requests, BeautifulSoup, Playwright)
 - **DEP-012**: Outfit font via Google Fonts CDN (display headings)
 - **DEP-013**: Flask-WTF>=1.2.0 — CSRF protection
 - **DEP-014**: Flask-Limiter>=3.0.0 — Rate limiting
@@ -740,7 +740,7 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **RISK-014**: Users clearing localStorage lose ownership of their reviews. Mitigation: Acceptable for anonymous system; reviews remain readable
 - **RISK-015**: Flask-Limiter in-memory storage is per-invocation on Vercel serverless — not global rate limiting. Mitigation: Acceptable for student project scale
 - **RISK-016**: Scraping scripts depend on RP website structure — changes may break scraping. Mitigation: Monitor scraping workflow, fix as needed
-- **RISK-017**: Agent-browser dependency requires Node.js for CSRF token extraction in step1. Mitigation: GitHub Actions workflow installs Node.js
+- **RISK-017**: Playwright browser automation is required for CSRF token extraction in step 1. Mitigation: use installed Chrome locally and install Playwright Chromium in GitHub Actions
 - **RISK-018**: RP session tokens may expire during scraping. Mitigation: Pipeline skips step1 if tokens.json exists; GitHub Actions runs fresh each time
 - **ASSUMPTION-001**: Users have modern browsers with JavaScript support
 - **ASSUMPTION-002**: Tailwind CSS CDN and Google Fonts CDN are accessible
