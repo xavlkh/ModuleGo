@@ -7,6 +7,14 @@ from bs4 import BeautifulSoup
 
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")  # local-data/data/
 BASE_URL = "https://www.rp.edu.sg"
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/140.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/xml,text/xml,text/html;q=0.9,*/*;q=0.8",
+}
 
 SCHOOL_MAP = {
     "School of Applied Science": "SAS",
@@ -18,6 +26,20 @@ SCHOOL_MAP = {
     "School of Technology for Arts, Media and Design": "STA",
     "School of Technology for the Arts": "STA",
 }
+
+
+def get_with_retry(client, url, attempts=3):
+    """Fetch an RP page with short retries for transient connection resets."""
+    for attempt in range(1, attempts + 1):
+        try:
+            response = client.get(url)
+            response.raise_for_status()
+            return response
+        except httpx.HTTPError:
+            if attempt == attempts:
+                raise
+            time.sleep(attempt)
+
 
 def extract_data(html):
     """Extract course info and curriculum from HTML using BeautifulSoup."""
@@ -99,8 +121,12 @@ def extract_data(html):
 
 # Fetch sitemap
 print("Fetching sitemap...")
-with httpx.Client() as client:
-    sitemap = client.get(f"{BASE_URL}/sitemap.xml", follow_redirects=True, timeout=30).text
+with httpx.Client(
+    headers=BROWSER_HEADERS,
+    follow_redirects=True,
+    timeout=30,
+) as client:
+    sitemap = get_with_retry(client, f"{BASE_URL}/sitemap.xml").text
     soup = BeautifulSoup(sitemap, "xml")
     urls = [loc.text for loc in soup.find_all("loc") if "/education/diplomas/" in loc.text and loc.text.rstrip("/") != f"{BASE_URL}/education/diplomas"]
     print(f"Found {len(urls)} diploma URLs")
@@ -111,8 +137,7 @@ with httpx.Client() as client:
         print(f"[{i+1}/{len(urls)}] {slug}")
 
         try:
-            resp = client.get(url, follow_redirects=True, timeout=30)
-            resp.raise_for_status()
+            resp = get_with_retry(client, url)
             data = extract_data(resp.text)
             data["url"] = url
             results.append(data)
