@@ -36,7 +36,7 @@ def launch_browser(playwright, headed):
     launch_options = {"headless": not headed}
     try:
         return playwright.chromium.launch(channel="chrome", **launch_options)
-    except PlaywrightError as chrome_error:
+    except PlaywrightError:
         try:
             return playwright.chromium.launch(**launch_options)
         except PlaywrightError as chromium_error:
