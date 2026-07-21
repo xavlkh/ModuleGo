@@ -44,6 +44,41 @@ const DetailManager = {
 
         document.getElementById('moduleModalLabel').textContent = `${module.code} - ${module.name}`;
         document.getElementById('moduleModalBody').innerHTML = this.createDetailContent(module);
+        // Set up bookmark button event listener
+        const bookmarkBtn =
+        document.getElementById('bookmarkModuleBtn');
+
+        if (bookmarkBtn) {
+            bookmarkBtn.addEventListener('click', () => {
+                const bookmarked =
+                    BookmarkManager.toggle(module.code);
+
+                bookmarkBtn.innerHTML = `
+                    <i
+                        data-lucide="bookmark"
+                        class="w-5 h-5 ${
+                            bookmarked
+                                ? 'fill-primary-500 text-primary-500'
+                                : 'text-slate-500 dark:text-slate-300'
+                        }"
+                    ></i>
+                `;
+
+                bookmarkBtn.setAttribute(
+                    'aria-label',
+                    bookmarked
+                        ? 'Remove bookmark'
+                        : 'Add bookmark'
+               );
+
+                bookmarkBtn.title =
+                    bookmarked
+                        ? 'Remove bookmark'
+                        : 'Add bookmark';
+
+                lucide.createIcons();
+           });
+        }
 
         document.getElementById('submitReviewBtn').addEventListener('click', () => this.saveReview(module.code));
         document.getElementById('cancelEditReviewBtn').addEventListener('click', () => this.resetReviewForm());
@@ -61,6 +96,7 @@ const DetailManager = {
      */
     createDetailContent(module) {
         const diplomas = DataManager.getDiplomasByModule(module.code);
+        const isBookmarked = BookmarkManager.isBookmarked(module.code); // Check if the module is bookmarked
         const diplomasHTML = diplomas.length > 0
             ? diplomas.map(d => {
                 const catColors = {
@@ -88,9 +124,30 @@ const DetailManager = {
 
         return `
             <div class="module-header rounded-xl p-6 mb-6">
-                <div class="text-xs font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400 mb-1">${escapeHtml(module.code)}</div>
-                <div class="text-xl font-bold text-zinc-900 dark:text-white mb-2">${escapeHtml(module.name)}</div>
-                <div class="text-sm font-medium text-primary-700 dark:text-primary-300">${escapeHtml(module.school || 'School not listed')}</div>
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <div class="text-xs font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400 mb-1">${escapeHtml(module.code)}</div>
+                        <div class="text-xl font-bold text-zinc-900 dark:text-white mb-2">${escapeHtml(module.name)}</div>
+                        <div class="text-sm font-medium text-primary-700 dark:text-primary-300">${escapeHtml(module.school || 'School not listed')}</div>
+                    </div>
+                    <button 
+                        id="bookmarkModuleBtn"
+                        type="button"
+                        data-module-code="${escapeHtml(module.code)}"
+                        class="flex-shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 text-slate-500 dark:text-slate-300 hover:text-primary-600 hover:border-primary-300 dark:hover:text-primary-400 dark:hover:border-primary-600 transition-all"
+                        aria-label="${isBookmarked ? 'Remove bookmark' : 'Add bookmark'}"
+                        title="${isBookmarked ? 'Remove bookmark' : 'Add bookmark'}"
+                   >
+                        <i
+                            data-lucide="bookmark"
+                            class="w-5 h-5 ${
+                                isBookmarked
+                                ? 'fill-primary-500 text-primary-500'
+                                : 'text-slate-500 dark:text-slate-300'
+                        }"
+                        ></i>
+                    </button>
+                </div>
             </div>
             <div class="mb-6">
                 <h6 class="text-sm font-bold text-zinc-900 dark:text-white mb-2">Synopsis</h6>
