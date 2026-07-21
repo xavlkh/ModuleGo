@@ -62,6 +62,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - **REQ-013**: User can filter by minimum average rating (5 Stars, 4 Stars & Up, etc.)
 - **REQ-014**: User can toggle "Active" filter (modules appearing in at least one diploma)
 - **REQ-015**: Filter state persisted in URL params (`q`, `school`, `diploma`, `rating`, `active`, `page`)
+- **REQ-016**: Module details show a five-to-one-star rating distribution calculated from backend review data
 
 ### Bonus Requirements
 
@@ -188,7 +189,19 @@ before allowing mutations.
 | `/api/reviews/<module_code>` | GET | Get reviews for a module | - | Array of review objects |
 | `/api/reviews/<review_id>` | PUT | Update a review | `{ rating, comment }` | Review object |
 | `/api/reviews/<review_id>` | DELETE | Delete a review | - | 204 No Content |
-| `/api/ratings` | GET | Get average rating per module | - | `{ module_code: { average_rating, review_count } }` |
+| `/api/ratings` | GET | Get rating summary per module | - | `{ module_code: { average_rating, review_count, distribution } }` |
+
+Each `distribution` contains string keys `"5"` through `"1"`, including ratings with a zero count. Example:
+
+```json
+{
+  "C270": {
+    "average_rating": 4.2,
+    "review_count": 25,
+    "distribution": { "5": 14, "4": 6, "3": 3, "2": 1, "1": 1 }
+  }
+}
+```
 
 ### Page Structure
 
@@ -284,6 +297,10 @@ app/templates/modules/reviews.html (Review Dashboard)
 ### Loading States
 - **AC-022**: Given page is loading, When data is being fetched, Then loading animation is displayed
 - **AC-023**: Given search is filtering, When results are updating, Then subtle loading indicator is shown
+
+### Rating Distribution
+- **AC-024**: Given a module has reviews, When its detail window opens, Then all five rating buckets are shown with counts and bars proportional to the total review count
+- **AC-025**: Given a module has no reviews, When its detail window opens, Then "No ratings yet" is shown and the distribution is hidden
 
 ## 6. Test Automation Strategy
 

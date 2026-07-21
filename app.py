@@ -333,19 +333,31 @@ class ReviewRepository:
 
     @staticmethod
     def rating_summaries() -> dict:
-        """Return average rating and review count per module."""
+        """Return average, review count, and rating distribution per module."""
         if use_sqlite_reviews():
             with database_connection() as conn:
                 rows = conn.execute(
                     '''SELECT MODULE_CODE,
                               ROUND(AVG(RATING), 2) AS AVERAGE_RATING,
-                              COUNT(*) AS REVIEW_COUNT
+                              COUNT(*) AS REVIEW_COUNT,
+                              SUM(CASE WHEN RATING = 5 THEN 1 ELSE 0 END) AS RATING_5_COUNT,
+                              SUM(CASE WHEN RATING = 4 THEN 1 ELSE 0 END) AS RATING_4_COUNT,
+                              SUM(CASE WHEN RATING = 3 THEN 1 ELSE 0 END) AS RATING_3_COUNT,
+                              SUM(CASE WHEN RATING = 2 THEN 1 ELSE 0 END) AS RATING_2_COUNT,
+                              SUM(CASE WHEN RATING = 1 THEN 1 ELSE 0 END) AS RATING_1_COUNT
                        FROM REVIEWS GROUP BY MODULE_CODE ORDER BY MODULE_CODE'''
                 ).fetchall()
             return {
                 row['MODULE_CODE']: {
                     'average_rating': row['AVERAGE_RATING'],
                     'review_count': row['REVIEW_COUNT'],
+                    'distribution': {
+                        '5': row['RATING_5_COUNT'],
+                        '4': row['RATING_4_COUNT'],
+                        '3': row['RATING_3_COUNT'],
+                        '2': row['RATING_2_COUNT'],
+                        '1': row['RATING_1_COUNT'],
+                    },
                 }
                 for row in rows
             }
@@ -362,6 +374,10 @@ class ReviewRepository:
                 code: {
                     'average_rating': round(sum(ratings) / len(ratings), 2),
                     'review_count': len(ratings),
+                    'distribution': {
+                        str(rating): ratings.count(rating)
+                        for rating in range(5, 0, -1)
+                    },
                 }
                 for code, ratings in grouped.items()
             }
@@ -632,7 +648,7 @@ def delete_review(review_id):
 
 @app.route('/api/ratings', methods=['GET'])
 def get_rating_summaries():
-    """Return average rating and review count for each module."""
+    """Return average, review count, and distribution for each module."""
     summaries = ReviewRepository.rating_summaries()
     return jsonify(summaries), 200
 

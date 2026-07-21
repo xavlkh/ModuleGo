@@ -9,7 +9,7 @@ const DataManager = {
     modules: [],
     /** @type {Array<Object>} All diploma/course objects from /api/courses */
     diplomas: [],
-    /** @type {Object<string, {average_rating: number|null, review_count: number}>} Rating summaries keyed by module code */
+    /** @type {Object<string, {average_rating: number|null, review_count: number, distribution: Object<string, number>}>} Rating summaries keyed by module code */
     ratings: {},
     /** @type {boolean} True after the first successful loadData() call */
     loaded: false,
@@ -58,12 +58,13 @@ const DataManager = {
     /**
      * Get the rating summary for a module code.
      * @param {string} moduleCode - The module code (case-insensitive).
-     * @returns {{average_rating: number|null, review_count: number}} Rating summary.
+     * @returns {{average_rating: number|null, review_count: number, distribution: Object<string, number>}} Rating summary.
      */
     getRatingSummary(moduleCode) {
         return this.ratings[(moduleCode || '').toUpperCase()] || {
             average_rating: null,
-            review_count: 0
+            review_count: 0,
+            distribution: { '5': 0, '4': 0, '3': 0, '2': 0, '1': 0 }
         };
     },
 
