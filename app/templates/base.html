@@ -103,6 +103,16 @@
                 </div>
 
                 <div class="flex items-center gap-2">
+                   <!-- My Bookmarks -->
+                    <a
+                        id="showBookmarksBtn"
+                        href="{{ url_for('serve_index') }}?bookmarks=true"
+                        class="hidden md:inline-flex items-center gap-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-600 dark:text-zinc-300 hover:border-primary-300 hover:text-primary-600 dark:hover:border-primary-600 dark:hover:text-primary-400 transition-all"
+                        title="Show bookmarked modules"
+                    >
+                        <i data-lucide="bookmark" class="w-4 h-4"></i>
+                        <span>My Bookmarks</span>
+                    </a>
                     <div id="themeToggleDesktop" class="hidden md:flex items-center">
                         {{ themeToggle() }}
                     </div>
@@ -124,6 +134,9 @@
                             </a>
                             <a href="{{ url_for('serve_comparison') }}" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
                                 <i data-lucide="layout-grid" class="w-4 h-4 mr-2 inline-block"></i>Comparison
+                            </a>
+                            <a href="{{ url_for('serve_index') }}?bookmarks=true" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
+                                <i data-lucide="bookmark" class="w-4 h-4 mr-2 inline-block"></i>My Bookmarks
                             </a>
                             <a href="{{ url_for('serve_reviews') }}" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
                                 <i data-lucide="message-square" class="w-4 h-4 mr-2 inline-block"></i>Reviews

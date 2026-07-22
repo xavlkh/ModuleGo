@@ -44,12 +44,47 @@ const DetailManager = {
 
         document.getElementById('moduleModalLabel').textContent = `${module.code} - ${module.name}`;
         document.getElementById('moduleModalBody').innerHTML = this.createDetailContent(module);
+        // Set up bookmark button event listener
+        const bookmarkBtn =
+        document.getElementById('bookmarkModuleBtn');
+
+        if (bookmarkBtn) {
+            bookmarkBtn.addEventListener('click', () => {
+                const bookmarked =
+                    BookmarkManager.toggle(module.code);
+
+                bookmarkBtn.innerHTML = `
+                    <i
+                        data-lucide="bookmark"
+                        class="w-5 h-5 ${
+                            bookmarked
+                                ? 'fill-primary-500 text-primary-500'
+                                : 'text-slate-500 dark:text-slate-300'
+                        }"
+                    ></i>
+                `;
+
+                bookmarkBtn.setAttribute(
+                    'aria-label',
+                    bookmarked
+                        ? 'Remove bookmark'
+                        : 'Add bookmark'
+               );
+
+                bookmarkBtn.title =
+                    bookmarked
+                        ? 'Remove bookmark'
+                        : 'Add bookmark';
+
+                lucide.createIcons();
+           });
+        }
 
         document.getElementById('submitReviewBtn').addEventListener('click', () => this.saveReview(module.code));
         document.getElementById('cancelEditReviewBtn').addEventListener('click', () => this.resetReviewForm());
 
         this.showModal();
-        this.loadReviews(module.code);
+        this.refreshReviewViews(module.code);
         lucide.createIcons();
     },
 
@@ -61,6 +96,7 @@ const DetailManager = {
      */
     createDetailContent(module) {
         const diplomas = DataManager.getDiplomasByModule(module.code);
+        const isBookmarked = BookmarkManager.isBookmarked(module.code); // Check if the module is bookmarked
         const diplomasHTML = diplomas.length > 0
             ? diplomas.map(d => {
                 const catColors = {
@@ -88,9 +124,30 @@ const DetailManager = {
 
         return `
             <div class="module-header rounded-xl p-6 mb-6">
-                <div class="text-xs font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400 mb-1">${escapeHtml(module.code)}</div>
-                <div class="text-xl font-bold text-zinc-900 dark:text-white mb-2">${escapeHtml(module.name)}</div>
-                <div class="text-sm font-medium text-primary-700 dark:text-primary-300">${escapeHtml(module.school || 'School not listed')}</div>
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <div class="text-xs font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400 mb-1">${escapeHtml(module.code)}</div>
+                        <div class="text-xl font-bold text-zinc-900 dark:text-white mb-2">${escapeHtml(module.name)}</div>
+                        <div class="text-sm font-medium text-primary-700 dark:text-primary-300">${escapeHtml(module.school || 'School not listed')}</div>
+                    </div>
+                    <button 
+                        id="bookmarkModuleBtn"
+                        type="button"
+                        data-module-code="${escapeHtml(module.code)}"
+                        class="flex-shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 text-slate-500 dark:text-slate-300 hover:text-primary-600 hover:border-primary-300 dark:hover:text-primary-400 dark:hover:border-primary-600 transition-all"
+                        aria-label="${isBookmarked ? 'Remove bookmark' : 'Add bookmark'}"
+                        title="${isBookmarked ? 'Remove bookmark' : 'Add bookmark'}"
+                   >
+                        <i
+                            data-lucide="bookmark"
+                            class="w-5 h-5 ${
+                                isBookmarked
+                                ? 'fill-primary-500 text-primary-500'
+                                : 'text-slate-500 dark:text-slate-300'
+                        }"
+                        ></i>
+                    </button>
+                </div>
             </div>
             <div class="mb-6">
                 <h6 class="text-sm font-bold text-zinc-900 dark:text-white mb-2">Synopsis</h6>
@@ -110,6 +167,7 @@ const DetailManager = {
                 <h6 class="text-sm font-bold text-zinc-900 dark:text-white">Student Reviews</h6>
                 <div id="reviewSummary" class="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 px-3 py-1 text-xs text-amber-700 dark:text-amber-200 font-medium">Loading rating...</div>
             </div>
+            <section id="ratingDistribution" class="hidden mb-6 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-4" aria-labelledby="ratingDistributionTitle"></section>
             <div id="reviewsList" class="mb-6" aria-live="polite">
                 <div class="flex items-center gap-2 text-zinc-400 dark:text-zinc-400 text-sm py-4">
                     <div class="h-4 w-4 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
@@ -155,7 +213,6 @@ const DetailManager = {
             if (!response.ok) throw new Error('Failed to fetch reviews.');
             const reviews = await response.json();
             this.currentReviews = new Map(reviews.map(r => [r.id, r]));
-            this.renderReviewSummary(reviews);
 
             if (reviews.length === 0) {
                 reviewsList.innerHTML = '<p class="text-sm text-zinc-400 dark:text-zinc-400 py-3">No reviews yet. Be the first!</p>';
@@ -173,7 +230,6 @@ const DetailManager = {
         } catch (error) {
             console.error('Error loading reviews:', error);
             reviewsList.innerHTML = '<p class="text-sm text-red-500 py-3">Could not load reviews.</p>';
-            this.renderReviewSummary([]);
         }
     },
 
@@ -208,21 +264,70 @@ const DetailManager = {
     },
 
     /**
-     * Render the review summary badge (average rating + count) in the modal.
-     * @param {Array<Object>} reviews - Reviews for the current module.
+     * Render the review summary badge from the shared rating API data.
+     * @param {Object} ratingSummary - Average, count, and distribution data.
      */
-    renderReviewSummary(reviews) {
+    renderReviewSummary(ratingSummary) {
         const summary = document.getElementById('reviewSummary');
         if (!summary) return;
-        if (reviews.length === 0) {
+        if (!ratingSummary.review_count) {
             summary.innerHTML = '<i data-lucide="star" class="w-4 h-4 mr-1 inline-block text-amber-400" aria-hidden="true"></i>No ratings yet';
             lucide.createIcons();
             return;
         }
-        const avg = reviews.reduce((t, r) => t + r.rating, 0) / reviews.length;
-        const label = reviews.length === 1 ? 'review' : 'reviews';
-        summary.innerHTML = `<i data-lucide="star" class="w-4 h-4 mr-1 inline-block fill-amber-400 text-amber-400" aria-hidden="true"></i><strong>${avg.toFixed(1)}</strong> (${reviews.length} ${label})`;
+        const label = ratingSummary.review_count === 1 ? 'review' : 'reviews';
+        summary.innerHTML = `<i data-lucide="star" class="w-4 h-4 mr-1 inline-block fill-amber-400 text-amber-400" aria-hidden="true"></i><strong>${Number(ratingSummary.average_rating).toFixed(1)} average</strong><span aria-hidden="true">&middot;</span><span>${ratingSummary.review_count} ${label}</span>`;
         lucide.createIcons();
+    },
+
+    /**
+     * Render five-to-one-star counts as proportional progress bars.
+     * @param {Object} ratingSummary - Average, count, and distribution data.
+     */
+    renderRatingDistribution(ratingSummary) {
+        const container = document.getElementById('ratingDistribution');
+        if (!container) return;
+
+        const total = Number(ratingSummary.review_count) || 0;
+        if (total === 0) {
+            container.innerHTML = '';
+            container.classList.add('hidden');
+            return;
+        }
+
+        const distribution = ratingSummary.distribution || {};
+        const rows = [5, 4, 3, 2, 1].map(rating => {
+            const count = Number(distribution[String(rating)]) || 0;
+            const percentage = Math.min(100, Math.max(0, (count / total) * 100));
+            return `
+                <div class="grid grid-cols-[3rem_minmax(0,1fr)_2rem] items-center gap-3 text-xs">
+                    <span class="inline-flex items-center gap-1 font-semibold text-zinc-600 dark:text-zinc-300">
+                        ${rating}<i data-lucide="star" class="h-3.5 w-3.5 fill-amber-400 text-amber-400" aria-hidden="true"></i>
+                    </span>
+                    <div class="h-2.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700" role="progressbar" aria-label="${rating} stars: ${count} of ${total} reviews" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${count}">
+                        <div class="h-full rounded-full bg-amber-400 transition-all duration-300" style="width: ${percentage.toFixed(2)}%"></div>
+                    </div>
+                    <span class="text-right font-medium tabular-nums text-zinc-600 dark:text-zinc-300">${count}</span>
+                </div>
+            `;
+        }).join('');
+
+        container.innerHTML = `
+            <h6 id="ratingDistributionTitle" class="mb-3 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Rating breakdown</h6>
+            <div class="space-y-2.5">${rows}</div>
+        `;
+        container.classList.remove('hidden');
+        lucide.createIcons();
+    },
+
+    /**
+     * Render the average badge and distribution for a module.
+     * @param {string} moduleCode - Module whose rating data should be shown.
+     */
+    renderRatingInsights(moduleCode) {
+        const ratingSummary = DataManager.getRatingSummary(moduleCode);
+        this.renderReviewSummary(ratingSummary);
+        this.renderRatingDistribution(ratingSummary);
     },
 
     /**
@@ -330,8 +435,13 @@ const DetailManager = {
      * @param {string} moduleCode - The module to refresh.
      */
     async refreshReviewViews(moduleCode) {
+        try {
+            await DataManager.refreshRatingSummaries();
+        } catch (error) {
+            console.error('Error refreshing rating summaries:', error);
+        }
+        this.renderRatingInsights(moduleCode);
         await this.loadReviews(moduleCode);
-        await DataManager.refreshRatingSummaries();
         UIRenderer.updateRatingDisplay(moduleCode);
     },
 };
