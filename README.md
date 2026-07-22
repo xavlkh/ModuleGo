@@ -1,6 +1,8 @@
 <div align="center">
+<img src="app/static/images/logo.png" alt="ModuleGo" width="150">
+<br>
 
-# ModuleGo
+**A better way for Republic Polytechnic students to explore, search, compare, and review academic modules.**
 
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-000000?style=flat-square&logo=flask&logoColor=white)
@@ -10,14 +12,11 @@
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
 ![Lucide](https://img.shields.io/badge/Lucide-F56565?style=flat-square&logo=lucide&logoColor=white)
 
-[![Vercel](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=flat-square&logo=vercel&logoColor=white)](https://module-go.vercel.app/)
-[![GitHub](https://img.shields.io/badge/Source%20Code-GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/xavlkh/ModuleGo)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=flat-square&logo=vercel&logoColor=white)](https://module-go.vercel.app/)
+[![Source Code](https://img.shields.io/badge/Source%20Code-GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/xavlkh/ModuleGo)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
 
-A better way for Republic Polytechnic students to explore, search, compare, and review academic modules.
-
 [Features](#features) &bull; [Quick Start](#quick-start) &bull; [Self-Hosting](#self-hosting-guide) &bull; [API](#api-endpoints) &bull; [Tests](#automated-tests)
-
 </div>
 
 ---
