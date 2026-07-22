@@ -525,6 +525,12 @@ def serve_comparison():
     return render_template('modules/comparison.html')
 
 
+@app.route('/bookmarks')
+def serve_bookmarks():
+    """Render the dedicated bookmarked modules page."""
+    return render_template('modules/bookmarks.html')
+
+
 @app.route('/reviews')
 def serve_reviews():
     """Render the review dashboard page."""

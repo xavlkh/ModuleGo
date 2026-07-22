@@ -63,6 +63,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - **REQ-014**: User can toggle "Active" filter (modules appearing in at least one diploma)
 - **REQ-015**: Filter state persisted in URL params (`q`, `school`, `diploma`, `rating`, `active`, `page`)
 - **REQ-016**: Module details show a five-to-one-star rating distribution calculated from backend review data
+- **REQ-017**: User can manage locally saved modules on a dedicated bookmarks page
 
 ### Bonus Requirements
 
@@ -250,6 +251,12 @@ app/templates/modules/comparison.html (Comparison Page)
 │   ├── VS Badge (emerald gradient, shadow-glow)
 │   └── Comparison Table (striped rows, primary-tinted headers)
 
+app/templates/modules/bookmarks.html (Bookmarks Page)
+|- Dedicated `/bookmarks` route, separate from home search
+|- Cards restored from browser localStorage
+|- Individual Remove and Clear All actions
+`- Module Detail Modal with live bookmark and rating updates
+
 app/templates/modules/reviews.html (Review Dashboard)
 ├── {% extends "base.html" %}
 ├── Dashboard Hero (gradient background)
@@ -301,6 +308,11 @@ app/templates/modules/reviews.html (Review Dashboard)
 ### Rating Distribution
 - **AC-024**: Given a module has reviews, When its detail window opens, Then all five rating buckets are shown with counts and bars proportional to the total review count
 - **AC-025**: Given a module has no reviews, When its detail window opens, Then "No ratings yet" is shown and the distribution is hidden
+
+### Bookmarks
+- **AC-026**: Given a module is bookmarked, When `/bookmarks` opens, Then the saved module appears on the dedicated page
+- **AC-027**: Given a bookmark is removed, When the collection changes, Then the page updates immediately
+- **AC-028**: Given no bookmarks exist, When the page loads, Then an empty state links back to module exploration
 
 ## 6. Test Automation Strategy
 
