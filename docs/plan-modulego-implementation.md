@@ -1,6 +1,6 @@
 ---
 goal: ModuleGo - Republic Polytechnic Module Viewer Implementation
-version: 10.0
+version: 10.1
 date_created: 2026-06-29
 last_updated: 2026-07-19
 owner: Developer
