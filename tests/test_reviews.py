@@ -99,10 +99,82 @@ def test_rating_summaries(client):
     assert summaries["C270"] == {
         "average_rating": 4.5,
         "review_count": 2,
+        "distribution": {
+            "5": 1,
+            "4": 1,
+            "3": 0,
+            "2": 0,
+            "1": 0,
+        },
     }
     assert summaries["C110"] == {
         "average_rating": 3.0,
         "review_count": 1,
+        "distribution": {
+            "5": 0,
+            "4": 0,
+            "3": 1,
+            "2": 0,
+            "1": 0,
+        },
+    }
+
+
+def test_rating_distribution_reveals_disagreement(client):
+    for _ in range(5):
+        create_review(client, rating=5)
+        create_review(client, rating=1)
+
+    summary = client.get("/api/ratings").get_json()["C270"]
+
+    assert summary == {
+        "average_rating": 3.0,
+        "review_count": 10,
+        "distribution": {
+            "5": 5,
+            "4": 0,
+            "3": 0,
+            "2": 0,
+            "1": 5,
+        },
+    }
+
+
+def test_rating_distribution_tracks_update_and_delete(client):
+    five_star_id = create_review(client, rating=5).get_json()["id"]
+    one_star_id = create_review(client, rating=1).get_json()["id"]
+
+    update_response = client.put(
+        f"/api/reviews/{five_star_id}",
+        json={"rating": 3, "comment": "Updated rating"},
+    )
+    assert update_response.status_code == 200
+
+    updated_summary = client.get("/api/ratings").get_json()["C270"]
+    assert updated_summary["average_rating"] == 2.0
+    assert updated_summary["review_count"] == 2
+    assert updated_summary["distribution"] == {
+        "5": 0,
+        "4": 0,
+        "3": 1,
+        "2": 0,
+        "1": 1,
+    }
+
+    delete_response = client.delete(f"/api/reviews/{one_star_id}")
+    assert delete_response.status_code == 204
+
+    deleted_summary = client.get("/api/ratings").get_json()["C270"]
+    assert deleted_summary == {
+        "average_rating": 3.0,
+        "review_count": 1,
+        "distribution": {
+            "5": 0,
+            "4": 0,
+            "3": 1,
+            "2": 0,
+            "1": 0,
+        },
     }
 
 

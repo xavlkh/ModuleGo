@@ -33,6 +33,7 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **REQ-013**: User can filter by minimum average rating (5 Stars, 4 Stars & Up, etc.)
 - **REQ-014**: User can toggle "Active" filter (modules appearing in at least one diploma)
 - **REQ-015**: Filter state persisted in URL params (`q`, `school`, `diploma`, `rating`, `active`, `page`)
+- **REQ-016**: Module details show a five-to-one-star rating distribution calculated from backend review data
 - **REQ-B01**: Responsive design works on desktop, tablet, and mobile
 - **REQ-B02**: Loading animation displayed during initial data load
 - **REQ-B03**: Module comparison page with side-by-side table view
@@ -624,6 +625,19 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | TASK-222 | Update `run_all.py` — skip step1 if tokens.json exists, add live feedback | ✅ | 2026-07-19 |
 | TASK-223 | Add `.gitignore` rule for `app/static/local-data/data/` (scraping output) | ✅ | 2026-07-19 |
 
+### Implementation Phase 27: Module Rating Distribution
+
+- GOAL-27: Add backend-generated rating distributions to individual module details without changing global dashboard statistics
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-224 | Extend SQLite rating summaries with conditional counts for ratings five through one | ✅ | 2026-07-21 |
+| TASK-225 | Extend Supabase rating summaries with zero-filled five-to-one distribution buckets | ✅ | 2026-07-21 |
+| TASK-226 | Preserve the existing average and review-count fields in `/api/ratings` | ✅ | 2026-07-21 |
+| TASK-227 | Render accessible proportional rating bars in the module-detail review section | ✅ | 2026-07-21 |
+| TASK-228 | Refresh API rating summaries and review lists after review CRUD operations | ✅ | 2026-07-21 |
+| TASK-229 | Add API tests for zero buckets, mixed opinions, updates, and deletions | ✅ | 2026-07-21 |
+
 ## 3. Alternatives
 
 - **ALT-001**: React/Vue framework - Rejected due to constraint CON-001 (Vanilla JS only)
@@ -721,6 +735,9 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **TEST-031**: Functional check: search, filter, sort, pagination, detail modal, review CRUD all work
 - **TEST-032**: Mobile check: responsive layout at 375px, 768px, 1024px viewports
 - **TEST-033**: Cross-browser testing (Chrome, Firefox, Safari, Edge)
+- **TEST-034**: Rating-summary API returns all five distribution buckets, including zero counts
+- **TEST-035**: Five 1-star and five 5-star reviews return average 3.0 and the correct mixed-opinion distribution
+- **TEST-036**: Rating distribution updates immediately after editing and deleting reviews
 
 ## 7. Risks & Assumptions
 
