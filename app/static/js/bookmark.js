@@ -18,6 +18,13 @@ const BookmarkManager = {
         this.load();
     },
 
+    /** Notify active pages that the bookmark collection changed. */
+    notifyChanged() {
+        document.dispatchEvent(new CustomEvent('bookmarks:changed', {
+            detail: { codes: this.getCodes() },
+        }));
+    },
+
     /**
      * Load bookmarked module codes from localStorage.
      */
@@ -120,6 +127,7 @@ const BookmarkManager = {
         }
 
         this.save();
+        this.notifyChanged();
 
         return this.bookmarks.includes(code);
     },
@@ -143,6 +151,7 @@ const BookmarkManager = {
         if (!this.bookmarks.includes(code)) {
             this.bookmarks.push(code);
             this.save();
+            this.notifyChanged();
         }
 
         return true;
@@ -178,6 +187,7 @@ const BookmarkManager = {
             originalLength
         ) {
             this.save();
+            this.notifyChanged();
             return true;
         }
 
@@ -229,7 +239,9 @@ const BookmarkManager = {
      * Remove all bookmarks.
      */
     clear() {
+        if (this.bookmarks.length === 0) return;
         this.bookmarks = [];
         this.save();
+        this.notifyChanged();
     },
 };

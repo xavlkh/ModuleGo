@@ -442,7 +442,12 @@ const DetailManager = {
         }
         this.renderRatingInsights(moduleCode);
         await this.loadReviews(moduleCode);
-        UIRenderer.updateRatingDisplay(moduleCode);
+        if (typeof UIRenderer !== 'undefined') {
+            UIRenderer.updateRatingDisplay(moduleCode);
+        }
+        document.dispatchEvent(new CustomEvent('ratings:changed', {
+            detail: { moduleCode },
+        }));
     },
 };
 

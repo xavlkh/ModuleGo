@@ -34,6 +34,7 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **REQ-014**: User can toggle "Active" filter (modules appearing in at least one diploma)
 - **REQ-015**: Filter state persisted in URL params (`q`, `school`, `diploma`, `rating`, `active`, `page`)
 - **REQ-016**: Module details show a five-to-one-star rating distribution calculated from backend review data
+- **REQ-017**: User can manage locally saved modules on a dedicated bookmarks page
 - **REQ-B01**: Responsive design works on desktop, tablet, and mobile
 - **REQ-B02**: Loading animation displayed during initial data load
 - **REQ-B03**: Module comparison page with side-by-side table view
@@ -638,6 +639,19 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | TASK-228 | Refresh API rating summaries and review lists after review CRUD operations | ✅ | 2026-07-21 |
 | TASK-229 | Add API tests for zero buckets, mixed opinions, updates, and deletions | ✅ | 2026-07-21 |
 
+### Implementation Phase 28: Dedicated Bookmarks Page
+
+- GOAL-28: Separate bookmark management from the home search interface
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-230 | Add dedicated `/bookmarks` Flask route and responsive template | ✅ | 2026-07-22 |
+| TASK-231 | Render saved module cards from localStorage with rating summaries | ✅ | 2026-07-22 |
+| TASK-232 | Add individual Remove, Clear All, loading, error, and empty states | ✅ | 2026-07-22 |
+| TASK-233 | Update desktop and mobile navigation to open the dedicated page | ✅ | 2026-07-22 |
+| TASK-234 | Remove legacy `?bookmarks=true` handling from the home page | ✅ | 2026-07-22 |
+| TASK-235 | Preserve live rating-distribution refresh in the shared detail modal | ✅ | 2026-07-22 |
+
 ## 3. Alternatives
 
 - **ALT-001**: React/Vue framework - Rejected due to constraint CON-001 (Vanilla JS only)
@@ -677,6 +691,7 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | `app/templates/modules/index.html` | Main search and browse page with collapsible filter panel |
 | `app/templates/modules/comparison.html` | Module comparison page (Tailwind glassmorphism) |
 | `app/templates/modules/reviews.html` | Review dashboard page (Tailwind glassmorphism) |
+| `app/templates/modules/bookmarks.html` | Dedicated bookmarked modules page |
 | `app/templates/base.html` | Layout template with glass navbar/footer (Tailwind) |
 | `app/templates/_macros.html` | Shared Jinja macros (hero, navLinks, themeToggle, selectField) |
 | `app/static/css/app.css` | Tailwind CSS with `:root` custom properties and glassmorphism tokens |
@@ -686,6 +701,8 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | `app/static/js/comparison.js` | Module comparison logic (Tailwind markup) |
 | `app/static/js/detail.js` | Module detail modal + review CRUD (owner token headers) |
 | `app/static/js/reviews.js` | Review dashboard + module detail review CRUD (merged from detail.js) |
+| `app/static/js/bookmark.js` | Bookmark persistence and cross-page change events |
+| `app/static/js/bookmarks-page.js` | Dedicated bookmarks page rendering and actions |
 | `app/static/local-data/scripts/` | Python scraping scripts (step1_get_tokens, step2_scrape_all_modules, step3_generate_comparison, step4_scrape_diplomas) |
 | `app/static/local-data/data/` | Scraping output (gitignored) — tokens.json, rp_modules_synopsis, rp_modules_comparison, rp_courses |
 | `app/static/local-data/SCRAPING_GUIDE.md` | Documentation for module scraping pipeline |
@@ -738,6 +755,8 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **TEST-034**: Rating-summary API returns all five distribution buckets, including zero counts
 - **TEST-035**: Five 1-star and five 5-star reviews return average 3.0 and the correct mixed-opinion distribution
 - **TEST-036**: Rating distribution updates immediately after editing and deleting reviews
+- **TEST-037**: Dedicated `/bookmarks` route renders successfully
+- **TEST-038**: Bookmark removal and Clear All update the dedicated page immediately
 
 ## 7. Risks & Assumptions
 

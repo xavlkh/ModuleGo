@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from '_macros.html' import loadingSpinner, emptyState %}
+
+{% block title %}My Bookmarks{% endblock %}
+
+{% block content %}
+<section class="py-16 md:py-24">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+            <div class="max-w-2xl">
+                <span class="mb-4 inline-block text-xs font-bold uppercase tracking-widest text-primary-600 dark:text-primary-400">Saved modules</span>
+                <h1 class="mb-4 font-display text-4xl font-bold tracking-tight text-zinc-900 dark:text-white md:text-5xl">My Bookmarks</h1>
+                <p class="text-lg leading-relaxed text-zinc-500 dark:text-zinc-400">Keep the modules you are interested in together and return to them whenever you need.</p>
+            </div>
+            <button id="clearBookmarksBtn" type="button" class="btn-outline hidden self-start text-sm sm:self-auto" aria-label="Remove all bookmarked modules">
+                <i data-lucide="trash-2" class="mr-2 inline-block h-4 w-4"></i>Clear all
+            </button>
+        </div>
+    </div>
+</section>
+
+<section class="pb-16 sm:pb-24">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="mb-6 flex items-center justify-between">
+            <h2 class="flex items-center gap-2 text-2xl font-bold text-zinc-900 dark:text-white">
+                <i data-lucide="bookmark-check" class="h-5 w-5 text-primary-500"></i>Saved modules
+            </h2>
+            <span id="bookmarkCount" class="badge" aria-live="polite">Loading...</span>
+        </div>
+
+        <div id="bookmarkLoading">{{ loadingSpinner('Loading your bookmarks...') }}</div>
+        <div id="bookmarkError" class="hidden rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200" role="alert">Bookmarked modules could not be loaded. Please try again later.</div>
+
+        <div id="bookmarkEmpty" class="hidden">
+            {{ emptyState('bookmark', 'No bookmarks yet', 'Explore modules and select the bookmark icon to save them here.') }}
+            <div class="-mt-10 text-center">
+                <a href="{{ url_for('serve_index') }}" class="btn-primary inline-flex items-center rounded-xl text-sm">
+                    <i data-lucide="search" class="mr-2 h-4 w-4"></i>Explore modules
+                </a>
+            </div>
+        </div>
+
+        <div id="bookmarkGrid" class="hidden grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3" aria-live="polite"></div>
+    </div>
+</section>
+
+<div id="moduleModalOverlay" class="hidden modal-overlay">
+    <div class="modal-panel">
+        <div class="modal-header">
+            <h2 class="text-lg font-bold text-zinc-900 dark:text-white" id="moduleModalLabel">Module Details</h2>
+            <button id="moduleModalClose" class="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/60 hover:text-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-300" aria-label="Close">
+                <i data-lucide="x" class="h-5 w-5"></i>
+            </button>
+        </div>
+        <div id="moduleModalBody" class="modal-body px-6 py-5"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/data.js') }}"></script>
+<script src="{{ url_for('static', filename='js/bookmark.js') }}"></script>
+<script src="{{ url_for('static', filename='js/detail.js') }}"></script>
+<script src="{{ url_for('static', filename='js/bookmarks-page.js') }}"></script>
+{% endblock %}

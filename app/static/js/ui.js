@@ -174,9 +174,6 @@ const UIRenderer = {
 
         /* Sync URL params (no full-page reload). */
         const url = new URL(window.location);
-        // Once the user searches or filters,
-        // leave bookmark-only mode.
-        url.searchParams.delete('bookmarks');
         const setParam = (key, value) => {
             if (value && value !== 'all' && value !== 'false') url.searchParams.set(key, value);
             else url.searchParams.delete(key);
@@ -491,7 +488,6 @@ async function initHomePage() {
         const initialRating = urlParams.searchParams.get('rating') || 'all';
         const initialActive = urlParams.searchParams.get('active') || 'false';
         const initialPage = parseInt(urlParams.searchParams.get('page'), 10) || 1;
-        const showBookmarks =urlParams.searchParams.get('bookmarks') === 'true';
         const hasFilters = initialSchool !== 'all' || initialDiploma !== 'all' || initialRating !== 'all' || initialActive === 'true';
 
         /* Restore filter controls from URL. */
@@ -504,17 +500,7 @@ async function initHomePage() {
             const label = UIRenderer.activeFilter.querySelector('span');
             if (label) label.textContent = 'Active';
         }
-        // Handle bookmarks view, search query, or default to all modules.
-        if (showBookmarks) {const bookmarkedModules =BookmarkManager.getModules();
-            UIRenderer.filteredModules =bookmarkedModules;
-            UIRenderer.currentPage =initialPage;
-            UIRenderer.renderPaginatedResults(
-                bookmarkedModules
-            );
-            UIRenderer.updateResultsCount(
-                bookmarkedModules.length
-            );
-        } else if (initialQuery || hasFilters) {
+        if (initialQuery || hasFilters) {
             if (initialQuery) {
                 UIRenderer.searchInput.value =initialQuery;
             }

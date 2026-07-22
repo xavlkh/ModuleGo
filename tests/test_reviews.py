@@ -28,6 +28,7 @@ def create_review(client, module_code="C270", rating=5, comment="Very useful"):
 def test_pages_are_available(client):
     assert client.get("/").status_code == 200
     assert client.get("/comparison").status_code == 200
+    assert client.get("/bookmarks").status_code == 200
     assert client.get("/reviews").status_code == 200
 
 

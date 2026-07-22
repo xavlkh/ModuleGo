@@ -78,8 +78,8 @@
                    <!-- My Bookmarks -->
                     <a
                         id="showBookmarksBtn"
-                        href="{{ url_for('serve_index') }}?bookmarks=true"
-                        class="hidden md:inline-flex items-center gap-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-600 dark:text-zinc-300 hover:border-primary-300 hover:text-primary-600 dark:hover:border-primary-600 dark:hover:text-primary-400 transition-all"
+                        href="{{ url_for('serve_bookmarks') }}"
+                        class="hidden md:inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-all {% if request.endpoint == 'serve_bookmarks' %}border-primary-300 dark:border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300{% else %}border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:border-primary-300 hover:text-primary-600 dark:hover:border-primary-600 dark:hover:text-primary-400{% endif %}"
                         title="Show bookmarked modules"
                     >
                         <i data-lucide="bookmark" class="w-4 h-4"></i>
@@ -107,7 +107,7 @@
                             <a href="{{ url_for('serve_comparison') }}" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
                                 <i data-lucide="layout-grid" class="w-4 h-4 mr-2 inline-block"></i>Comparison
                             </a>
-                            <a href="{{ url_for('serve_index') }}?bookmarks=true" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
+                            <a href="{{ url_for('serve_bookmarks') }}" class="px-4 py-2.5 rounded-lg text-sm font-medium {% if request.endpoint == 'serve_bookmarks' %}bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300{% else %}text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800{% endif %} transition-all">
                                 <i data-lucide="bookmark" class="w-4 h-4 mr-2 inline-block"></i>My Bookmarks
                             </a>
                             <a href="{{ url_for('serve_reviews') }}" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
