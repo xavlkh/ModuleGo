@@ -1,97 +1,185 @@
-// Shows full information for a selected module.
+/**
+ * Module detail modal: shows full module info, diploma list, and manages
+ * the review lifecycle (read / create / edit / delete) within the modal.
+ * @module detail
+ */
 const DetailManager = {
-    modal: null,
+    /** @type {string|null} Module code currently shown in the modal. */
     currentModuleCode: null,
+    /** @type {Map<number, Object>} Reviews for the current module, keyed by ID. */
+    currentReviews: new Map(),
+    /** @type {number|null} ID of the review being edited, or null for create mode. */
+    editingReviewId: null,
+    /** @type {{show: Function, hide: Function, init: Function}|null} Modal controller. */
+    modal: null,
 
+    /**
+     * Initialise the modal controller for the module detail overlay.
+     */
     init() {
-        // Prepare the Bootstrap modal instance.
-        this.modal = new bootstrap.Modal(document.getElementById('moduleModal'));
+        this.modal = createModalController({
+            overlayId: 'moduleModalOverlay',
+            closeBtnId: 'moduleModalClose',
+        });
+        this.modal.init();
     },
 
+    /** Show the module detail modal. */
+    showModal() { this.modal.show(); },
+
+    /** Hide the module detail modal. */
+    hideModal() { this.modal.hide(); },
+
+    /**
+     * Open the detail modal for a module, populate its content, and
+     * kick off an async review load.
+     * @param {string} moduleCode - The module code to display.
+     */
     showModuleDetail(moduleCode) {
-        // Find the selected module before rendering details.
         const module = DataManager.getModule(moduleCode);
         if (!module) return;
 
-        this.currentModuleCode = moduleCode;
-        const modalBody = document.getElementById('moduleModalBody');
-        const modalTitle = document.getElementById('moduleModalLabel');
-        
-        modalTitle.textContent = `${module.code} - ${module.name}`;
+        this.currentModuleCode = module.code;
+        this.editingReviewId = null;
 
-        // Inject the layout and our new review system
-        modalBody.innerHTML = this.createDetailContent(module);
+        document.getElementById('moduleModalLabel').textContent = `${module.code} - ${module.name}`;
+        document.getElementById('moduleModalBody').innerHTML = this.createDetailContent(module);
+        // Set up bookmark button event listener
+        const bookmarkBtn =
+        document.getElementById('bookmarkModuleBtn');
 
-        this.modal.show();
+        if (bookmarkBtn) {
+            bookmarkBtn.addEventListener('click', () => {
+                const bookmarked =
+                    BookmarkManager.toggle(module.code);
 
-        // Fetch existing reviews from the Python Backend
-        this.loadReviews(moduleCode);
+                bookmarkBtn.innerHTML = `
+                    <i
+                        data-lucide="bookmark"
+                        class="w-5 h-5 ${
+                            bookmarked
+                                ? 'fill-primary-500 text-primary-500'
+                                : 'text-slate-500 dark:text-slate-300'
+                        }"
+                    ></i>
+                `;
 
-        // Listen for the user clicking the "Submit Review" button
-        document.getElementById('submitReviewBtn').addEventListener('click', () => {
-            this.submitReview(moduleCode);
-        });
+                bookmarkBtn.setAttribute(
+                    'aria-label',
+                    bookmarked
+                        ? 'Remove bookmark'
+                        : 'Add bookmark'
+               );
+
+                bookmarkBtn.title =
+                    bookmarked
+                        ? 'Remove bookmark'
+                        : 'Add bookmark';
+
+                lucide.createIcons();
+           });
+        }
+
+        document.getElementById('submitReviewBtn').addEventListener('click', () => this.saveReview(module.code));
+        document.getElementById('cancelEditReviewBtn').addEventListener('click', () => this.resetReviewForm());
+
+        this.showModal();
+        this.refreshReviewViews(module.code);
+        lucide.createIcons();
     },
 
+    /**
+     * Build the HTML for the module detail body (header, synopsis, source
+     * link, diploma list, reviews section, and review form).
+     * @param {Object} module - The module data object.
+     * @returns {string} Inner HTML string for the modal body.
+     */
     createDetailContent(module) {
-        // Get all diplomas that include this module code
         const diplomas = DataManager.getDiplomasByModule(module.code);
-
-        // Convert diploma list into HTML
+        const isBookmarked = BookmarkManager.isBookmarked(module.code); // Check if the module is bookmarked
         const diplomasHTML = diplomas.length > 0
-            ? diplomas.map(diploma => `
-                <li class="list-group-item">
-                    <div class="fw-bold">${diploma.name}</div>
-                    <small class="text-muted">${diploma.id} • ${diploma.school}</small>
-                </li>
-            `).join('')
-            : `
-                <li class="list-group-item text-muted">
-                    No diploma information available for this module.
-                </li>
-            `;
+            ? diplomas.map(d => {
+                const catColors = {
+                    'General': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+                    'Major': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+                    'Discipline': 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+                    'Elective': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+                    'Industry': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+                };
+                const catClass = catColors[d.category] || 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300';
+                const diplomaUrl = d.url ? escapeHtml(d.url) : '#';
+                const targetAttr = d.url ? 'target="_blank" rel="noopener"' : '';
+                return `
+                <li>
+                    <a href="${diplomaUrl}" ${targetAttr} class="flex flex-col gap-1 rounded-lg border border-zinc-100 dark:border-zinc-700 px-4 py-3 bg-white/60 dark:bg-zinc-800/60 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-700/60">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="font-semibold text-zinc-900 dark:text-white">${escapeHtml(d.course_name || '')}</div>
+                            <span class="flex-shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${catClass}">${escapeHtml(d.category)}</span>
+                        </div>
+                        <div class="text-xs text-zinc-500 dark:text-zinc-400">${escapeHtml(d.course_code || '')} &bull; ${escapeHtml(d.school_name || d.school_abbr || '')}</div>
+                    </a>
+                </li>`;
+            }).join('')
+            : '<li class="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 px-4 py-6 text-center text-zinc-400 dark:text-zinc-400 text-sm">No diploma information available for this module.</li>';
 
         return `
-            <div class="module-detail-header">
-                <div class="module-code">${module.code}</div>
-                <div class="module-name">${module.name}</div>
-                <div class="mt-2">
-                    <span class="badge bg-secondary">${module.school}</span>
+            <div class="module-header rounded-xl p-6 mb-6">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <div class="text-xs font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400 mb-1">${escapeHtml(module.code)}</div>
+                        <div class="text-xl font-bold text-zinc-900 dark:text-white mb-2">${escapeHtml(module.name)}</div>
+                        <div class="text-sm font-medium text-primary-700 dark:text-primary-300">${escapeHtml(module.school || 'School not listed')}</div>
+                    </div>
+                    <button 
+                        id="bookmarkModuleBtn"
+                        type="button"
+                        data-module-code="${escapeHtml(module.code)}"
+                        class="flex-shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 text-slate-500 dark:text-slate-300 hover:text-primary-600 hover:border-primary-300 dark:hover:text-primary-400 dark:hover:border-primary-600 transition-all"
+                        aria-label="${isBookmarked ? 'Remove bookmark' : 'Add bookmark'}"
+                        title="${isBookmarked ? 'Remove bookmark' : 'Add bookmark'}"
+                   >
+                        <i
+                            data-lucide="bookmark"
+                            class="w-5 h-5 ${
+                                isBookmarked
+                                ? 'fill-primary-500 text-primary-500'
+                                : 'text-slate-500 dark:text-slate-300'
+                        }"
+                        ></i>
+                    </button>
                 </div>
             </div>
-
-            <div class="mb-4">
-                <h6 class="fw-bold mb-2">Description</h6>
-                <p class="text-muted">${module.description}</p>
+            <div class="mb-6">
+                <h6 class="text-sm font-bold text-zinc-900 dark:text-white mb-2">Synopsis</h6>
+                <p class="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">${escapeHtml(module.synopsis)}</p>
             </div>
-
-            <!-- Display diplomas associated with this module -->
-            <div class="mb-4">
-                <h6 class="fw-bold mb-2">Diplomas taking this module</h6>
-                <ul class="list-group">
-                    ${diplomasHTML}
-                </ul>
-            </div>
-
-            <div class="mt-4 mb-4">
-                <a href="${module.url}" target="_blank" class="btn btn-outline-primary">
-                    <i class="bi bi-box-arrow-up-right me-2"></i>View on RP Website
+            <div class="mb-6">
+                <a href="${escapeHtml(module.url || '#')}" target="_blank" rel="noopener" class="btn-outline inline-flex items-center text-sm">
+                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>Source
                 </a>
             </div>
-
-            <hr>
-
-            <h6 class="fw-bold mb-3">Student Reviews</h6>
-
-            <div id="reviewsList" class="mb-4">
-                <div class="text-center text-muted spinner-border spinner-border-sm" role="status"></div> Loading reviews...
+            <div class="mb-6">
+                <h6 class="text-sm font-bold text-slate-900 dark:text-white mb-2">Diplomas offering this module (${diplomas.length})</h6>
+                <ul class="grid gap-2">${diplomasHTML}</ul>
             </div>
-
-            <div class="card card-body bg-light">
-                <h7 class="fw-bold mb-2">Leave a Review</h7>
-                <div class="mb-2">
-                    <label class="form-label">Rating</label>
-                    <select id="reviewRating" class="form-select form-select-sm">
+            <hr class="border-zinc-200 dark:border-zinc-700 my-6">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <h6 class="text-sm font-bold text-zinc-900 dark:text-white">Student Reviews</h6>
+                <div id="reviewSummary" class="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 px-3 py-1 text-xs text-amber-700 dark:text-amber-200 font-medium">Loading rating...</div>
+            </div>
+            <section id="ratingDistribution" class="hidden mb-6 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-4" aria-labelledby="ratingDistributionTitle"></section>
+            <div id="reviewsList" class="mb-6" aria-live="polite">
+                <div class="flex items-center gap-2 text-zinc-400 dark:text-zinc-400 text-sm py-4">
+                    <div class="h-4 w-4 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
+                    Loading reviews...
+                </div>
+            </div>
+            <div id="reviewFormCard" class="mb-2">
+                <h6 id="reviewFormTitle" class="text-sm font-bold text-zinc-900 dark:text-white mb-4">Leave a Review</h6>
+                <div id="reviewFormMessage" class="hidden mb-3 rounded-lg px-4 py-2.5 text-sm" role="alert"></div>
+                <div class="mb-4">
+                    <label for="reviewRating" class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300">Rating</label>
+                    <select id="reviewRating" class="select-field w-full rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-sm pl-4 pr-10 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400 cursor-pointer">
                         <option value="5">5 - Excellent</option>
                         <option value="4">4 - Good</option>
                         <option value="3">3 - Average</option>
@@ -99,76 +187,295 @@ const DetailManager = {
                         <option value="1">1 - Terrible</option>
                     </select>
                 </div>
-                <div class="mb-2">
-                    <label class="form-label">Comment</label>
-                    <textarea id="reviewComment" class="form-control form-control-sm" rows="2" placeholder="What did you think of this module?"></textarea>
+                <div class="mb-4">
+                    <label for="reviewComment" class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300">Comment</label>
+                    <textarea id="reviewComment" class="w-full rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-sm px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400" rows="3" maxlength="500" placeholder="What did you think of this module?"></textarea>
+                    <p class="mt-1.5 text-xs text-zinc-400 dark:text-zinc-400">Optional, maximum 500 characters.</p>
                 </div>
-                <button id="submitReviewBtn" class="btn btn-sm btn-primary">Submit Review</button>
+                <div class="flex gap-3 pt-1">
+                    <button id="submitReviewBtn" class="rounded-xl bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-primary-600 hover:shadow active:translate-y-0" type="button">Submit Review</button>
+                    <button id="cancelEditReviewBtn" class="hidden rounded-xl border border-zinc-200 dark:border-zinc-700 px-6 py-3 text-sm font-semibold text-zinc-600 dark:text-zinc-400 transition-all duration-300 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-800 dark:hover:text-zinc-200 active:translate-y-0" type="button">Cancel edit</button>
+                </div>
             </div>
         `;
     },
 
-    // READ: GET request to your Flask API
+    /**
+     * Fetch reviews for a module from the API and render them in the modal.
+     * @param {string} moduleCode - The module code to load reviews for.
+     */
     async loadReviews(moduleCode) {
         const reviewsList = document.getElementById('reviewsList');
+        if (!reviewsList) return;
+
         try {
-            const response = await fetch(`/api/reviews/${moduleCode}`);
-            if (!response.ok) throw new Error('Failed to fetch');
+            const response = await fetch(`/api/reviews/${encodeURIComponent(moduleCode)}`);
+            if (!response.ok) throw new Error('Failed to fetch reviews.');
             const reviews = await response.json();
+            this.currentReviews = new Map(reviews.map(r => [r.id, r]));
 
             if (reviews.length === 0) {
-                reviewsList.innerHTML = '<p class="text-muted small">No reviews yet. Be the first!</p>';
+                reviewsList.innerHTML = '<p class="text-sm text-zinc-400 dark:text-zinc-400 py-3">No reviews yet. Be the first!</p>';
                 return;
             }
 
-            let html = '';
-            reviews.forEach(r => {
-                html += `
-                    <div class="border-bottom pb-2 mb-2">
-                        <div class="text-warning mb-1">
-                            ${'★'.repeat(r.RATING)}${'☆'.repeat(5 - r.RATING)}
-                        </div>
-                        <p class="mb-1 small">${r.COMMENT}</p>
-                        <small class="text-muted" style="font-size: 0.7em;">${new Date(r.TIMESTAMP).toLocaleString()}</small>
-                    </div>
-                `;
+            reviewsList.innerHTML = reviews.map(r => this.createReviewMarkup(r)).join('');
+            reviewsList.querySelectorAll('.edit-review-btn').forEach(btn => {
+                btn.addEventListener('click', () => this.startEditReview(Number(btn.dataset.reviewId)));
             });
-            reviewsList.innerHTML = html;
+            reviewsList.querySelectorAll('.delete-review-btn').forEach(btn => {
+                btn.addEventListener('click', () => this.deleteReview(Number(btn.dataset.reviewId)));
+            });
+            lucide.createIcons();
         } catch (error) {
-            reviewsList.innerHTML = '<p class="text-danger small">Could not load reviews.</p>';
+            console.error('Error loading reviews:', error);
+            reviewsList.innerHTML = '<p class="text-sm text-red-500 py-3">Could not load reviews.</p>';
         }
     },
 
-    // CREATE: POST request to your Flask API
-    async submitReview(moduleCode) {
-        const rating = document.getElementById('reviewRating').value;
-        const comment = document.getElementById('reviewComment').value;
-        const btn = document.getElementById('submitReviewBtn');
+    /**
+     * Build the HTML for a single review card.
+     * @param {Object} review - The review object from the API.
+     * @returns {string} HTML string for the review.
+     */
+    createReviewMarkup(review) {
+        const comment = review.comment
+            ? escapeHtml(review.comment)
+            : '<span class="text-zinc-400 dark:text-zinc-400 italic">No written comment</span>';
+        const updated = review.updated_at
+            ? `<span class="ml-2 text-zinc-400 dark:text-zinc-400">Edited ${formatTimestamp(review.updated_at)}</span>`
+            : '';
+        const isOwner = review.owner_token && review.owner_token === getOwnerToken();
 
-        btn.disabled = true;
-        btn.textContent = "Submitting...";
+        return `
+            <article class="review-item" data-review-id="${review.id}">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1">
+                        <div class="star-rating flex gap-0.5 text-sm mb-1.5" aria-label="${review.rating} out of 5 stars">
+                            ${createStars(review.rating)}
+                        </div>
+                        <p class="text-sm text-zinc-700 dark:text-zinc-300 mb-1">${comment}</p>
+                        <small class="text-xs text-zinc-400 dark:text-zinc-400">${formatTimestamp(review.created_at)}${updated}</small>
+                    </div>
+                    ${createReviewActionsHTML(review.id, isOwner)}
+                </div>
+            </article>
+        `;
+    },
+
+    /**
+     * Render the review summary badge from the shared rating API data.
+     * @param {Object} ratingSummary - Average, count, and distribution data.
+     */
+    renderReviewSummary(ratingSummary) {
+        const summary = document.getElementById('reviewSummary');
+        if (!summary) return;
+        if (!ratingSummary.review_count) {
+            summary.innerHTML = '<i data-lucide="star" class="w-4 h-4 mr-1 inline-block text-amber-400" aria-hidden="true"></i>No ratings yet';
+            lucide.createIcons();
+            return;
+        }
+        const label = ratingSummary.review_count === 1 ? 'review' : 'reviews';
+        summary.innerHTML = `<i data-lucide="star" class="w-4 h-4 mr-1 inline-block fill-amber-400 text-amber-400" aria-hidden="true"></i><strong>${Number(ratingSummary.average_rating).toFixed(1)} average</strong><span aria-hidden="true">&middot;</span><span>${ratingSummary.review_count} ${label}</span>`;
+        lucide.createIcons();
+    },
+
+    /**
+     * Render five-to-one-star counts as proportional progress bars.
+     * @param {Object} ratingSummary - Average, count, and distribution data.
+     */
+    renderRatingDistribution(ratingSummary) {
+        const container = document.getElementById('ratingDistribution');
+        if (!container) return;
+
+        const total = Number(ratingSummary.review_count) || 0;
+        if (total === 0) {
+            container.innerHTML = '';
+            container.classList.add('hidden');
+            return;
+        }
+
+        const distribution = ratingSummary.distribution || {};
+        const rows = [5, 4, 3, 2, 1].map(rating => {
+            const count = Number(distribution[String(rating)]) || 0;
+            const percentage = Math.min(100, Math.max(0, (count / total) * 100));
+            return `
+                <div class="grid grid-cols-[3rem_minmax(0,1fr)_2rem] items-center gap-3 text-xs">
+                    <span class="inline-flex items-center gap-1 font-semibold text-zinc-600 dark:text-zinc-300">
+                        ${rating}<i data-lucide="star" class="h-3.5 w-3.5 fill-amber-400 text-amber-400" aria-hidden="true"></i>
+                    </span>
+                    <div class="h-2.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700" role="progressbar" aria-label="${rating} stars: ${count} of ${total} reviews" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${count}">
+                        <div class="h-full rounded-full bg-amber-400 transition-all duration-300" style="width: ${percentage.toFixed(2)}%"></div>
+                    </div>
+                    <span class="text-right font-medium tabular-nums text-zinc-600 dark:text-zinc-300">${count}</span>
+                </div>
+            `;
+        }).join('');
+
+        container.innerHTML = `
+            <h6 id="ratingDistributionTitle" class="mb-3 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Rating breakdown</h6>
+            <div class="space-y-2.5">${rows}</div>
+        `;
+        container.classList.remove('hidden');
+        lucide.createIcons();
+    },
+
+    /**
+     * Render the average badge and distribution for a module.
+     * @param {string} moduleCode - Module whose rating data should be shown.
+     */
+    renderRatingInsights(moduleCode) {
+        const ratingSummary = DataManager.getRatingSummary(moduleCode);
+        this.renderReviewSummary(ratingSummary);
+        this.renderRatingDistribution(ratingSummary);
+    },
+
+    /**
+     * Switch the review form into edit mode, pre-filling the rating and
+     * comment fields and showing the cancel button.
+     * @param {number} reviewId - The ID of the review to edit.
+     */
+    startEditReview(reviewId) {
+        const review = this.currentReviews.get(reviewId);
+        if (!review) return;
+        this.editingReviewId = reviewId;
+        document.getElementById('reviewFormTitle').textContent = 'Edit Review';
+        document.getElementById('reviewRating').value = String(review.rating);
+        document.getElementById('reviewComment').value = review.comment;
+        document.getElementById('submitReviewBtn').textContent = 'Save Changes';
+        document.getElementById('cancelEditReviewBtn').classList.remove('hidden');
+        clearElementMessage('reviewFormMessage');
+        document.getElementById('reviewFormCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    },
+
+    /**
+     * Reset the review form back to create mode.
+     */
+    resetReviewForm() {
+        this.editingReviewId = null;
+        document.getElementById('reviewFormTitle').textContent = 'Leave a Review';
+        document.getElementById('reviewRating').value = '5';
+        document.getElementById('reviewComment').value = '';
+        document.getElementById('submitReviewBtn').textContent = 'Submit Review';
+        document.getElementById('cancelEditReviewBtn').classList.add('hidden');
+        clearElementMessage('reviewFormMessage');
+    },
+
+    /**
+     * Submit a new review or update an existing one, then refresh the
+     * review list and rating display.
+     * @param {string} moduleCode - The module code (used for new reviews).
+     */
+    async saveReview(moduleCode) {
+        const rating = Number(document.getElementById('reviewRating').value);
+        const comment = document.getElementById('reviewComment').value.trim();
+        const button = document.getElementById('submitReviewBtn');
+        const isEditing = this.editingReviewId !== null;
+        const endpoint = isEditing ? `/api/reviews/${this.editingReviewId}` : '/api/reviews';
+        const payload = { rating, comment };
+        if (!isEditing) payload.module_code = moduleCode;
+
+        button.disabled = true;
+        button.textContent = isEditing ? 'Saving...' : 'Submitting...';
+        clearElementMessage('reviewFormMessage');
 
         try {
-            const response = await fetch('/api/reviews', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    module_code: moduleCode,
-                    rating: parseInt(rating),
-                    comment: comment
-                })
+            const headers = { 'Content-Type': 'application/json', 'X-Owner-Token': getOwnerToken() };
+            const response = await fetch(endpoint, {
+                method: isEditing ? 'PUT' : 'POST',
+                headers,
+                body: JSON.stringify(payload),
             });
-
-            if (response.ok) {
-                document.getElementById('reviewComment').value = '';
-                await this.loadReviews(moduleCode); // Refresh the list
+            const result = await response.json();
+            if (!response.ok) {
+                showFormMessage(result.error || 'Could not save review.', 'danger');
+                return;
             }
+            if (result.owner_token) {
+                localStorage.setItem(OWNER_TOKEN_KEY, result.owner_token);
+            }
+            this.resetReviewForm();
+            await this.refreshReviewViews(moduleCode);
+            showFormMessage(isEditing ? 'Review updated.' : 'Review submitted.', 'success');
         } catch (error) {
-            console.error("Error posting review:", error);
-            alert("Failed to submit review. Is your Python server running?");
+            console.error('Error saving review:', error);
+            showFormMessage('Could not save review. Please try again.', 'danger');
         } finally {
-            btn.disabled = false;
-            btn.textContent = "Submit Review";
+            button.disabled = false;
+            button.textContent = this.editingReviewId === null ? 'Submit Review' : 'Save Changes';
         }
-    }
+    },
+
+    /**
+     * Delete a review after confirmation, then refresh the views.
+     * @param {number} reviewId - The review to delete.
+     */
+    async deleteReview(reviewId) {
+        if (!window.confirm('Delete this review permanently?')) return;
+        try {
+            const response = await fetch(`/api/reviews/${reviewId}`, {
+                method: 'DELETE',
+                headers: { 'X-Owner-Token': getOwnerToken() },
+            });
+            if (!response.ok) {
+                const result = await response.json();
+                throw new Error(result.error || 'Could not delete review.');
+            }
+            if (this.editingReviewId === reviewId) this.resetReviewForm();
+            await this.refreshReviewViews(this.currentModuleCode);
+            showFormMessage('Review deleted.', 'success');
+        } catch (error) {
+            console.error('Error deleting review:', error);
+            showFormMessage(error.message, 'danger');
+        }
+    },
+
+    /**
+     * Reload reviews and rating summaries, then update the UI.
+     * @param {string} moduleCode - The module to refresh.
+     */
+    async refreshReviewViews(moduleCode) {
+        try {
+            await DataManager.refreshRatingSummaries();
+        } catch (error) {
+            console.error('Error refreshing rating summaries:', error);
+        }
+        this.renderRatingInsights(moduleCode);
+        await this.loadReviews(moduleCode);
+        UIRenderer.updateRatingDisplay(moduleCode);
+    },
 };
+
+/* ── Private helper functions (module scope) ────────────────────────── */
+
+/**
+ * Display a message in the review form's message area.
+ * @param {string} message - The message text.
+ * @param {'success'|'danger'} type - The message type.
+ */
+function showFormMessage(message, type) {
+    const el = document.getElementById('reviewFormMessage');
+    if (el) showMessage(el, message, type);
+}
+
+/**
+ * Clear the review form's message area.
+ * @param {string} elementId - The ID of the message element.
+ */
+function clearElementMessage(elementId) {
+    const el = document.getElementById(elementId);
+    if (el) {
+        el.textContent = '';
+        el.className = 'hidden mb-3 rounded-lg px-4 py-2.5 text-sm';
+    }
+}
+
+/**
+ * Format a timestamp string for display in review cards.
+ * @param {string} value - ISO or space-separated timestamp.
+ * @returns {string} Formatted date string, or the raw value if unparseable.
+ */
+function formatTimestamp(value) {
+    const date = parseTimestamp(value);
+    return date ? formatReviewDate(date) : escapeHtml(value);
+}

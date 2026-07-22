@@ -5,8 +5,10 @@
 # Python
 __pycache__/
 *.py[cod]
-*.egg-info/
-*.egg
+
+# Testing
+.pytest_cache/
+.ruff_cache/
 
 # Virtual environments
 venv/
@@ -15,10 +17,9 @@ venv/
 # Database
 *.db
 
+# Scraping data (large files, local-only)
+app/static/local-data/data/
+
 # OS
 .DS_Store
 Thumbs.db
-
-# AI agents
-*.agent.md
-agents.md

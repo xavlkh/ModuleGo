@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from '_macros.html' import hero, inputSearch, selectField, statCard, loadingSpinner %}
+
+{% block title %}Reviews{% endblock %}
+
+{% block content %}
+<section class="py-16 md:py-24">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+            <div class="lg:max-w-lg">
+                <span class="inline-block text-xs font-bold uppercase tracking-widest text-primary-600 dark:text-primary-400 mb-4 font-body">Student feedback</span>
+                <h1 class="font-display font-bold text-4xl md:text-5xl tracking-tight text-zinc-900 dark:text-white mb-4">Review Dashboard</h1>
+                <p class="text-lg text-zinc-500 dark:text-zinc-400 leading-relaxed">Browse recent student feedback across RP modules.</p>
+            </div>
+            <div class="grid grid-cols-3 gap-4 lg:min-w-[380px]">
+                {{ statCard('0', 'Reviews', id='dashboardReviewCount') }}
+                {{ statCard('0', 'This Month', id='dashboardMonthlyReviewCount') }}
+                {{ statCard('0', 'Modules', id='dashboardModuleCount') }}
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="py-8 sm:py-12">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
+            <div>
+                <h2 class="text-xl font-bold text-zinc-900 dark:text-white mb-0.5">All reviews</h2>
+                <p id="dashboardResultCount" class="text-sm text-zinc-500 dark:text-zinc-400">Loading reviews...</p>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2 sm:max-w-lg w-full">
+                {{ inputSearch('reviewSearch', 'Search module or comment', 'flex-1') }}
+                {{ selectField('ratingFilter', [
+                    ('all', 'All ratings'),
+                    ('5', '5 stars'),
+                    ('4', '4 stars'),
+                    ('3', '3 stars'),
+                    ('2', '2 stars'),
+                    ('1', '1 star')
+                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm') }}
+                {{ selectField('reviewSort', [
+                    ('newest', 'Newest first'),
+                    ('oldest', 'Oldest first')
+                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm') }}
+            </div>
+        </div>
+
+        <div id="dashboardMessage" class="hidden mb-4 rounded-xl px-5 py-3 text-sm font-medium" role="alert"></div>
+
+        <div id="reviewDashboardList" class="grid gap-4" aria-live="polite">
+            {{ loadingSpinner('Loading reviews...') }}
+        </div>
+    </div>
+</section>
+
+<div id="editReviewModalOverlay" class="hidden modal-overlay">
+    <div class="modal-panel" style="max-width: 28rem;">
+        <div class="modal-header">
+            <h2 class="text-lg font-bold text-zinc-900 dark:text-white" id="editReviewModalLabel">Edit Review</h2>
+            <button id="editReviewModalClose" class="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 dark:text-zinc-400 hover:bg-white/60 dark:hover:bg-zinc-700 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors" aria-label="Close">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div class="modal-body px-6 py-5">
+            <div id="dashboardEditMessage" class="hidden mb-4 rounded-lg px-4 py-2.5 text-sm" role="alert"></div>
+            <p id="editReviewModule" class="mb-4 font-semibold text-zinc-900 dark:text-white"></p>
+            <div class="mb-4">
+                <label for="editReviewRating" class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300">Rating</label>
+                <select id="editReviewRating" class="select-field w-full rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-sm pl-4 pr-10 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400 cursor-pointer">
+                    <option value="5">5 - Excellent</option>
+                    <option value="4">4 - Good</option>
+                    <option value="3">3 - Average</option>
+                    <option value="2">2 - Poor</option>
+                    <option value="1">1 - Terrible</option>
+                </select>
+            </div>
+            <div>
+                <label for="editReviewComment" class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300">Comment</label>
+                <textarea id="editReviewComment" class="w-full rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-sm px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400" rows="4" maxlength="500"></textarea>
+                <p class="mt-1.5 text-xs text-zinc-400 dark:text-zinc-400">Optional, maximum 500 characters.</p>
+            </div>
+        </div>
+        <div class="flex items-center justify-end gap-3 border-t border-zinc-200/60 dark:border-zinc-700 px-6 py-4 flex-shrink-0">
+            <button type="button" id="editReviewCancelBtn" class="truncate rounded-xl border border-zinc-200 dark:border-zinc-700 px-5 py-2.5 text-sm font-semibold text-zinc-600 dark:text-zinc-400 transition-all duration-300 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-800 dark:hover:text-zinc-200 active:translate-y-0">Cancel</button>
+            <button id="saveDashboardReviewBtn" type="button" class="truncate rounded-xl bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-primary-600 hover:shadow active:translate-y-0">Save Changes</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/data.js') }}"></script>
+<script src="{{ url_for('static', filename='js/reviews.js') }}"></script>
+{% endblock %}

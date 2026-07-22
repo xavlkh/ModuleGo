@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <script>
+        (function() {
+            var saved = localStorage.getItem('theme');
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (saved === 'dark' || (!saved && prefersDark)) {
+                document.documentElement.classList.add('dark');
+                document.documentElement.style.colorScheme = 'dark';
+            }
+        })();
+    </script>
+    <style>
+        html.dark { color-scheme: dark; }
+        html.dark body { background: #09090b; color: #f4f4f5; }
+    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ModuleGo{% endblock %} | ModuleGo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Outfit', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        body: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: 'oklch(0.97 0.015 155)',
+                            100: 'oklch(0.94 0.04 156)',
+                            200: 'oklch(0.89 0.07 155)',
+                            300: 'oklch(0.82 0.11 154)',
+                            400: 'oklch(0.74 0.15 151)',
+                            500: 'oklch(0.66 0.16 149)',
+                            600: 'oklch(0.58 0.14 149)',
+                            700: 'oklch(0.49 0.12 150)',
+                            800: 'oklch(0.41 0.09 151)',
+                            900: 'oklch(0.35 0.07 152)',
+                        },
+                    },
+                },
+            },
+        }
+    </script>
+    <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+    {% block head %}{% endblock %}
+</head>
+<body class="font-body min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors duration-200">
+    <div id="cursorGlow" class="pointer-events-none fixed inset-0" style="z-index: -1" aria-hidden="true">
+        <div id="glowOrb"></div>
+    </div>
+
+    {% from '_macros.html' import navLinks, themeToggle %}
+
+    <header class="sticky top-0 z-40 glass-strong border-b border-zinc-200/60 dark:bg-zinc-900/90 dark:border-zinc-800">
+        <nav class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="flex h-20 items-center justify-between">
+                <a href="{{ url_for('serve_index') }}" class="flex items-center gap-3 group">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 shadow-lg shadow-primary-500/25 transition-shadow group-hover:shadow-primary-500/40">
+                        <span class="text-white font-bold text-lg">M</span>
+                    </div>
+                    <span class="text-xl font-display font-bold text-zinc-900 dark:text-white">ModuleGo</span>
+                </a>
+
+                <div class="hidden md:flex items-center gap-1">
+                    {{ navLinks(active=request.endpoint) }}
+                </div>
+
+                <div class="flex items-center gap-2">
+                   <!-- My Bookmarks -->
+                    <a
+                        id="showBookmarksBtn"
+                        href="{{ url_for('serve_index') }}?bookmarks=true"
+                        class="hidden md:inline-flex items-center gap-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-600 dark:text-zinc-300 hover:border-primary-300 hover:text-primary-600 dark:hover:border-primary-600 dark:hover:text-primary-400 transition-all"
+                        title="Show bookmarked modules"
+                    >
+                        <i data-lucide="bookmark" class="w-4 h-4"></i>
+                        <span>My Bookmarks</span>
+                    </a>
+                    <div id="themeToggleDesktop" class="hidden md:flex items-center">
+                        {{ themeToggle() }}
+                    </div>
+                    <button id="mobileMenuBtn" class="md:hidden p-2 rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" aria-label="Toggle menu">
+                        <span class="relative w-5 h-5 block">
+                            <i data-lucide="menu" class="w-5 h-5 absolute inset-0 transition-opacity duration-200" id="menuIconOpen"></i>
+                            <i data-lucide="x" class="w-5 h-5 absolute inset-0 transition-opacity duration-200 opacity-0" id="menuIconClose"></i>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="mobileMenu" class="md:hidden grid transition-[grid-template-rows] duration-300 ease-out" style="grid-template-rows: 0fr;">
+                <div class="overflow-hidden">
+                    <div class="pb-4 border-t border-zinc-200/60 dark:border-zinc-800 mt-2 pt-3">
+                        <div class="flex flex-col gap-1">
+                            <a href="{{ url_for('serve_index') }}" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
+                                <i data-lucide="home" class="w-4 h-4 mr-2 inline-block"></i>Home
+                            </a>
+                            <a href="{{ url_for('serve_comparison') }}" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
+                                <i data-lucide="layout-grid" class="w-4 h-4 mr-2 inline-block"></i>Comparison
+                            </a>
+                            <a href="{{ url_for('serve_index') }}?bookmarks=true" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
+                                <i data-lucide="bookmark" class="w-4 h-4 mr-2 inline-block"></i>My Bookmarks
+                            </a>
+                            <a href="{{ url_for('serve_reviews') }}" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
+                                <i data-lucide="message-square" class="w-4 h-4 mr-2 inline-block"></i>Reviews
+                            </a>
+                        </div>
+                        <div class="flex items-center gap-2 mt-3 px-4 pt-3 border-t border-zinc-200/60 dark:border-zinc-800">
+                            <span class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Theme</span>
+                            {{ themeToggle() }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="flex-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="mt-auto border-t border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+                <div class="sm:col-span-2 md:col-span-1">
+                    <div class="flex items-center gap-2 mb-3">
+                        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary-500 to-primary-600">
+                            <span class="text-white font-bold text-sm">M</span>
+                        </div>
+                        <span class="font-display font-bold text-lg text-zinc-900 dark:text-white">ModuleGo</span>
+                    </div>
+                    <p class="text-sm text-zinc-500 dark:text-zinc-400">A comprehensive module viewer for RP students.</p>
+                </div>
+                <div>
+                    <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-3">Navigation</h3>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="{{ url_for('serve_index') }}" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">Home</a></li>
+                        <li><a href="{{ url_for('serve_comparison') }}" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">Comparison</a></li>
+                        <li><a href="{{ url_for('serve_reviews') }}" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">Reviews</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-3">Resources</h3>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="https://www.rp.edu.sg/education/modules" target="_blank" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">RP Modules</a></li>
+                        <li><a href="https://www.rp.edu.sg/education/diplomas" target="_blank" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">RP Diplomas</a></li>
+                        <li><a href="https://www.rp.edu.sg" target="_blank" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">RP Website</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-display font-semibold text-xs uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-3">Project</h3>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="https://github.com/xavlkh/ModuleGo" target="_blank" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">GitHub</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="mt-8 pt-6 border-t border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400 dark:text-zinc-500">
+                <div class="flex items-center gap-2">
+                    <span>&copy; {{ current_year }} ModuleGo</span>
+                    {% if commit_hash %}
+                    <span>&middot;</span>
+                    <a href="https://github.com/xavlkh/ModuleGo/commit/{{ commit_hash }}" target="_blank" class="font-mono hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">{{ commit_hash[:7] }}</a>
+                    {% endif %}
+                </div>
+                <span>Built by RP students, for RP students.</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const mobileMenu = document.getElementById('mobileMenu');
+        const menuIconOpen = document.getElementById('menuIconOpen');
+        const menuIconClose = document.getElementById('menuIconClose');
+        let menuOpen = false;
+
+        if (mobileMenuBtn && mobileMenu) {
+            mobileMenuBtn.addEventListener('click', () => {
+                menuOpen = !menuOpen;
+                mobileMenu.style.gridTemplateRows = menuOpen ? '1fr' : '0fr';
+                menuIconOpen.style.opacity = menuOpen ? '0' : '1';
+                menuIconClose.style.opacity = menuOpen ? '1' : '0';
+            });
+        }
+
+        (function() {
+            const html = document.documentElement;
+            const buttons = document.querySelectorAll('.theme-btn');
+            function getTheme() { return localStorage.getItem('theme') || 'system'; }
+            function getEffectiveTheme(theme) {
+                return theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
+            }
+            function applyTheme(theme) {
+                html.classList.toggle('dark', getEffectiveTheme(theme) === 'dark');
+                localStorage.setItem('theme', theme);
+                updateButtons(theme);
+            }
+            function updateButtons(theme) {
+                buttons.forEach(btn => {
+                    const active = btn.getAttribute('data-theme') === theme;
+                    btn.classList.toggle('bg-white', active);
+                    btn.classList.toggle('dark:bg-zinc-700', active);
+                    btn.classList.toggle('shadow-sm', active);
+                    btn.classList.toggle('text-primary-600', active);
+                    btn.classList.toggle('dark:text-primary-400', active);
+                    btn.classList.toggle('text-zinc-500', !active);
+                    btn.classList.toggle('dark:text-zinc-400', !active);
+                });
+            }
+            buttons.forEach(btn => btn.addEventListener('click', () => applyTheme(btn.getAttribute('data-theme'))));
+            applyTheme(getTheme());
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                if (getTheme() === 'system') applyTheme('system');
+            });
+        })();
+
+        lucide.createIcons();
+    </script>
+
+    <script>
+        (function() {
+            var glow = document.getElementById('cursorGlow');
+            var orb = document.getElementById('glowOrb');
+            if (!orb) return;
+
+            var halfW = 200, halfH = 200;
+            var targetX = window.innerWidth / 2, targetY = 300;
+            var currentX = targetX, currentY = targetY;
+            var rafId = null;
+
+            function updatePosition() {
+                currentX += (targetX - currentX) * 0.08;
+                currentY += (targetY - currentY) * 0.08;
+                orb.style.transform = 'translate3d(' + (currentX - halfW) + 'px, ' + (currentY - halfH) + 'px, 0)';
+                if (Math.abs(currentX - targetX) > 0.5 || Math.abs(currentY - targetY) > 0.5) {
+                    rafId = requestAnimationFrame(updatePosition);
+                } else {
+                    orb.style.transform = 'translate3d(' + (targetX - halfW) + 'px, ' + (targetY - halfH) + 'px, 0)';
+                    rafId = null;
+                }
+            }
+
+            function scheduleUpdate() {
+                if (!rafId) rafId = requestAnimationFrame(updatePosition);
+            }
+
+            document.addEventListener('mousemove', function(e) {
+                targetX = e.clientX;
+                targetY = e.clientY;
+                scheduleUpdate();
+            });
+
+            document.addEventListener('click', function() {
+                orb.style.transition = 'filter 0.35s ease-out, opacity 0.35s ease-out';
+                orb.style.filter = 'blur(80px) brightness(1.5)';
+                orb.style.opacity = '0.55';
+                setTimeout(function() {
+                    orb.style.filter = '';
+                    orb.style.opacity = '';
+                    setTimeout(function() {
+                        orb.style.transition = '';
+                    }, 350);
+                }, 350);
+            });
+
+            scheduleUpdate();
+        })();
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
