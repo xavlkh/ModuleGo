@@ -548,5 +548,8 @@ async function initHomePage() {
         lucide.createIcons();
     }
 }
+await DataManager.loadCareerPaths();
+const careers = DataManager.getCareerList();
+// loop and add <option>
 
 document.addEventListener('DOMContentLoaded', () => initHomePage());
