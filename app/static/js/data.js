@@ -8,7 +8,7 @@ const DataManager = {
     modules: [],
     diplomas: [],
     ratings: {},
-    careerPaths: [], // DYNAMIC career list - loaded from JSON
+    careerPaths: [],
     loaded: false,
 
     async loadData() {
@@ -28,7 +28,6 @@ const DataManager = {
             this.diplomas = await courseResponse.json();
             this.ratings = ratingResponse.ok? await ratingResponse.json() : {};
 
-            // Load careers dynamically
             if (careerResponse && careerResponse.ok) {
                 this.careerPaths = await careerResponse.json();
             }
@@ -43,7 +42,12 @@ const DataManager = {
 
     getModule(code) {
         const lookupCode = (code || '').toLowerCase();
-        return this.modules.find(m => (m.code || '').toLowerCase() === lookupCode);
+        // Track view when getting a single module (counts as viewed)
+        const found = this.modules.find(m => (m.code || '').toLowerCase() === lookupCode);
+        if (found) {
+            this.addToRecentlyViewed(found);
+        }
+        return found;
     },
 
     getRatingSummary(moduleCode) {
@@ -129,7 +133,6 @@ const DataManager = {
         return list;
     },
 
-    // --- NEW DYNAMIC CAREER METHODS ---
     getCareerList() {
         return this.careerPaths;
     },
@@ -148,7 +151,6 @@ const DataManager = {
     filterModules(modules, filters = {}) {
         let results = modules? [...modules] : [...this.modules];
         const { diploma, rating, active, career } = filters;
-
         if (career && career!== 'all') {
             results = this.filterByCareer(results, career);
         }
@@ -180,5 +182,23 @@ const DataManager = {
 
     normalizeSearchText(value) {
         return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    }, 
+
+    // #4 - Recently Viewed
+    getRecentlyViewed() {
+        try {
+            return JSON.parse(localStorage.getItem('recent_modules') || '[]');
+        } catch { return []; }
+    },
+
+    addToRecentlyViewed(module) {
+        if (!module ||!module.code) return;
+        let list = this.getRecentlyViewed();
+        list = list.filter(m => m.code!== module.code);
+        list.unshift({ code: module.code, name: module.name, viewedAt: Date.now() });
+        list = list.slice(0, 5);
+        localStorage.setItem('recent_modules', JSON.stringify(list));
+        // Optional: update UI immediately if container exists
+        if (typeof renderRecent === 'function') renderRecent();
     }
 };
