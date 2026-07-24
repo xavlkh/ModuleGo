@@ -10,7 +10,6 @@ const ACTIVE_BTN_CLASSES = {
 };
 
 const UIRenderer = {
-    /* ── Cached DOM references (set in init()) ─────────────────────── */
     resultsContainer: null,
     loadingSpinner: null,
     noResults: null,
@@ -18,27 +17,18 @@ const UIRenderer = {
     paginationContainer: null,
     resultsInfo: null,
     paginationAnnouncer: null,
-
-    /* ── Cached filter elements (set in initSearch()) ──────────────── */
     searchInput: null,
     schoolFilter: null,
     diplomaFilter: null,
     ratingFilter: null,
     activeFilter: null,
-
-    /* ── State ─────────────────────────────────────────────────────── */
     currentQuery: '',
     debounceTimer: null,
     searchRunId: 0,
     currentPage: 1,
     perPage: 9,
-    /** @type {Array<Object>} Modules matching the latest search+filters. */
     filteredModules: [],
 
-    /**
-     * Cache DOM references and wire up event listeners.
-     * Must be called once before any rendering.
-     */
     init() {
         this.resultsContainer = document.getElementById('resultsContainer');
         this.loadingSpinner = document.getElementById('loadingSpinner');
@@ -51,10 +41,6 @@ const UIRenderer = {
         this.initKeyboardNav();
     },
 
-    /**
-     * Bind search input, filter controls, and the Active toggle button.
-     * Filter element references are cached to avoid repeated DOM queries.
-     */
     initSearch() {
         this.searchInput = document.getElementById('searchInput');
         const filterToggle = document.getElementById('filterToggle');
@@ -87,9 +73,7 @@ const UIRenderer = {
             this.activeFilter.addEventListener('click', () => {
                 const isActive = this.activeFilter.dataset.active === 'true';
                 this.activeFilter.dataset.active = isActive ? 'false' : 'true';
-                this.activeFilter.className = isActive
-                    ? ACTIVE_BTN_CLASSES.inactive
-                    : ACTIVE_BTN_CLASSES.active;
+                this.activeFilter.className = isActive ? ACTIVE_BTN_CLASSES.inactive : ACTIVE_BTN_CLASSES.active;
                 const label = this.activeFilter.querySelector('span');
                 if (label) label.textContent = isActive ? 'All' : 'Active';
                 triggerSearch();
@@ -114,9 +98,6 @@ const UIRenderer = {
         }
     },
 
-    /**
-     * Populate the diploma <select> dropdown from DataManager.
-     */
     populateDiplomaFilter() {
         if (!this.diplomaFilter) return;
         DataManager.getDiplomaList().forEach(d => {
@@ -127,9 +108,6 @@ const UIRenderer = {
         });
     },
 
-    /**
-     * Allow arrow-key navigation within the pagination controls.
-     */
     initKeyboardNav() {
         document.addEventListener('keydown', (e) => {
             if (!this.paginationContainer || this.paginationContainer.classList.contains('hidden')) return;
@@ -148,21 +126,11 @@ const UIRenderer = {
         });
     },
 
-    /**
-     * Debounced input handler — waits 300 ms before triggering a search.
-     * @param {string} value - Current search input value.
-     */
     handleInput(value) {
         clearTimeout(this.debounceTimer);
         this.debounceTimer = setTimeout(() => this.handleSearch(value), 300);
     },
 
-    /**
-     * Execute a search with the current filter values, update URL params,
-     * and render paginated results after a short debounce delay.
-     * @param {string} query - The search query.
-     * @param {number} [page=1] - The page number to display.
-     */
     handleSearch(query, page = 1) {
         clearTimeout(this.debounceTimer);
         this.currentQuery = query;
@@ -172,10 +140,7 @@ const UIRenderer = {
         const selectedRating = this.ratingFilter ? this.ratingFilter.value : 'all';
         const selectedActive = this.activeFilter ? this.activeFilter.dataset.active : 'false';
 
-        /* Sync URL params (no full-page reload). */
         const url = new URL(window.location);
-        // Once the user searches or filters,
-        // leave bookmark-only mode.
         url.searchParams.delete('bookmarks');
         const setParam = (key, value) => {
             if (value && value !== 'all' && value !== 'false') url.searchParams.set(key, value);
@@ -194,7 +159,6 @@ const UIRenderer = {
         const runId = ++this.searchRunId;
         this.showLoading();
 
-        /* Short delay lets the spinner paint before heavy filtering runs. */
         setTimeout(() => {
             if (runId !== this.searchRunId) return;
             if (!DataManager.loaded) {
@@ -214,28 +178,22 @@ const UIRenderer = {
             });
             this.currentPage = page;
             this.filteredModules = results;
+            window.currentFilteredModules = results; // #5 - EXPOSE FOR EXPORT
             this.renderPaginatedResults(results);
             this.updateResultsCount(results.length);
         }, 150);
     },
 
-    /** Show the loading spinner and clear the results area. */
     showLoading() {
         this.resultsContainer.innerHTML = '';
         this.loadingSpinner.classList.remove('hidden');
         this.noResults.classList.add('hidden');
     },
 
-    /** Hide the loading spinner. */
     hideLoading() {
         this.loadingSpinner.classList.add('hidden');
     },
 
-    /**
-     * Render a flat list of module cards (no pagination).
-     * Called internally by renderPaginatedResults for the current page slice.
-     * @param {Array<Object>} modules - Modules to render.
-     */
     renderResults(modules) {
         this.hideLoading();
         this.resultsContainer.innerHTML = '';
@@ -247,14 +205,10 @@ const UIRenderer = {
         modules.forEach(m => this.resultsContainer.appendChild(this.createModuleCard(m)));
     },
 
-    /**
-     * Slice the full filtered list into the current page, render cards,
-     * render pagination controls, then call lucide.createIcons() once.
-     * @param {Array<Object>} modules - The full filtered module list.
-     */
     renderPaginatedResults(modules) {
         this.hideLoading();
         this.filteredModules = modules;
+        window.currentFilteredModules = modules; // #5 - EXPOSE FOR EXPORT
         const totalPages = Math.ceil(modules.length / this.perPage);
         if (this.currentPage > totalPages) this.currentPage = totalPages || 1;
         const start = (this.currentPage - 1) * this.perPage;
@@ -265,11 +219,6 @@ const UIRenderer = {
         lucide.createIcons();
     },
 
-    /**
-     * Build pagination buttons (prev, page numbers, next) inside the
-     * pagination container.  Uses an ellipsis window for large page counts.
-     * @param {number} totalPages - Total number of pages.
-     */
     renderPagination(totalPages) {
         if (!this.paginationContainer) return;
         this.paginationContainer.innerHTML = '';
@@ -288,7 +237,6 @@ const UIRenderer = {
         const btnDisabled = 'w-9 h-9 text-zinc-300 dark:text-zinc-600 cursor-not-allowed pointer-events-none';
         const btnActive = 'w-9 h-9 bg-primary-500 text-white shadow-sm';
 
-        /* Previous */
         const prevBtn = document.createElement('button');
         prevBtn.className = `${btnBase} ${btnIdle.replace('w-9 h-9', 'w-8 h-8')} ${this.currentPage === 1 ? btnDisabled : ''}`;
         prevBtn.innerHTML = '<i data-lucide="chevron-left" class="w-4 h-4"></i>';
@@ -296,7 +244,6 @@ const UIRenderer = {
         if (this.currentPage > 1) prevBtn.addEventListener('click', () => this.goToPage(this.currentPage - 1));
         nav.appendChild(prevBtn);
 
-        /* Page numbers */
         this.getPageNumbers(this.currentPage, totalPages).forEach(p => {
             if (p === '...') {
                 const ellipsis = document.createElement('span');
@@ -315,7 +262,6 @@ const UIRenderer = {
             }
         });
 
-        /* Next */
         const nextBtn = document.createElement('button');
         nextBtn.className = `${btnBase} ${btnIdle.replace('w-9 h-9', 'w-8 h-8')} ${this.currentPage === totalPages ? btnDisabled : ''}`;
         nextBtn.innerHTML = '<i data-lucide="chevron-right" class="w-4 h-4"></i>';
@@ -326,16 +272,8 @@ const UIRenderer = {
         this.paginationContainer.appendChild(nav);
     },
 
-    /**
-     * Compute which page numbers to display, using an ellipsis window
-     * when there are more than 7 pages.
-     * @param {number} current - Current page number.
-     * @param {number} total - Total pages.
-     * @returns {Array<number|string>} Page numbers and '...' placeholders.
-     */
     getPageNumbers(current, total) {
         if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-
         const pages = [1];
         if (current > 3) pages.push('...');
         const start = Math.max(2, current - 1);
@@ -346,30 +284,18 @@ const UIRenderer = {
         return pages;
     },
 
-    /**
-     * Navigate to a specific page, re-render, scroll to top, and
-     * update the URL param and live-region announcer.
-     * @param {number} page - The page to navigate to.
-     */
     goToPage(page) {
         this.currentPage = page;
         this.renderPaginatedResults(this.filteredModules);
-
         const url = new URL(window.location);
         if (page > 1) url.searchParams.set('page', page);
         else url.searchParams.delete('page');
         window.history.replaceState({}, '', url);
-
-        const totalPages = Math.ceil(this.filteredModules.length / this.perPage);
         if (this.paginationAnnouncer) {
-            this.paginationAnnouncer.textContent = `Page ${page} of ${totalPages}`;
+            this.paginationAnnouncer.textContent = `Page ${page} of ${Math.ceil(this.filteredModules.length / this.perPage)}`;
         }
     },
 
-    /**
-     * Update the results info text (e.g. "1-9 of 42 modules . Page 1 of 5").
-     * @param {number} total - Total number of matching modules.
-     */
     renderResultsInfo(total) {
         if (!this.resultsInfo) return;
         if (total === 0) { this.resultsInfo.textContent = ''; return; }
@@ -379,18 +305,12 @@ const UIRenderer = {
         this.resultsInfo.textContent = `${start}\u2013${end} of ${total} modules \u00b7 Page ${this.currentPage} of ${totalPages}`;
     },
 
-    /**
-     * Create a single module card DOM element.
-     * @param {Object} module - The module data object.
-     * @returns {HTMLDivElement} The card wrapper element.
-     */
     createModuleCard(module) {
         const col = document.createElement('div');
         col.className = 'col-span-1';
         const truncatedDesc = this.truncateText(module.synopsis, 150);
         const school = module.school || 'School not listed';
         const url = module.url || '#';
-
         col.innerHTML = `
             <div class="glass-card p-5 h-full flex flex-col cursor-pointer group" data-code="${escapeHtml(module.code)}">
                 <div class="text-xs font-bold uppercase tracking-wider text-primary-500 dark:text-primary-400 mb-1.5">${escapeHtml(module.code)}</div>
@@ -416,11 +336,6 @@ const UIRenderer = {
         return col;
     },
 
-    /**
-     * Generate rating markup (star icon + average + review count) for a module.
-     * @param {string} moduleCode - The module code.
-     * @returns {string} HTML string for the rating display.
-     */
     createRatingMarkup(moduleCode) {
         const summary = DataManager.getRatingSummary(moduleCode);
         if (!summary.review_count) {
@@ -434,10 +349,6 @@ const UIRenderer = {
         `;
     },
 
-    /**
-     * Replace the rating display for a specific module card.
-     * @param {string} moduleCode - The module code whose rating to update.
-     */
     updateRatingDisplay(moduleCode) {
         const el = document.querySelector(`[data-rating-code="${moduleCode}"]`);
         if (el) {
@@ -446,21 +357,10 @@ const UIRenderer = {
         }
     },
 
-    /**
-     * Update the results count badge text.
-     * @param {number} count - Number of matching modules.
-     */
     updateResultsCount(count) {
         this.resultsCount.textContent = `${count} module${count !== 1 ? 's' : ''}`;
     },
 
-    /**
-     * Truncate text to a maximum length, preferring to end at a sentence
-     * boundary (first period) when it fits within the limit.
-     * @param {string} text - The text to truncate.
-     * @param {number} maxLength - Maximum character count.
-     * @returns {string} Truncated text.
-     */
     truncateText(text, maxLength) {
         if (!text) return '';
         const dotIndex = text.indexOf('.');
@@ -472,9 +372,6 @@ const UIRenderer = {
     },
 };
 
-/**
- * Bootstrap the home page: initialise UI, load data, restore URL params.
- */
 async function initHomePage() {
     try {
         UIRenderer.init();
@@ -491,10 +388,9 @@ async function initHomePage() {
         const initialRating = urlParams.searchParams.get('rating') || 'all';
         const initialActive = urlParams.searchParams.get('active') || 'false';
         const initialPage = parseInt(urlParams.searchParams.get('page'), 10) || 1;
-        const showBookmarks =urlParams.searchParams.get('bookmarks') === 'true';
+        const showBookmarks = urlParams.searchParams.get('bookmarks') === 'true';
         const hasFilters = initialSchool !== 'all' || initialDiploma !== 'all' || initialRating !== 'all' || initialActive === 'true';
 
-        /* Restore filter controls from URL. */
         if (initialSchool !== 'all' && UIRenderer.schoolFilter) UIRenderer.schoolFilter.value = initialSchool;
         if (initialDiploma !== 'all' && UIRenderer.diplomaFilter) UIRenderer.diplomaFilter.value = initialDiploma;
         if (initialRating !== 'all' && UIRenderer.ratingFilter) UIRenderer.ratingFilter.value = initialRating;
@@ -504,33 +400,23 @@ async function initHomePage() {
             const label = UIRenderer.activeFilter.querySelector('span');
             if (label) label.textContent = 'Active';
         }
-        // Handle bookmarks view, search query, or default to all modules.
-        if (showBookmarks) {const bookmarkedModules =BookmarkManager.getModules();
-            UIRenderer.filteredModules =bookmarkedModules;
-            UIRenderer.currentPage =initialPage;
-            UIRenderer.renderPaginatedResults(
-                bookmarkedModules
-            );
-            UIRenderer.updateResultsCount(
-                bookmarkedModules.length
-            );
+
+        if (showBookmarks) {
+            const bookmarkedModules = BookmarkManager.getModules();
+            UIRenderer.filteredModules = bookmarkedModules;
+            window.currentFilteredModules = bookmarkedModules; // #5
+            UIRenderer.currentPage = initialPage;
+            UIRenderer.renderPaginatedResults(bookmarkedModules);
+            UIRenderer.updateResultsCount(bookmarkedModules.length);
         } else if (initialQuery || hasFilters) {
-            if (initialQuery) {
-                UIRenderer.searchInput.value =initialQuery;
-            }
-            UIRenderer.handleSearch(
-                initialQuery,
-                initialPage
-            );
+            if (initialQuery) UIRenderer.searchInput.value = initialQuery;
+            UIRenderer.handleSearch(initialQuery, initialPage);
         } else {
-            UIRenderer.filteredModules =DataManager.modules;
-            UIRenderer.currentPage =initialPage;
-            UIRenderer.renderPaginatedResults(
-                DataManager.modules
-            );
-            UIRenderer.updateResultsCount(
-                DataManager.modules.length
-            );
+            UIRenderer.filteredModules = DataManager.modules;
+            window.currentFilteredModules = DataManager.modules; // #5
+            UIRenderer.currentPage = initialPage;
+            UIRenderer.renderPaginatedResults(DataManager.modules);
+            UIRenderer.updateResultsCount(DataManager.modules.length);
         }
     } catch (error) {
         console.error('Failed to initialize app:', error);
@@ -548,8 +434,5 @@ async function initHomePage() {
         lucide.createIcons();
     }
 }
-await DataManager.loadCareerPaths();
-const careers = DataManager.getCareerList();
-// loop and add <option>
 
 document.addEventListener('DOMContentLoaded', () => initHomePage());

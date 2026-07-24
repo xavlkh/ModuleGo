@@ -57,7 +57,7 @@
                             </button>
                         </div>
 
-                        <!-- #4 - RECENTLY VIEWED - FIXED POSITION -->
+                        <!-- #4 - RECENTLY VIEWED -->
                         <div id="recent-viewed" style="margin:12px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
 
                         <div class="flex justify-end mt-2">
@@ -78,7 +78,23 @@
 
 <section class="py-8 sm:py-12">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {{ sectionHeader('Search Results', icon='layout-grid', badge_text='0 modules', badge_id='resultsCount') }}
+        <!-- #5 - Header with Share/Export -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+            <div class="flex items-center gap-2">
+                <i data-lucide="layout-grid" class="w-5 h-5 text-zinc-500"></i>
+                <h2 class="text-lg font-bold text-zinc-900 dark:text-white">Search Results</h2>
+                <span id="resultsCount" class="px-2.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-xs font-medium text-zinc-600 dark:text-zinc-400">0 modules</span>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button id="shareBtn" class="px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-xs font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-700 transition flex items-center gap-1.5">
+                    🔗 Share Link
+                </button>
+                <button id="exportBtn" class="px-3 py-2 bg-[#5b4eff] text-white rounded-full text-xs font-semibold hover:bg-[#4a3ee0] transition flex items-center gap-1.5 shadow-sm">
+                    📤 Export CSV
+                </button>
+            </div>
+        </div>
+
         <div id="loadingSpinner" class="hidden">
             {{ loadingSpinner('Loading modules...') }}
         </div>
@@ -114,10 +130,11 @@
 <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
 <script src="{{ url_for('static', filename='js/detail.js') }}"></script>
 <script src="{{ url_for('static', filename='js/gobot.js') }}"></script>
+<script src="{{ url_for('static', filename='js/share.js') }}"></script>
 <script>
     const INITIAL_QUERY = {{ query | tojson }};
 
-    // #4 - Recently Viewed Renderer - NOW AFTER DataManager loads
+    // #4 - Recently Viewed
     function renderRecent() {
       const box = document.getElementById('recent-viewed');
       if (!box) return;
@@ -127,10 +144,14 @@
       box.innerHTML = '<span style="font-size:13px;color:#666">🕒 Recent:</span>' +
         recent.map(m=>`<a href="/?q=${m.code}" style="background:#f5f3ff;padding:4px 10px;border-radius:16px;font-size:12px;text-decoration:none;color:#5b4eff;border:1px solid #e9e7ff">${m.code}</a>`).join('');
     }
+
     document.addEventListener('DOMContentLoaded', () => {
         setTimeout(renderRecent, 800);
+        // #5 - Wire up Share / Export
+        document.getElementById('shareBtn')?.addEventListener('click', () => ShareManager.copyLink());
+        document.getElementById('exportBtn')?.addEventListener('click', () => ShareManager.exportCSV());
     });
-    // Refresh recent when modal closes (after viewing)
+
     document.addEventListener('click', (e) => {
         if (e.target.closest('#moduleModalOverlay') || e.target.closest('[data-module-code]')) {
             setTimeout(renderRecent, 300);
