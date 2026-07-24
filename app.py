@@ -652,6 +652,76 @@ def get_rating_summaries():
     summaries = ReviewRepository.rating_summaries()
     return jsonify(summaries), 200
 
+@app.route('/api/career-paths', methods=['GET'])
+def get_career_paths():
+    """Return career paths from JSON - DYNAMIC config"""
+    # Try local-data folder first (your existing structure)
+    possible_paths = [
+        os.path.join(_base_dir, 'local-data', 'career_paths.json'),
+        os.path.join(_base_dir, 'app', 'static', 'local-data', 'data', 'career_paths.json'),
+        os.path.join(_base_dir, 'app', 'static', 'data', 'career_paths.json'),
+    ]
+    for p in possible_paths:
+        if os.path.exists(p):
+            with open(p, encoding='utf-8') as f:
+                return jsonify(json.load(f)), 200
+    
+    # fallback if file not found yet
+    return jsonify([
+        {"id": "data-analyst", "label": "Data Analyst", "keywords": ["data","analytics","python","sql"]},
+        {"id": "cybersecurity", "label": "Cybersecurity", "keywords": ["security","cyber","network"]},
+        {"id": "software-engineer", "label": "Software Engineer", "keywords": ["programming","software","web"]},
+        {"id": "ui-ux", "label": "UI/UX Designer", "keywords": ["design","ui","ux","figma"]}
+    ]), 200
+
+@app.route('/api/gobot', methods=['POST'])
+def gobot_chat():
+    """Dynamic GoBot - no hard-coded answers, uses real module data"""
+    user_msg = request.json.get('message','').lower()
+
+    # Load dynamic data
+    modules = _build_modules_list() or []
+    try:
+        with open(os.path.join(_base_dir, 'local-data', 'career_paths.json'), encoding='utf-8') as f:
+            careers = json.load(f)
+    except:
+        careers = []
+
+    # 1. NAVIGATION HELP 
+    if any(k in user_msg for k in ['where','navigate','how to','review','compare']):
+        return jsonify({
+            "reply": "I can guide you! Here's where to go:",
+            "links": [
+                {"text":"🔍 Search Modules","url":"/"},
+                {"text":"⚖️ Compare Modules","url":"/comparison"},
+                {"text":"⭐ Reviews Dashboard","url":"/reviews"}
+            ]
+        })
+
+    # 2. CAREER -> MODULES - uses your career_paths.json 
+    for career in careers:
+        if career['id'] in user_msg or career['label'].lower() in user_msg or any(k in user_msg for k in career['keywords'][:2]):
+            # Use same logic as #2 filter
+            matched = [m for m in modules if any(k.lower() in (m.get('name','') + m.get('synopsis','')).lower() for k in career['keywords'])]
+            top3 = matched[:3]
+            reply = f"For **{career['label']}**, I found {len(matched)} relevant modules. Top picks:"
+            links = [{"text": f"{m['code']} - {m['name']}", "url": f"/?q={m['code']}"} for m in top3]
+            return jsonify({"reply": reply, "links": links})
+
+    # 3. MODULE SEARCH 
+    found = [m for m in modules if user_msg in m.get('name','').lower() or user_msg in m.get('code','').lower()][:3]
+    if found:
+        return jsonify({
+            "reply": f"Found modules matching '{user_msg}':",
+            "links": [{"text": f"{m['code']} - {m['name']}", "url": f"/?q={m['code']}"} for m in found]
+        })
+
+    # 4. Fallback 
+    return jsonify({
+        "reply": "I can help with:\n• 'What modules for Data Analyst?'\n• 'Show me cybersecurity modules'\n• 'How to compare modules?'\n\nTry asking about a career!",
+        "links": []
+    })
+
 
 # ---------------------------------------------------------------------------
 # CSRF exemptions for API endpoints (custom-header auth pattern)
@@ -662,6 +732,8 @@ csrf.exempt(get_courses)
 csrf.exempt(list_reviews)
 csrf.exempt(get_reviews)
 csrf.exempt(get_rating_summaries)
+csrf.exempt(get_career_paths)
+csrf.exempt(gobot_chat)
 csrf.exempt(add_review)
 csrf.exempt(update_review)
 csrf.exempt(delete_review)
