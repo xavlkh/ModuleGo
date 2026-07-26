@@ -7,6 +7,7 @@ from flask import Flask, request, jsonify, render_template
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+import requests
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -49,6 +50,13 @@ limiter = Limiter(
 
 _base_dir = os.path.dirname(os.path.abspath(__file__))
 MAX_COMMENT_LENGTH = 500
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.1-flash-lite')
+GEMINI_TIMEOUT_SECONDS = 25
+MAX_COMPARISON_SOURCE_LENGTH = 4000
+
+
+class GeminiServiceError(RuntimeError):
+    """Raised when Gemini cannot return a valid comparison."""
 
 
 def generate_owner_token() -> str:
@@ -430,6 +438,29 @@ def validate_review_payload(data: dict | None, require_module_code: bool = False
     return payload, None
 
 
+def validate_comparison_payload(data: dict | None) -> tuple:
+    """Validate a request containing exactly two distinct module codes."""
+    if not isinstance(data, dict):
+        return None, 'A JSON request body is required.'
+
+    module_codes = data.get('module_codes')
+    if not isinstance(module_codes, list) or len(module_codes) != 2:
+        return None, 'Exactly two module codes are required.'
+
+    normalized_codes = []
+    for code in module_codes:
+        if not isinstance(code, str) or not code.strip():
+            return None, 'Each module code must be non-empty text.'
+        normalized_code = code.strip().upper()
+        if len(normalized_code) > 20:
+            return None, 'Module code is too long.'
+        normalized_codes.append(normalized_code)
+
+    if normalized_codes[0] == normalized_codes[1]:
+        return None, 'Choose two different modules.'
+    return normalized_codes, None
+
+
 # ---------------------------------------------------------------------------
 # Module data caching
 # ---------------------------------------------------------------------------
@@ -506,6 +537,80 @@ def _build_modules_list() -> list | None:
         except Exception:
             pass
     return _load_local_modules()
+
+
+def generate_gemini_comparison(modules: list[dict]) -> list[dict]:
+    """Generate a transient two-module comparison with the Gemini API."""
+    api_key = os.environ.get('GEMINI_API_KEY', '').strip()
+    if not api_key:
+        raise GeminiServiceError('GEMINI_API_KEY is not configured.')
+
+    model = os.environ.get('GEMINI_MODEL', GEMINI_MODEL).strip() or GEMINI_MODEL
+    endpoint = (
+        'https://generativelanguage.googleapis.com/v1beta/models/'
+        f'{model}:generateContent'
+    )
+    source = [
+        {
+            'module_code': module.get('code', ''),
+            'module_name': module.get('name', ''),
+            'school': module.get('school', ''),
+            'synopsis': str(module.get('synopsis', ''))[
+                :MAX_COMPARISON_SOURCE_LENGTH
+            ],
+        }
+        for module in modules
+    ]
+    prompt = (
+        'Using only this module data, return JSON with a "modules" array in '
+        'the same order. Each item needs module_code, an 18-30 word summary, '
+        'a 12-22 word suitable_for sentence, and workload with level '
+        '(Low, Moderate, High, or Unknown), confidence (Low or Medium), and '
+        'a reason under 18 words. Do not invent hours or assessments. '
+        f'Data: {json.dumps(source, ensure_ascii=False)}'
+    )
+    request_body = {
+        'contents': [{
+            'parts': [{'text': prompt}],
+        }],
+        'generationConfig': {
+            'responseMimeType': 'application/json',
+            'maxOutputTokens': 500,
+            'temperature': 0.2,
+        },
+    }
+
+    try:
+        response = requests.post(
+            endpoint,
+            headers={
+                'Content-Type': 'application/json',
+                'x-goog-api-key': api_key,
+            },
+            json=request_body,
+            timeout=GEMINI_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        response_payload = response.json()
+        parts = response_payload['candidates'][0]['content']['parts']
+        generated = json.loads(parts[0]['text'])
+    except (
+        requests.RequestException,
+        KeyError,
+        IndexError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+    ) as error:
+        app.logger.warning('Gemini comparison request failed: %s', error)
+        raise GeminiServiceError(
+            'Gemini could not generate a comparison.'
+        ) from error
+
+    rows = generated.get('modules') if isinstance(generated, dict) else None
+    if not isinstance(rows, list) or len(rows) != 2:
+        raise GeminiServiceError('Gemini returned an invalid comparison.')
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -652,6 +757,52 @@ def get_rating_summaries():
     summaries = ReviewRepository.rating_summaries()
     return jsonify(summaries), 200
 
+
+@app.route('/api/comparison/generate', methods=['POST'])
+@limiter.limit("15/hour")
+def generate_comparison():
+    """Generate a transient Gemini comparison for two catalogue modules."""
+    module_codes, error = validate_comparison_payload(
+        request.get_json(silent=True)
+    )
+    if error:
+        return jsonify({'error': error}), 400
+
+    catalogue = _modules_cache['data'] or _build_modules_list()
+    if catalogue is None:
+        return jsonify({'error': 'Module data is not available.'}), 503
+
+    catalogue_by_code = {
+        str(module.get('code', '')).upper(): module
+        for module in catalogue
+    }
+    missing_codes = [
+        code for code in module_codes if code not in catalogue_by_code
+    ]
+    if missing_codes:
+        return jsonify({
+            'error': f"Unknown module code: {', '.join(missing_codes)}."
+        }), 404
+
+    selected_modules = [catalogue_by_code[code] for code in module_codes]
+    if not os.environ.get('GEMINI_API_KEY', '').strip():
+        return jsonify({
+            'error': 'Dynamic comparison is not configured.'
+        }), 503
+    try:
+        generated_modules = generate_gemini_comparison(selected_modules)
+    except GeminiServiceError:
+        return jsonify({
+            'error': 'Dynamic comparison is temporarily unavailable.'
+        }), 502
+
+    return jsonify({
+        'provider': 'Gemini',
+        'model': os.environ.get('GEMINI_MODEL', GEMINI_MODEL),
+        'modules': generated_modules,
+    }), 200
+
+
 @app.route('/api/career-paths', methods=['GET'])
 def get_career_paths():
     """Return career paths from JSON - DYNAMIC config"""
@@ -732,6 +883,7 @@ csrf.exempt(get_courses)
 csrf.exempt(list_reviews)
 csrf.exempt(get_reviews)
 csrf.exempt(get_rating_summaries)
+csrf.exempt(generate_comparison)
 csrf.exempt(get_career_paths)
 csrf.exempt(gobot_chat)
 csrf.exempt(add_review)

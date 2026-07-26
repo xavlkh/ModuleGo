@@ -7,6 +7,7 @@ const ComparisonManager = {
     selected: { one: null, two: null },
     elements: {},
     observers: {},
+    comparisonRequestId: 0,
     pagination: {
         one: { page: 1, perPage: 15, loading: false, hasMore: true, query: '' },
         two: { page: 1, perPage: 15, loading: false, hasMore: true, query: '' }
@@ -254,10 +255,12 @@ const ComparisonManager = {
         const second = this.selected.two;
 
         if (!first || !second) {
+            this.comparisonRequestId++;
             this.showMessage('Select two different modules to start comparing.');
             return;
         }
         if (first.code === second.code) {
+            this.comparisonRequestId++;
             this.showMessage('Choose two different modules for a useful comparison.');
             return;
         }
@@ -266,14 +269,39 @@ const ComparisonManager = {
         this.elements.tableWrap.classList.remove('hidden');
         this.elements.headerOne.textContent = `${first.code} - ${first.name}`;
         this.elements.headerTwo.textContent = `${second.code} - ${second.name}`;
+        this.renderComparisonRows(first, second, null, true);
+        this.loadDynamicComparison(first, second);
+    },
 
+    /**
+     * Render stable catalogue/rating rows and transient Gemini result rows.
+     * @param {Object} first - First selected module.
+     * @param {Object} second - Second selected module.
+     * @param {Array<Object>|null} generatedModules - Gemini module results.
+     * @param {boolean} loading - Whether Gemini is still generating.
+     * @param {string} errorMessage - Safe user-facing generation error.
+     */
+    renderComparisonRows(first, second, generatedModules, loading = false, errorMessage = '') {
         const placeholder = '<span class="text-zinc-400 dark:text-zinc-400">Not available</span>';
+        const generatedByCode = new Map(
+            (generatedModules || []).map(module => [
+                String(module.module_code || '').toUpperCase(),
+                module
+            ])
+        );
+        const firstGenerated = generatedByCode.get(first.code);
+        const secondGenerated = generatedByCode.get(second.code);
+        const dynamicPlaceholder = loading
+            ? '<span class="inline-flex items-center gap-2 text-zinc-500 dark:text-zinc-400" role="status"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-300 border-t-primary-500"></span>Generating with Gemini...</span>'
+            : `<span class="text-amber-700 dark:text-amber-300">${escapeHtml(errorMessage || 'AI comparison unavailable.')}</span>`;
         const rows = [
             ['Module code', escapeHtml(first.code), escapeHtml(second.code)],
             ['Module name', escapeHtml(first.name), escapeHtml(second.name)],
-            ['School', escapeHtml(first.school), escapeHtml(second.school)],
-            ['Summary', first.summary ? escapeHtml(first.summary) : placeholder, second.summary ? escapeHtml(second.summary) : placeholder],
-            ['Suitable for', first.suitableFor ? escapeHtml(first.suitableFor) : placeholder, second.suitableFor ? escapeHtml(second.suitableFor) : placeholder]
+            ['School', first.school ? escapeHtml(first.school) : placeholder, second.school ? escapeHtml(second.school) : placeholder],
+            ['Student rating', this.formatRating(first.code), this.formatRating(second.code)],
+            ['AI summary', firstGenerated ? escapeHtml(firstGenerated.summary) : dynamicPlaceholder, secondGenerated ? escapeHtml(secondGenerated.summary) : dynamicPlaceholder],
+            ['Suitable for', firstGenerated ? escapeHtml(firstGenerated.suitable_for) : dynamicPlaceholder, secondGenerated ? escapeHtml(secondGenerated.suitable_for) : dynamicPlaceholder],
+            ['Estimated workload', firstGenerated ? this.formatWorkload(firstGenerated.workload) : dynamicPlaceholder, secondGenerated ? this.formatWorkload(secondGenerated.workload) : dynamicPlaceholder]
         ];
 
         this.elements.tableBody.innerHTML = rows.map(([label, v1, v2], i) => `
@@ -284,6 +312,81 @@ const ComparisonManager = {
             </tr>
         `).join('');
         lucide.createIcons();
+    },
+
+    /**
+     * Request a fresh Gemini comparison after two different modules are selected.
+     * Results are intentionally not persisted by the browser or backend.
+     * @param {Object} first - First selected module.
+     * @param {Object} second - Second selected module.
+     */
+    async loadDynamicComparison(first, second) {
+        const requestId = ++this.comparisonRequestId;
+        try {
+            const response = await fetch('/api/comparison/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    module_codes: [first.code, second.code]
+                })
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.error || 'Dynamic comparison is unavailable.');
+            }
+            if (requestId !== this.comparisonRequestId) return;
+            this.renderComparisonRows(first, second, payload.modules);
+        } catch (error) {
+            if (requestId !== this.comparisonRequestId) return;
+            console.error('Error generating module comparison:', error);
+            this.renderComparisonRows(
+                first,
+                second,
+                null,
+                false,
+                error.message || 'Dynamic comparison is unavailable.'
+            );
+        }
+    },
+
+    /**
+     * Format a stored student rating for a comparison-table cell.
+     * @param {string} moduleCode - Module code used by the ratings API.
+     * @returns {string} Safe HTML for the rating cell.
+     */
+    formatRating(moduleCode) {
+        const rating = DataManager.getRatingSummary(moduleCode);
+        if (!rating.review_count || rating.average_rating === null) {
+            return '<span class="text-zinc-400 dark:text-zinc-400">No ratings yet</span>';
+        }
+        const reviewLabel = rating.review_count === 1 ? 'review' : 'reviews';
+        return `
+            <span class="inline-flex flex-wrap items-center gap-1.5">
+                <span class="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400">
+                    <i data-lucide="star" class="h-4 w-4 fill-current" aria-hidden="true"></i>
+                    ${Number(rating.average_rating).toFixed(1)} / 5
+                </span>
+                <span class="text-zinc-500 dark:text-zinc-400">(${rating.review_count} ${reviewLabel})</span>
+            </span>
+        `;
+    },
+
+    /**
+     * Format Gemini's workload estimate with its confidence and reason.
+     * @param {Object} workload - Structured workload estimate.
+     * @returns {string} Safe HTML for the workload cell.
+     */
+    formatWorkload(workload) {
+        if (!workload) {
+            return '<span class="text-zinc-400 dark:text-zinc-400">Unknown</span>';
+        }
+        return `
+            <div>
+                <strong>${escapeHtml(workload.level || 'Unknown')}</strong>
+                <span class="text-xs text-zinc-500 dark:text-zinc-400"> · ${escapeHtml(workload.confidence || 'Low')} confidence</span>
+                <p class="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">${escapeHtml(workload.reason || 'Insufficient synopsis evidence.')}</p>
+            </div>
+        `;
     },
 
     /**
