@@ -7,17 +7,19 @@
 const DataManager = {
     modules: [],
     diplomas: [],
+    minors: [],
     ratings: {},
     careerPaths: [],
     loaded: false,
 
     async loadData() {
         try {
-            const [moduleResponse, courseResponse, ratingResponse, careerResponse] = await Promise.all([
+            const [moduleResponse, courseResponse, minorResponse, ratingResponse, careerResponse] = await Promise.all([
                 fetch('/api/modules'),
                 fetch('/api/courses'),
+                fetch('/api/minors'),
                 fetch('/api/ratings'),
-                fetch('/api/career-paths').catch(() => fetch('/static/data/career_paths.json'))
+                fetch('/api/career-paths')
             ]);
 
             if (!moduleResponse.ok ||!courseResponse.ok) {
@@ -26,6 +28,7 @@ const DataManager = {
 
             this.modules = await moduleResponse.json();
             this.diplomas = await courseResponse.json();
+            this.minors = minorResponse.ok ? await minorResponse.json() : [];
             this.ratings = ratingResponse.ok? await ratingResponse.json() : {};
 
             if (careerResponse && careerResponse.ok) {
@@ -79,14 +82,45 @@ const DataManager = {
         for (const course of this.diplomas) {
             for (const cat of categories) {
                 const arr = course[cat.key];
-                if (Array.isArray(arr) && arr.some(m => (typeof m === 'string'? m : m.code) === code)) {
-                    results.push({...course, category: cat.label });
+                if (Array.isArray(arr) && arr.some(m => (typeof m === 'string' ? m : m.code) === code)) {
+                    if (cat.label === 'Major' && course.major_groups) {
+                        // Create a separate entry for each matching major
+                        const matchingMajors = [];
+                        for (const [majorName, majorCodes] of Object.entries(course.major_groups)) {
+                            if (Array.isArray(majorCodes) && majorCodes.includes(code)) {
+                                matchingMajors.push(majorName);
+                            }
+                        }
+                        if (matchingMajors.length > 0) {
+                            for (const majorName of matchingMajors) {
+                                results.push({ ...course, category: cat.label, major_name: majorName });
+                            }
+                        } else {
+                            results.push({ ...course, category: cat.label });
+                        }
+                    } else {
+                        results.push({ ...course, category: cat.label });
+                    }
                     break;
                 }
             }
         }
         results.sort((a, b) => (a.course_code || '').localeCompare(b.course_code || ''));
         return results;
+    },
+
+    getMinorsByModule(moduleCode) {
+        if (!moduleCode) return [];
+        const code = moduleCode.toUpperCase();
+        return this.minors.filter(minor => {
+            const modules = minor.modules || [];
+            return modules.some(m => (typeof m === 'string' ? m : m.code).toUpperCase() === code);
+        });
+    },
+
+    getModuleCategories(moduleCode) {
+        const diplomas = this.getDiplomasByModule(moduleCode);
+        return [...new Set(diplomas.map(d => d.category))];
     },
 
     searchModules(query) {
@@ -99,7 +133,7 @@ const DataManager = {
             const name = this.normalizeSearchText(module.name);
             const school = this.normalizeSearchText(module.school);
             const searchableText = this.normalizeSearchText([
-                module.code, module.name, module.school, module.synopsis, module.summary, module.suitableFor, module.url
+                module.code, module.name, module.school, module.synopsis, module.url
             ].filter(Boolean).join(' '));
             if (!searchTokens.every(token => searchableText.includes(token))) continue;
             let score = 100;
@@ -133,6 +167,20 @@ const DataManager = {
         return list;
     },
 
+    getMinorList() {
+        const seen = new Set();
+        const list = [];
+        for (const minor of this.minors) {
+            const key = minor.minor_name.toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                list.push({ code: minor.minor_name, name: minor.minor_name });
+            }
+        }
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        return list;
+    },
+
     getCareerList() {
         return this.careerPaths;
     },
@@ -143,7 +191,7 @@ const DataManager = {
         if (!career ||!career.keywords) return modules;
         const keywords = career.keywords.map(k => k.toLowerCase());
         return modules.filter(m => {
-            const text = [m.name, m.code, m.synopsis, m.summary, m.suitableFor].filter(Boolean).join(' ').toLowerCase();
+            const text = [m.name, m.code, m.synopsis].filter(Boolean).join(' ').toLowerCase();
             return keywords.some(k => text.includes(k));
         });
     },
