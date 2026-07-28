@@ -52,6 +52,12 @@
             </div>
 
             <div id="comparisonTableWrap" class="hidden mt-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Comparison Result</h3>
+                    <button id="shareComparison" class="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition">
+                        <i data-lucide="link" class="h-3.5 w-3.5"></i>Share
+                    </button>
+                </div>
                 <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
                     <table class="w-full text-left table-fixed min-w-[600px]">
                         <thead>
@@ -75,5 +81,6 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/share.js') }}"></script>
 <script src="{{ url_for('static', filename='js/comparison.js') }}"></script>
 {% endblock %}

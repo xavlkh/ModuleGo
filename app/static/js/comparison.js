@@ -25,6 +25,8 @@ const ComparisonManager = {
         this.bindSearch('one');
         this.bindSearch('two');
         this.showStarterResults();
+        this.restoreFromUrl();
+        this.bindShareButton();
     },
 
     /**
@@ -208,7 +210,35 @@ const ComparisonManager = {
         });
     },
 
-    selectModule(slot, code) {
+    restoreFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const codes = params.getAll('id').map(c => c.trim().toUpperCase()).filter(Boolean);
+        if (codes.length >= 1 && DataManager.getModule(codes[0])) {
+            this.selectModule('one', codes[0], true);
+        }
+        if (codes.length >= 2 && DataManager.getModule(codes[1])) {
+            this.selectModule('two', codes[1], true);
+        }
+    },
+
+    updateUrl() {
+        const codes = [];
+        if (this.selected.one) codes.push(this.selected.one.code);
+        if (this.selected.two) codes.push(this.selected.two.code);
+        const url = new URL(window.location);
+        url.searchParams.delete('id');
+        codes.forEach(c => url.searchParams.append('id', c));
+        if (codes.length === 0) url.search = '';
+        window.history.replaceState({}, '', url);
+    },
+
+    bindShareButton() {
+        const btn = document.getElementById('shareComparison');
+        if (!btn) return;
+        btn.addEventListener('click', () => ShareManager.copyLink(btn));
+    },
+
+    selectModule(slot, code, silent = false) {
         const module = DataManager.getModule(code);
         if (!module) return;
         this.selected[slot] = module;
@@ -231,6 +261,7 @@ const ComparisonManager = {
         resultsEl.innerHTML = '';
         selectedEl.querySelector('button').addEventListener('click', () => this.clearSelection(slot));
         lucide.createIcons();
+        if (!silent) this.updateUrl();
         this.renderComparison();
     },
 
@@ -243,6 +274,7 @@ const ComparisonManager = {
         this.getSlotElement(slot, 'selected').classList.add('hidden');
         this.renderSearchResults(slot, '');
         this.setupObserver(slot);
+        this.updateUrl();
         this.renderComparison();
     },
 
