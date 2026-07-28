@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """CLI entrypoint for upserting scraped data to Supabase.
 
 Used by GitHub Actions after run_all.py completes.  Reads the JSON
