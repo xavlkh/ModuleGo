@@ -400,3 +400,7 @@
 @media (prefers-reduced-motion: reduce) {
   #cursorGlow { display: none; }
 }
+
+.collapsible-hidden {
+  display: none;
+}

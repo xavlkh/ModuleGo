@@ -3,6 +3,8 @@
 Covers input sanitisation, SQL injection, XSS storage, mass assignment,
 and boundary conditions.
 """
+from typing import ClassVar
+
 import pytest
 
 import app as app_module
@@ -72,7 +74,7 @@ class TestSQLInjection:
 class TestXSSStorage:
     """Verify XSS payloads are stored as-is (escaping is client-side)."""
 
-    XSS_PAYLOADS = [
+    XSS_PAYLOADS: ClassVar[list] = [
         "<script>alert('xss')</script>",
         "<img src=x onerror=alert(1)>",
         "javascript:alert(1)",

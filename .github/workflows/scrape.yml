@@ -23,6 +23,9 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
+      - name: Setup crawl4ai
+        run: crawl4ai-setup
+
       - name: Install Playwright Chromium
         run: python -m playwright install --with-deps chromium
 

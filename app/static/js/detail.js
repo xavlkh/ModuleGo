@@ -50,8 +50,7 @@ const DetailManager = {
 
         if (bookmarkBtn) {
             bookmarkBtn.addEventListener('click', () => {
-                const bookmarked =
-                    BookmarkManager.toggle(module.code);
+                const bookmarked = BookmarkManager.toggle(module.code);
 
                 bookmarkBtn.innerHTML = `
                     <i
@@ -59,7 +58,7 @@ const DetailManager = {
                         class="w-5 h-5 ${
                             bookmarked
                                 ? 'fill-primary-500 text-primary-500'
-                                : 'text-slate-500 dark:text-slate-300'
+                                : 'text-zinc-400 dark:text-zinc-500'
                         }"
                     ></i>
                 `;
@@ -86,6 +85,29 @@ const DetailManager = {
         this.showModal();
         this.refreshReviewViews(module.code);
         lucide.createIcons();
+        this.initCollapsibles();
+
+        const diplomasToggle = document.querySelector('[data-toggle="diplomas"]');
+        if (diplomasToggle) {
+            diplomasToggle.addEventListener('click', () => {
+                const expanded = diplomasToggle.dataset.expanded === 'true';
+                diplomasToggle.dataset.expanded = (!expanded).toString();
+                const icon = diplomasToggle.querySelector('i');
+                const label = diplomasToggle.querySelector('span');
+                const items = document.querySelectorAll('#diplomasList > li');
+                if (!expanded) {
+                    items.forEach(item => item.classList.remove('collapsible-hidden'));
+                    label.textContent = 'Show fewer';
+                    icon.classList.add('rotate-180');
+                } else {
+                    items.forEach((item, i) => {
+                        if (i >= 3) item.classList.add('collapsible-hidden');
+                    });
+                    label.textContent = `Show all ${items.length} diplomas`;
+                    icon.classList.remove('rotate-180');
+                }
+            });
+        }
     },
 
     /**
@@ -95,8 +117,28 @@ const DetailManager = {
      * @returns {string} Inner HTML string for the modal body.
      */
     createDetailContent(module) {
-        const diplomas = DataManager.getDiplomasByModule(module.code);
-        const isBookmarked = BookmarkManager.isBookmarked(module.code); // Check if the module is bookmarked
+        const rawDiplomas = DataManager.getDiplomasByModule(module.code);
+        const minors = DataManager.getMinorsByModule(module.code);
+        const isBookmarked = BookmarkManager.isBookmarked(module.code);
+
+        // Merge same diploma + category, collecting all major names
+        const merged = new Map();
+        for (const d of rawDiplomas) {
+            const key = `${d.course_code}||${d.category}`;
+            if (merged.has(key)) {
+                const existing = merged.get(key);
+                if (d.major_name && !existing.majorNames.includes(d.major_name)) {
+                    existing.majorNames.push(d.major_name);
+                }
+            } else {
+                merged.set(key, {
+                    ...d,
+                    majorNames: d.major_name ? [d.major_name] : [],
+                });
+            }
+        }
+        const diplomas = [...merged.values()];
+
         const diplomasHTML = diplomas.length > 0
             ? diplomas.map(d => {
                 const catColors = {
@@ -109,6 +151,9 @@ const DetailManager = {
                 const catClass = catColors[d.category] || 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300';
                 const diplomaUrl = d.url ? escapeHtml(d.url) : '#';
                 const targetAttr = d.url ? 'target="_blank" rel="noopener"' : '';
+                const majorLabel = d.category === 'Major' && d.majorNames && d.majorNames.length > 0
+                    ? `<div class="flex flex-col gap-0.5">${d.majorNames.map(name => `<span class="text-xs text-indigo-500 dark:text-indigo-400 font-medium">${escapeHtml(name)}</span>`).join('')}</div>`
+                    : '';
                 return `
                 <li>
                     <a href="${diplomaUrl}" ${targetAttr} class="flex flex-col gap-1 rounded-lg border border-zinc-100 dark:border-zinc-700 px-4 py-3 bg-white/60 dark:bg-zinc-800/60 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-700/60">
@@ -116,11 +161,35 @@ const DetailManager = {
                             <div class="font-semibold text-zinc-900 dark:text-white">${escapeHtml(d.course_name || '')}</div>
                             <span class="flex-shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${catClass}">${escapeHtml(d.category)}</span>
                         </div>
+                        ${majorLabel}
                         <div class="text-xs text-zinc-500 dark:text-zinc-400">${escapeHtml(d.course_code || '')} &bull; ${escapeHtml(d.school_name || d.school_abbr || '')}</div>
                     </a>
                 </li>`;
             }).join('')
             : '<li class="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 px-4 py-6 text-center text-zinc-400 dark:text-zinc-400 text-sm">No diploma information available for this module.</li>';
+
+        const minorsHTML = minors.length > 0
+            ? minors.map(m => {
+                const typeColors = {
+                    'Broad-Based': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+                    'Discipline-Related': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
+                };
+                const typeClass = typeColors[m.minor_type] || 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300';
+                const minorUrl = m.url ? escapeHtml(m.url) : '#';
+                const targetAttr = m.url ? 'target="_blank" rel="noopener"' : '';
+                const moduleCount = (m.modules || []).length;
+                return `
+                <li>
+                    <a href="${minorUrl}" ${targetAttr} class="flex flex-col gap-1 rounded-lg border border-zinc-100 dark:border-zinc-700 px-4 py-3 bg-white/60 dark:bg-zinc-800/60 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-700/60">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="font-semibold text-zinc-900 dark:text-white">${escapeHtml(m.minor_name || '')}</div>
+                            <span class="flex-shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${typeClass}">${escapeHtml(m.minor_type || '')}</span>
+                        </div>
+                        <div class="text-xs text-zinc-500 dark:text-zinc-400">${moduleCount} modules</div>
+                    </a>
+                </li>`;
+            }).join('')
+            : '<li class="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 px-4 py-6 text-center text-zinc-400 dark:text-zinc-400 text-sm">Not part of any minor programme.</li>';
 
         return `
             <div class="module-header rounded-xl p-6 mb-6">
@@ -134,7 +203,7 @@ const DetailManager = {
                         id="bookmarkModuleBtn"
                         type="button"
                         data-module-code="${escapeHtml(module.code)}"
-                        class="flex-shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 text-slate-500 dark:text-slate-300 hover:text-primary-600 hover:border-primary-300 dark:hover:text-primary-400 dark:hover:border-primary-600 transition-all"
+                        class="flex-shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/70 dark:bg-zinc-800/70 text-zinc-400 dark:text-zinc-500 hover:text-primary-600 hover:border-primary-300 dark:hover:text-primary-400 dark:hover:border-primary-600 transition-all"
                         aria-label="${isBookmarked ? 'Remove bookmark' : 'Add bookmark'}"
                         title="${isBookmarked ? 'Remove bookmark' : 'Add bookmark'}"
                    >
@@ -143,7 +212,7 @@ const DetailManager = {
                             class="w-5 h-5 ${
                                 isBookmarked
                                 ? 'fill-primary-500 text-primary-500'
-                                : 'text-slate-500 dark:text-slate-300'
+                                : 'text-zinc-400 dark:text-zinc-500'
                         }"
                         ></i>
                     </button>
@@ -160,7 +229,17 @@ const DetailManager = {
             </div>
             <div class="mb-6">
                 <h6 class="text-sm font-bold text-slate-900 dark:text-white mb-2">Diplomas offering this module (${diplomas.length})</h6>
-                <ul class="grid gap-2">${diplomasHTML}</ul>
+                <ul id="diplomasList" class="grid gap-2">${diplomasHTML}</ul>
+                ${diplomas.length > 3 ? `
+                <button class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors" data-toggle="diplomas" data-expanded="false">
+                    <span>Show all ${diplomas.length} diplomas</span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform duration-200"></i>
+                </button>
+                ` : ''}
+            </div>
+            <div class="mb-6">
+                <h6 class="text-sm font-bold text-slate-900 dark:text-white mb-2">Minor programmes offering this module (${minors.length})</h6>
+                <ul id="minorsList" class="grid gap-2">${minorsHTML}</ul>
             </div>
             <hr class="border-zinc-200 dark:border-zinc-700 my-6">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -219,14 +298,75 @@ const DetailManager = {
                 return;
             }
 
-            reviewsList.innerHTML = reviews.map(r => this.createReviewMarkup(r)).join('');
+            // Fetch vote data for all reviews
+            let votesData = {};
+            try {
+                const reviewIds = reviews.map(r => r.id);
+                const votesResponse = await fetch('/api/reviews/votes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Owner-Token': getOwnerToken() },
+                    body: JSON.stringify({ review_ids: reviewIds }),
+                });
+                if (votesResponse.ok) {
+                    votesData = await votesResponse.json();
+                }
+            } catch (e) {
+                console.warn('Could not load vote data:', e);
+            }
+
+            // Sort by highest vote score first, then newest
+            reviews.sort((a, b) => {
+                const aScore = (votesData[a.id]?.score || 0);
+                const bScore = (votesData[b.id]?.score || 0);
+                if (bScore !== aScore) return bScore - aScore;
+                const aTime = parseTimestamp(a.created_at)?.getTime() || 0;
+                const bTime = parseTimestamp(b.created_at)?.getTime() || 0;
+                return bTime - aTime;
+            });
+
+            reviewsList.innerHTML = reviews.map(r => this.createReviewMarkup(r, votesData[r.id] || { score: 0, user_vote: 0 })).join('');
             reviewsList.querySelectorAll('.edit-review-btn').forEach(btn => {
                 btn.addEventListener('click', () => this.startEditReview(Number(btn.dataset.reviewId)));
             });
             reviewsList.querySelectorAll('.delete-review-btn').forEach(btn => {
                 btn.addEventListener('click', () => this.deleteReview(Number(btn.dataset.reviewId)));
             });
+            reviewsList.querySelectorAll('.vote-btn').forEach(btn => {
+                btn.addEventListener('click', () => this.handleVote(Number(btn.dataset.reviewId), Number(btn.dataset.vote)));
+            });
+            if (reviews.length > 3) {
+                const existingBtn = reviewsList.parentNode.querySelector('[data-toggle="reviews"]');
+                if (existingBtn) existingBtn.remove();
+                const btn = document.createElement('button');
+                btn.className = 'mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors';
+                btn.dataset.toggle = 'reviews';
+                btn.dataset.expanded = 'false';
+                btn.innerHTML = `<span>Show all ${reviews.length} reviews</span><i data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform duration-200"></i>`;
+                reviewsList.parentNode.insertBefore(btn, reviewsList.nextSibling);
+                btn.addEventListener('click', () => {
+                    const expanded = btn.dataset.expanded === 'true';
+                    btn.dataset.expanded = (!expanded).toString();
+                    const icon = btn.querySelector('i');
+                    const label = btn.querySelector('span');
+                    const items = document.querySelectorAll('#reviewsList > article');
+                    if (!expanded) {
+                        items.forEach(item => item.classList.remove('collapsible-hidden'));
+                        label.textContent = 'Show fewer';
+                        icon.classList.add('rotate-180');
+                    } else {
+                        items.forEach((item, i) => {
+                            if (i >= 3) item.classList.add('collapsible-hidden');
+                        });
+                        label.textContent = `Show all ${items.length} reviews`;
+                        icon.classList.remove('rotate-180');
+                    }
+                });
+            } else {
+                const existingBtn = reviewsList.parentNode.querySelector('[data-toggle="reviews"]');
+                if (existingBtn) existingBtn.remove();
+            }
             lucide.createIcons();
+            this.initCollapsibles();
         } catch (error) {
             console.error('Error loading reviews:', error);
             reviewsList.innerHTML = '<p class="text-sm text-red-500 py-3">Could not load reviews.</p>';
@@ -234,11 +374,78 @@ const DetailManager = {
     },
 
     /**
+     * Handle a vote action on a review.
+     * @param {number} reviewId - The review to vote on.
+     * @param {number} voteType - 1 for upvote, -1 for downvote.
+     */
+    async handleVote(reviewId, voteType) {
+        const article = document.querySelector(`.review-item[data-review-id="${reviewId}"]`);
+        const btn = article?.querySelector(`.vote-btn[data-vote="${voteType}"]`);
+        if (btn) btn.disabled = true;
+        try {
+            const response = await fetch(`/api/reviews/${reviewId}/vote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Owner-Token': getOwnerToken() },
+                body: JSON.stringify({ vote_type: voteType }),
+            });
+            if (!response.ok) {
+                const errBody = await response.text();
+                console.error(`Vote failed: ${response.status} - ${errBody}`);
+                throw new Error('Failed to vote.');
+            }
+
+            if (!article) return;
+
+            const votesResponse = await fetch(`/api/reviews/${reviewId}/vote`, {
+                headers: { 'X-Owner-Token': getOwnerToken() },
+            });
+            if (!votesResponse.ok) return;
+            const votes = await votesResponse.json();
+
+            // Update vote buttons and score
+            const scoreEl = article.querySelector('.vote-score');
+            if (scoreEl) scoreEl.textContent = votes.score;
+
+            const upBtn = article.querySelector('.vote-btn[data-vote="1"]');
+            const downBtn = article.querySelector('.vote-btn[data-vote="-1"]');
+            if (upBtn) {
+                const upIcon = upBtn.querySelector('i') || upBtn.querySelector('svg');
+                if (upIcon) {
+                    if (votes.user_vote === 1) {
+                        upIcon.setAttribute('class', 'w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 fill-emerald-500');
+                        upBtn.classList.add('bg-emerald-500/10');
+                    } else {
+                        upIcon.setAttribute('class', 'w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 hover:text-emerald-500 dark:hover:text-emerald-400');
+                        upBtn.classList.remove('bg-emerald-500/10');
+                    }
+                }
+            }
+            if (downBtn) {
+                const downIcon = downBtn.querySelector('i') || downBtn.querySelector('svg');
+                if (downIcon) {
+                    if (votes.user_vote === -1) {
+                        downIcon.setAttribute('class', 'w-3.5 h-3.5 text-red-500 dark:text-red-400 fill-red-500');
+                        downBtn.classList.add('bg-red-500/10');
+                    } else {
+                        downIcon.setAttribute('class', 'w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400');
+                        downBtn.classList.remove('bg-red-500/10');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error voting:', error);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    },
+
+    /**
      * Build the HTML for a single review card.
      * @param {Object} review - The review object from the API.
+     * @param {Object} votes - Vote data {score, user_vote} for this review.
      * @returns {string} HTML string for the review.
      */
-    createReviewMarkup(review) {
+    createReviewMarkup(review, votes = { score: 0, user_vote: 0 }) {
         const comment = review.comment
             ? escapeHtml(review.comment)
             : '<span class="text-zinc-400 dark:text-zinc-400 italic">No written comment</span>';
@@ -246,18 +453,41 @@ const DetailManager = {
             ? `<span class="ml-2 text-zinc-400 dark:text-zinc-400">Edited ${formatTimestamp(review.updated_at)}</span>`
             : '';
         const isOwner = review.owner_token && review.owner_token === getOwnerToken();
+        const isOwnReview = isOwner;
+
+        const upvoteActive = votes.user_vote === 1;
+        const downvoteActive = votes.user_vote === -1;
+        const upvoteClass = upvoteActive
+            ? 'text-emerald-500 dark:text-emerald-400 fill-emerald-500'
+            : 'text-zinc-400 dark:text-zinc-500 hover:text-emerald-500 dark:hover:text-emerald-400';
+        const downvoteClass = downvoteActive
+            ? 'text-red-500 dark:text-red-400 fill-red-500'
+            : 'text-zinc-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400';
+        const upvoteBtnClass = upvoteActive ? 'bg-emerald-500/10' : '';
+        const downvoteBtnClass = downvoteActive ? 'bg-red-500/10' : '';
 
         return `
             <article class="review-item" data-review-id="${review.id}">
-                <div class="flex items-start justify-between gap-3">
+                <div class="flex items-start justify-between gap-3 mb-2">
                     <div class="flex-1">
                         <div class="star-rating flex gap-0.5 text-sm mb-1.5" aria-label="${review.rating} out of 5 stars">
                             ${createStars(review.rating)}
                         </div>
-                        <p class="text-sm text-zinc-700 dark:text-zinc-300 mb-1">${comment}</p>
-                        <small class="text-xs text-zinc-400 dark:text-zinc-400">${formatTimestamp(review.created_at)}${updated}</small>
+                        <p class="text-sm text-zinc-700 dark:text-zinc-300">${comment}</p>
                     </div>
                     ${createReviewActionsHTML(review.id, isOwner)}
+                </div>
+                <div class="flex items-center gap-3">
+                    <small class="text-xs text-zinc-400 dark:text-zinc-400">${formatTimestamp(review.created_at)}${updated}</small>
+                    <div class="flex items-center gap-1 ml-auto">
+                        <button class="vote-btn p-1.5 rounded-lg transition-colors ${isOwnReview ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${upvoteBtnClass}" data-review-id="${review.id}" data-vote="1" ${isOwnReview ? 'disabled' : ''} title="Upvote">
+                            <i data-lucide="thumbs-up" class="w-3.5 h-3.5 ${upvoteClass}"></i>
+                        </button>
+                        <span class="vote-score text-xs font-semibold text-zinc-600 dark:text-zinc-300 min-w-[1rem] text-center">${votes.score}</span>
+                        <button class="vote-btn p-1.5 rounded-lg transition-colors ${isOwnReview ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${downvoteBtnClass}" data-review-id="${review.id}" data-vote="-1" ${isOwnReview ? 'disabled' : ''} title="Downvote">
+                            <i data-lucide="thumbs-down" class="w-3.5 h-3.5 ${downvoteClass}"></i>
+                        </button>
+                    </div>
                 </div>
             </article>
         `;
@@ -448,6 +678,15 @@ const DetailManager = {
         document.dispatchEvent(new CustomEvent('ratings:changed', {
             detail: { moduleCode },
         }));
+    },
+
+    initCollapsibles() {
+        document.querySelectorAll('#diplomasList > li:nth-child(n+4)').forEach(item => {
+            item.classList.add('collapsible-hidden');
+        });
+        document.querySelectorAll('#reviewsList > article:nth-child(n+4)').forEach(item => {
+            item.classList.add('collapsible-hidden');
+        });
     },
 };
 

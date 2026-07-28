@@ -1,37 +1,100 @@
-# Role: Senior Full-Stack Developer (HTML/JS/Tailwind/Flask)
+# ModuleGo — Agent Guide
 
-## Core Persona
-You are an expert, pragmatic Senior Full-Stack Developer. You approach every codebase with extreme care, treating code quality, maintainability, and performance as non-negotiable priorities.
+## Quick Start
+```bash
+pip install -r requirements.txt
+python app.py          # → http://127.0.0.1:5000
+pytest tests/ -v       # SQLite in tmp_path, no Supabase needed
+```
 
-## Mandatory Workspace Context Gathering
-Read the project specification (`docs/spec-modulego-design.md`) and plan (`docs/plan-modulego-implementation.md`) before writing or modifying code. Cross-reference every request against these documents.
+## Architecture
+Flask serves Jinja templates + static JS/CSS. Three database backends: Supabase (production), PostgreSQL (self-hosted), SQLite (tests/fallback).
 
-## Core Tech Stack
-- **Backend:** Python with [Flask](https://palletsprojects.com)
-- **Database:** Supabase PostgreSQL (`rp_modules`, `rp_modules_comparision`, `reviews`, `rp_courses`); SQLite only for automated tests
-- **Frontend:** Semantic HTML5 via Jinja templates + ES6+ Vanilla JS + [Tailwind CSS](https://tailwindcss.com) v3 CDN
-- **Icons:** [Lucide](https://lucide.dev) via CDN (`unpkg.com/lucide`)
-- **Theme:** Dark/light/system toggle persisted to `localStorage`, `darkMode: 'class'`, FOUC prevention in `<head>` (sync script sets `.dark` + `color-scheme` on `<html>`, inline `<style>` covers `html.dark`/`body` backgrounds only — Tailwind CDN `dark:` variants handle the rest)
+**Triple-branch pattern:** `ReviewRepository` and `VoteRepository` (app.py) each check `use_sqlite_reviews()` then `use_postgres()` — falling through to Supabase. Every review and vote method has SQLite, PostgreSQL, and Supabase paths. Don't add review/vote routes outside these classes.
 
-## Project Conventions
-- **ReviewRepository** class in `app.py` encapsulates Supabase/SQLite dual-branch logic (all review CRUD routes use it)
-- **Jinja macros** in `app/templates/_macros.html` — use existing macros (`hero`, `navLinks`, `themeToggle`, `btnPrimary`, `glassCard`, `modalOverlay`, etc.) before authoring new elements
-- **JS modules:** `utils.js` (shared utilities: `escapeHtml`, `createStars`, `getOwnerToken`, `createReviewActionsHTML`, `formatReviewDate`, `createModalController`), `data.js` (data loading/search/filtering), `ui.js` (home page + pagination + filter panel), `detail.js` (module detail modal + review CRUD), `comparison.js` (side-by-side comparison with infinite scroll), `reviews.js` (review dashboard + edit modal)
-- **API endpoints:** All Supabase calls go through Flask; browser never sees the secret key
-- **Data sources:** Modules from Supabase `rp_modules` + `rp_modules_comparision`; courses/diplomas from `rp_courses` via scraping; reviews from `reviews` table
-- **Scraping:** Scripts in `app/static/local-data/scripts/`; output in `app/static/local-data/data/` (gitignored); run `python run_all.py` from `app/static/local-data/`; automated via GitHub Actions weekly cron (`.github/workflows/scrape.yml`) and `upsert_to_supabase.py`
-- **Security:** Anonymous ownership via `owner_token` (UUID hex, stored in `localStorage`); sent as `X-Owner-Token` header on review create/update/delete; CSRF via Flask-WTF (all API endpoints exempt); rate limiting via Flask-Limiter (`memory://` storage)
+**Module data flow:** `/api/modules` and `/api/courses` try Supabase first, fall back to local JSON files in `app/static/local-data/data/`. Career paths seed from the same JSON into SQLite/PostgreSQL on first boot.
 
-## Formatting & Style Guides
-- **Python (Flask):** [PEP 8](https://python.org), include docstrings for view functions and context processors
-- **JavaScript:** [JSDoc](https://jsdoc.app) for all custom functions, API fetch handlers, and complex parameters
-- **Self-Documenting Code:** Variable and function names explain *what*; comments only explain *why* behind non-obvious logic
-- **Tailwind:** Use the project's `:root` CSS custom properties (oklch primary/accent/surface colors, `--font-display`, glass shadows) — never hardcode arbitrary CSS
+## File Map
+```
+app.py                              Flask app, routes, ReviewRepository, VoteRepository, init_db()
+app/data/                           SQLite runtime directory (modulego.db)
+app/templates/base.html             Base layout (nav, dark mode, Lucide CDN)
+app/templates/_macros.html          Reusable Jinja macros (navLinks, glassCard, modalOverlay, etc.)
+app/templates/modules/index.html    Home
+app/templates/modules/comparison.html  Side-by-side module comparison
+app/templates/modules/reviews.html  Review dashboard
+app/static/js/utils.js              escapeHtml, createStars, getOwnerToken, createModalController
+app/static/js/data.js               Data loading, search, filtering
+app/static/js/ui.js                 Home page, pagination, filter panel
+app/static/js/detail.js             Module detail modal + review CRUD
+app/static/js/comparison.js         Comparison with infinite scroll
+app/static/js/reviews.js            Review dashboard + edit modal
+app/static/js/gobot.js              Chatbot (Gemini-powered, calls /api/gobot)
+app/static/js/bookmark.js           Favorites (localStorage)
+app/static/js/share.js              Share functionality
+app/static/css/app.css              oklch tokens, glassmorphism vars
+app/static/local-data/              Scraping pipeline (scripts/, data/, run_all.py)
+tests/                              pytest (SQLite only)
+docs/                               spec + implementation plan
+upsert_to_supabase.py               Imports scraped JSON into Supabase tables
+Dockerfile                          Multi-stage: scraper (data gen) + runtime (gunicorn)
+docker-compose.yml                  PostgreSQL + Flask app
+deploy.sh                           Minikube deploy script
+k8s/                                Kubernetes manifests (namespace, postgres, app)
+```
 
-## UI/UX Requirements
-- Mobile-first responsive via Tailwind breakpoints (`sm:`, `md:`, `lg:`)
-- WCAG AA contrast ratios; `aria-label`, `aria-live`, `role` attributes on dynamic content
-- Glassmorphism components: `glass-card`, `glass-strong`, `modal-overlay`, `modal-panel` (navbar only; cards go solid)
-- Collapsible filter panel for school, diploma, rating, and active filters; includes "Clear All" button that resets all filters and search input
-- All dynamically generated HTML must include `dark:` Tailwind variants
-- Call `lucide.createIcons()` after injecting any HTML containing `data-lucide` attributes
+## API Routes (app.py)
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/` | Home page |
+| GET | `/comparison` | Comparison page |
+| GET | `/reviews` | Reviews page |
+| GET | `/api/modules` | All modules (Supabase → local JSON fallback) |
+| GET | `/api/courses` | Courses/diplomas (Supabase → local JSON fallback) |
+| GET | `/api/minors` | Minor programmes (Supabase → local JSON fallback) |
+| GET | `/api/reviews` | All reviews |
+| POST | `/api/reviews` | Create review |
+| GET | `/api/reviews/<module_code>` | Reviews for module |
+| PUT | `/api/reviews/<id>` | Update review (owner_token required) |
+| DELETE | `/api/reviews/<id>` | Delete review (owner_token required) |
+| GET | `/api/reviews/<id>/vote` | Get vote score + user's vote |
+| POST | `/api/reviews/<id>/vote` | Add/update vote (1 or -1) |
+| DELETE | `/api/reviews/<id>/vote` | Remove vote |
+| POST | `/api/reviews/votes` | Bulk vote scores for multiple reviews |
+| GET | `/api/ratings` | Aggregated ratings |
+| POST | `/api/comparison/generate` | Gemini comparison summary |
+| GET | `/api/career-paths` | Career path data |
+| POST | `/api/gobot` | Chatbot endpoint |
+
+## Key Patterns
+- **Owner token:** UUID hex in localStorage, sent as `X-Owner-Token` header for review write operations
+- **Dark mode:** `darkMode: 'class'` on `<html>`, FOUC prevention script in `<head>`. All dynamic HTML must include `dark:` Tailwind variants
+- **Lucide icons:** Call `lucide.createIcons()` after injecting HTML with `data-lucide` attributes
+- **Tailwind:** Use `:root` CSS custom properties (oklch colors, `--font-display`, glass shadows). Never hardcode arbitrary CSS
+- **Macros first:** Check `_macros.html` before writing new UI components
+- **CSRF:** All API endpoints are CSRF-exempt (auth via custom header instead of form tokens)
+- **Rate limiting:** 200/hour default; 20/hour for review creation, 10/hour for review update/delete, 30/hour for voting, 15/hour for comparison generation
+
+## Coding Style
+- **Lean code:** No unnecessary abstractions, wrappers, or over-engineering. Write the simplest thing that works
+- **Comments:** Only comment *why* behind non-obvious logic — never *what* the code does. Self-document through naming instead. If a comment just restates the code, delete it
+- **Read this codebase for examples:** `app.py` ReviewRepository, `utils.js` escapeHtml — clean, direct, no fluff
+
+## Environment (.env)
+```
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_SECRET_KEY=sb_secret_xxx    # backend-only, never expose to browser
+GEMINI_API_KEY=xxx                    # for /api/comparison/generate and /api/gobot
+GEMINI_MODEL=gemini-3.1-flash-lite    # optional, default shown
+DATABASE_URL=postgresql://...         # optional, use PostgreSQL instead of SQLite
+DATABASE_PATH=/path/to/modulego.db    # optional, SQLite path (default: modulego.db in project root)
+```
+
+## Gotchas
+- Scraped data lives in `app/static/local-data/data/` (gitignored). Run `cd app/static/local-data && python run_all.py` to regenerate, then `python upsert_to_supabase.py` to push to Supabase
+- Module comparison data is generated on-demand via Gemini (`/api/comparison/generate`) — no longer pre-scraped
+- Flask static folder is `app/static`, templates is `app/templates` (set in app.py:29-31)
+- Tests use `monkeypatch` to swap `db_name` to a temp path — never hardcode DB paths
+- GoBot uses Gemini API — respect `GEMINI_TIMEOUT_SECONDS = 25`
+- Career paths seed from JSON into SQLite/PostgreSQL on first boot via `_seed_career_paths()` — if the DB already has rows, seeding is skipped
+- Supabase free tier has query limits — ratings are aggregated in Python, not via SQL GROUP BY
