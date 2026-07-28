@@ -1,37 +1,54 @@
-import requests
-import json
+"""Step 2: Scrape modules from RP API (A-Z prefix iteration)."""
+
 import csv
-import time
-import string
+import json
 import os
+import string
+import time
+
+import httpx
+from bs4 import BeautifulSoup
 
 API_URL = "https://lcs.rp.edu.sg/RPModuleSynopsis/screenservices/RPModuleSynopsis/MainFlow/ModuleSynopsis/ScreenDataSetGetSynopsis?lXamMASFpg1bQfatzeulEg"
 
 PREFIX_SCHOOL = {
-    "A": "School of Applied Science",
-    "B": "School of Business",
-    "C": "School of Infocomm",
-    "E": "School of Engineering",
-    "G": "General",
-    "H": "School of Hospitality",
-    "M": "School of Business",
-    "P": "General",
+    "A": "School of Applied Science", "B": "School of Business",
+    "C": "School of Infocomm", "E": "School of Engineering",
+    "G": "General", "H": "School of Hospitality",
+    "M": "School of Business", "P": "General",
     "S": "School of Sports and Health",
     "T": "School of Technology for Arts, Media and Design",
 }
 
 SCHOOL_ABBR = {
-    "School of Applied Science": "SAS",
-    "School of Business": "SBZ",
-    "School of Engineering": "SEG",
-    "School of Hospitality": "SOH",
-    "School of Infocomm": "SOI",
-    "School of Sports and Health": "SSH",
+    "School of Applied Science": "SAS", "School of Business": "SBZ",
+    "School of Engineering": "SEG", "School of Hospitality": "SOH",
+    "School of Infocomm": "SOI", "School of Sports and Health": "SSH",
     "School of Technology for Arts, Media and Design": "STA",
-    "School of Technology for the Arts": "STA",
-    "General": "General",
-    "CENTRE FOR FOUNDATIONAL STUDIES": "General",
+    "General": "General", "CENTRE FOR FOUNDATIONAL STUDIES": "General",
 }
+
+GENERAL_PREFIXES = {"G", "P"}
+
+
+def fetch_module_urls_from_sitemap():
+    print("  Fetching sitemap...")
+    try:
+        resp = httpx.get("https://www.rp.edu.sg/sitemap.xml", headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "xml")
+        codes = set()
+        for loc in soup.find_all("loc"):
+            url = loc.text
+            if "/education/modules/" in url:
+                slug = url.rstrip("/").split("/modules/")[-1]
+                if slug:
+                    codes.add(slug.upper())
+        print(f"  Sitemap: {len(codes)} module pages")
+        return codes
+    except httpx.HTTPError as e:
+        print(f"  Warning: sitemap fetch failed: {e}")
+        return None
 
 
 def fix_mojibake(text):
@@ -43,10 +60,7 @@ def fix_mojibake(text):
             text = fixed
     except (UnicodeDecodeError, UnicodeEncodeError, UnicodeTranslateError):
         pass
-    text = text.replace("\u000b", " ")
-    text = text.replace("\u00a0", " ")
-    text = text.replace("\u200b", "")
-    return text
+    return text.replace("\u000b", " ").replace("\u00a0", " ").replace("\u200b", "")
 
 
 def should_keep(module, seen_codes):
@@ -57,12 +71,10 @@ def should_keep(module, seen_codes):
     expected = PREFIX_SCHOOL.get(code[0].upper(), "")
     if not expected:
         return False
-    if school == expected and seen_codes[code] != expected:
-        return True
-    return False
+    return school == expected and seen_codes[code] != expected
 
 
-def fetch(code="", start=0, max_rec=500, csrf="", mv="", cookie=""):
+def fetch(code, start, csrf, mv, cookie):
     headers = {
         "Content-Type": "application/json; charset=UTF-8",
         "Accept": "application/json",
@@ -77,16 +89,16 @@ def fetch(code="", start=0, max_rec=500, csrf="", mv="", cookie=""):
             "searchModuleCode": code,
             "searchModuleDescription": "",
             "StartIndex": start,
-            "MaxRecords": max_rec,
+            "MaxRecords": 500,
         }},
-        "inputParameters": {"StartIndex": start, "MaxRecords": max_rec},
+        "inputParameters": {"StartIndex": start, "MaxRecords": 500},
     }
-    resp = requests.post(API_URL, json=payload, headers=headers, timeout=30)
+    resp = httpx.post(API_URL, json=payload, headers=headers, timeout=30)
     resp.raise_for_status()
     return resp.json()
 
 
-def extract_modules(data, prefix):
+def extract_modules(data):
     modules = []
     list_wrapper = (data.get("data") or {}).get("List", {})
     rows = list_wrapper.get("List", []) if isinstance(list_wrapper, dict) else list_wrapper
@@ -112,85 +124,86 @@ def get_school_abbr(school_name):
 
 
 def main():
+    print("\n[2/4] Modules")
+    print("-" * 50)
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     data_dir = os.path.join(script_dir, "..", "data")
     token_path = os.path.join(data_dir, "tokens.json")
     with open(token_path, "r", encoding="utf-8") as f:
         tokens = json.load(f)
-    csrf = tokens.get("csrf", "")
-    mv = tokens.get("moduleVersion", "")
-    cookie = tokens.get("cookie", "")
+
+    valid_codes = fetch_module_urls_from_sitemap()
 
     all_modules = []
     seen_codes = {}
+    t0 = time.time()
 
     for prefix in string.ascii_uppercase:
-        print(f"Fetching prefix {prefix}...")
-        start = 0
-        page = 1
+        start, page = 0, 1
         while True:
             try:
-                data = fetch(code=prefix, start=start, max_rec=500, csrf=csrf, mv=mv, cookie=cookie)
-            except requests.HTTPError as e:
+                data = fetch(prefix, start, tokens["csrf"], tokens["moduleVersion"], tokens["cookie"])
+            except httpx.HTTPStatusError as e:
                 if e.response.status_code == 403:
-                    print(f"  403 at {prefix} start={start} — tokens expired")
+                    print(f"  {prefix}: tokens expired at offset {start}")
                     break
                 raise
             count = (data.get("data") or {}).get("Count", 0) or 0
-            modules = extract_modules(data, prefix)
-            for m in modules:
+            for m in extract_modules(data):
                 code = m["module_code"]
                 if not code:
                     continue
                 if should_keep(m, seen_codes):
                     if code in seen_codes:
-                        old_idx = seen_codes[code]
-                        all_modules[old_idx] = m
+                        all_modules[seen_codes[code]] = m
                     else:
                         seen_codes[code] = len(all_modules)
                         all_modules.append(m)
-            print(f"  Page {page}: got {len(modules)} modules (total count: {count})")
+            if page == 1 and count > 0:
+                print(f"  {prefix}: {count} modules")
             start += 500
             page += 1
             if start >= count:
                 break
-            time.sleep(0.3)
 
-    print(f"\nTotal unique modules: {len(all_modules)}")
+    elapsed = time.time() - t0
+    print(f"  Fetched {len(all_modules)} unique modules in {elapsed:.1f}s")
 
     # Enrich with school_abbr, url
     output = []
     for m in all_modules:
         code = m["module_code"]
         prefix = code[0].upper() if code else "X"
-        school_name = m.get("school_name", "") or PREFIX_SCHOOL.get(prefix, "")
-        school_abbr = get_school_abbr(school_name)
+
+        if prefix in GENERAL_PREFIXES:
+            school_name, school_abbr = "General", "General"
+        else:
+            school_name = m.get("school_name", "") or PREFIX_SCHOOL.get(prefix, "")
+            school_abbr = get_school_abbr(school_name)
+
+        url = f"https://www.rp.edu.sg/education/modules/{code.lower()}" if valid_codes is None or code.upper() in valid_codes else ""
         output.append({
-            "module_code": code,
-            "module_name": m["module_name"],
-            "synopsis": m["synopsis"],
-            "school_name": school_name,
-            "school_abbr": school_abbr,
-            "url": f"https://www.rp.edu.sg/education/modules/{code.lower()}",
+            "module_code": code, "module_name": m["module_name"],
+            "synopsis": m["synopsis"], "school_name": school_name,
+            "school_abbr": school_abbr, "url": url,
         })
 
     output.sort(key=lambda m: m["module_code"])
 
     os.makedirs(data_dir, exist_ok=True)
-
     json_path = os.path.join(data_dir, "rp_modules_synopsis.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
-    print(f"Written {json_path}")
 
     csv_path = os.path.join(data_dir, "rp_modules_synopsis.csv")
     with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=[
-            "module_code", "module_name", "synopsis", "school_name", "school_abbr", "url"
-        ])
+        writer = csv.DictWriter(f, fieldnames=["module_code", "module_name", "synopsis", "school_name", "school_abbr", "url"])
         writer.writeheader()
         writer.writerows(output)
-    print(f"Written {csv_path}")
+
+    print(f"  Saved {json_path}")
+    print("-" * 50)
 
 
 if __name__ == "__main__":
