@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Run all scrapers sequentially. Tokens step skipped if tokens.json exists."""
 
 import os
