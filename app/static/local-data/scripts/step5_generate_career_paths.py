@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Generate career paths by analyzing module data against seed careers + diplomas.
 
 Strategy:
