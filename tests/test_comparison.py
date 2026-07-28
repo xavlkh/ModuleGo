@@ -4,7 +4,6 @@ import pytest
 
 import app as app_module
 
-
 MODULES = [
     {
         "code": "C270",
