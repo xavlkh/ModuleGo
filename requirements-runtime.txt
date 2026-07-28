@@ -1,0 +1,11 @@
+# Runtime-only deps. Scraping/test packages (playwright, crawl4ai, pytest)
+# are excluded — they live in requirements.txt and only run in the build stage for Docker.
+Flask==3.1.3
+Flask-WTF>=1.2.0
+Flask-Limiter>=3.0.0
+supabase==2.31.0
+python-dotenv==1.2.2
+requests>=2.32,<3.0
+httpx>=0.27,<0.29
+gunicorn>=22.0,<24.0
+psycopg2-binary>=2.9,<3.0
