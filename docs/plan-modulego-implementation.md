@@ -1,11 +1,11 @@
 ---
 goal: ModuleGo - Republic Polytechnic Module Viewer Implementation
-version: 10.0
+version: 11.0
 date_created: 2026-06-29
-last_updated: 2026-07-19
+last_updated: 2026-07-29
 owner: Developer
 status: 'In Progress'
-tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'dark-mode', 'ui-redesign', 'saas-patterns', 'security', 'csrf', 'rate-limiting', 'scraping', 'automation']
+tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'dark-mode', 'ui-redesign', 'saas-patterns', 'security', 'csrf', 'rate-limiting', 'scraping', 'automation', 'gobot', 'chatbot', 'minors', 'career-paths', 'bookmarks', 'share']
 ---
 
 # Introduction
@@ -47,13 +47,42 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **CON-003**: Use HTML5 semantic elements
 - **CON-004**: Backend uses Python Flask with Supabase PostgreSQL
 - **CON-005**: Module data is stored in Supabase, diploma data is served via `/api/courses`
-- **CON-006**: No new npm dependencies (Flask + CDN project)
-- **GUD-001**: Follow RP brand colors with modern emerald/teal palette
+- **CON-006**: Project follows Flask app structure: `app/templates/` for HTML, `app/static/` for assets
+- **GUD-001**: Follow RP brand colors with modern emerald palette (Primary #00A651 mapped to emerald-500)
 - **GUD-002**: SLP spacing rhythm: hero `py-16 md:py-24`, sections `py-12 md:py-20`, cards `gap-6`
 - **GUD-003**: Cards use `bg-white dark:bg-zinc-800` with `shadow-sm`, hover elevates to `shadow-xl`
 - **PAT-001**: SLP header pattern: `h-20`, centered nav, logo left
 - **PAT-002**: SLP card pattern: solid bg + subtle shadow + hover elevation
 - **PAT-003**: SLP footer pattern: multi-column grid with `border-y`
+- **REQ-G01**: "hi", "hello", "hey" → friendly greeting, no module data lookup
+- **REQ-G02**: "thanks", "ok", "okay" → friendly acknowledgment
+- **REQ-G03**: Module code "C270" → show module details
+- **REQ-G04**: "C270???" (punctuation) → still match module C270
+- **REQ-G05**: "python" → search modules (single-term search works)
+- **REQ-G06**: "biology" → search modules (unknown career word still searches)
+- **REQ-G07**: "reviews for C270" → show real reviews from DB
+- **REQ-G08**: "C270 reviews" → same
+- **REQ-G09**: "data analyst" → career-matched modules
+- **REQ-G10**: Nonsense like "asdfghjkl" → fallback help, not fake results
+- **REQ-G11**: Very short input "a", "?" → friendly nudge
+- **CON-G01**: Zero hardcoded word lists (no stop words, no greeting lists)
+- **CON-G02**: All heuristics must use length, position, or data-driven checks
+- **CON-G03**: Punctuation stripped from tokens before matching against module data
+- **CON-G04**: Exact module code matches ranked above text matches
+- **GUD-G01**: Everything on the `gobot_chat` function in `app.py` — no new files
+- **GUD-G02**: Handler order must be intentional — most specific first, fallback last
+- **GUD-G03**: Each handler returns early — no else chains, no flags
+- **PAT-G01**: Match the existing early-return pattern used throughout `app.py`
+- **REQ-BS01**: Users can bookmark/favorite modules (persisted in localStorage)
+- **REQ-BS02**: Bookmarked modules are highlighted in search results
+- **REQ-BS03**: Users can share module links via clipboard copy
+- **REQ-BS04**: Users can export module data as CSV
+- **REQ-M01**: `/api/minors` endpoint returns minor programme data
+- **REQ-CP01**: `/api/career-paths` endpoint returns career path data
+- **REQ-V01**: `/api/reviews/<id>/vote` GET returns vote score and user's vote
+- **REQ-V02**: `/api/reviews/<id>/vote` POST adds or updates a vote
+- **REQ-V03**: `/api/reviews/<id>/vote` DELETE removes a vote
+- **REQ-V04**: `/api/reviews/votes` POST returns bulk vote scores for multiple reviews
 
 ## 2. Implementation Steps
 
@@ -405,7 +434,7 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-128 | Create `app/static/local-data/scripts/step4_scrape_diplomas.py` — scrapes listing page for diploma links + metadata | ✅ | 2026-07-19 |
+| TASK-128 | Create `app/static/local-data/scripts/step3_scrape_diplomas.py` — scrapes listing page for diploma links + metadata | ✅ | 2026-07-19 |
 | TASK-129 | Implement detail page extraction of curriculum modules by category (general, discipline, elective) | ✅ | 2026-07-19 |
 | TASK-130 | Handle conditional paths: split into separate diploma entries with suffixed codes (e.g. R57-BUS, R57-HOS) | ✅ | 2026-07-19 |
 | TASK-131 | Output `rp_courses.json` (nested JSON) and `rp_courses.csv` (flat CSV) | ✅ | 2026-07-19 |
@@ -595,7 +624,6 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 |------|-------------|-----------|------|
 | TASK-207 | Create `upsert_to_supabase.py` — standalone CLI script reading JSON output and upserting to Supabase | ✅ | 2026-07-19 |
 | TASK-208 | Implement `upsert_modules()` — map synopsis JSON fields to Supabase `rp_modules` columns | ✅ | 2026-07-19 |
-| TASK-209 | Implement `upsert_comparison()` — map comparison JSON to `rp_modules_comparision` | ✅ | 2026-07-19 |
 | TASK-210 | Implement `upsert_courses()` — map courses JSON to `rp_courses`, extract module code arrays | ✅ | 2026-07-19 |
 | TASK-211 | Fix double-encoding bug — remove `json.dumps()` from module code lists in `upsert_courses()` | ✅ | 2026-07-19 |
 
@@ -617,13 +645,26 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-217 | Add `os.makedirs(data_dir, exist_ok=True)` to step1, step2, step4 scripts | ✅ | 2026-07-19 |
+| TASK-217 | Add `os.makedirs(data_dir, exist_ok=True)` to step1, step2, step3 scripts | ✅ | 2026-07-19 |
 | TASK-218 | Add `check_node_npm()` and `close_browser()` to step1 script | ✅ | 2026-07-19 |
 | TASK-219 | Add polling loop for API request capture in step1 (replaces fixed sleep) | ✅ | 2026-07-19 |
 | TASK-220 | Remove `active` column from both step2_scrape_all_modules.py scripts | ✅ | 2026-07-19 |
-| TASK-221 | Rename `rp_diplomas_curriculum.json/csv` → `rp_courses.json/csv` in step4 | ✅ | 2026-07-19 |
+| TASK-221 | Rename `rp_diplomas_curriculum.json/csv` → `rp_courses.json/csv` in step3 | ✅ | 2026-07-19 |
 | TASK-222 | Update `run_all.py` — skip step1 if tokens.json exists, add live feedback | ✅ | 2026-07-19 |
 | TASK-223 | Add `.gitignore` rule for `app/static/local-data/data/` (scraping output) | ✅ | 2026-07-19 |
+
+#### Phase 26.4: Scraping Pipeline Steps 4-5
+
+- GOAL-26.4: Add minor programme scraping and career path generation
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-238 | Create `app/static/local-data/scripts/step4_scrape_minors.py` — scrape RP minor programme data | ✅ | 2026-07-28 |
+| TASK-239 | Create `app/static/local-data/scripts/step5_generate_career_paths.py` — generate career path mappings | ✅ | 2026-07-28 |
+| TASK-240 | Update `run_all.py` to include steps 4 and 5 in the pipeline | ✅ | 2026-07-28 |
+| TASK-241 | Update `upsert_to_supabase.py` to handle minors and career paths | ✅ | 2026-07-28 |
+| TASK-242 | Add `/api/minors` endpoint to serve minor programme data | ✅ | 2026-07-28 |
+| TASK-243 | Add `/api/career-paths` endpoint to serve career path data | ✅ | 2026-07-28 |
 
 ### Implementation Phase 27: Module Rating Distribution
 
@@ -638,6 +679,88 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | TASK-228 | Refresh API rating summaries and review lists after review CRUD operations | ✅ | 2026-07-21 |
 | TASK-229 | Add API tests for zero buckets, mixed opinions, updates, and deletions | ✅ | 2026-07-21 |
 
+### Implementation Phase 28: GoBot Chatbot Refactoring
+
+- GOAL-28: Eliminate hardcoded lists, fix all edge cases, and improve GoBot chatbot UX
+
+The handler pipeline must run in this exact order, each returning early:
+
+| # | Handler | Triggers on | Edge cases covered |
+|---|---------|-------------|-------------------|
+| 1 | Empty check | `user_msg` empty/whitespace | Empty string, whitespace only |
+| 2 | Navigation help | keywords: where, navigate, how to, how do i, guide | "where is comparison", "how to review" |
+| 3 | Career → modules | career id/label/keywords in message | "data analyst", "cyber security", "python" (keyword match) |
+| 4 | Exact module code | any alphanumeric token matches a known code | "C270", "C270???", "the C270 module" |
+| 5 | Reviews for module | module code + review/rating/comment in message | "reviews for C270", "C270 ratings" |
+| 6 | Top rated | phrases: top rated, best rated, popular, etc. | "best modules", "top rated" |
+| 7 | Reviews help | "review" in message | "how do I leave a review" |
+| 8 | Comparison help | "compare" in message | "compare modules", "how to compare" |
+| 9 | Career list | "career" or "job" in message | "what careers", "show jobs" |
+| 10 | Generic module search | 2+ substantive tokens, OR 1 token ≥ 5 chars | "python", "web development", "machine learning" |
+| 11 | Very short fallback | message length < 10 chars | "hi", "hey", "ok", "thanks", "a", "?" |
+| 12 | General fallback | nothing above matched | nonsense, unknown queries |
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-230 | Reorder gobot_chat handler pipeline to match the table above | ✅ | 2026-07-28 |
+| TASK-231 | Fix module code matching: strip punctuation from each token before checking against known codes, making "C270???" match | ✅ | 2026-07-28 |
+| TASK-232 | Fix generic search: allow single tokens ≥ 5 chars (removes the old len(tokens) >= 2 gate), require score ≥ max(2, len(tokens)//2) to avoid false positives from common words | ✅ | 2026-07-28 |
+| TASK-233 | Remove the old short-message catch-all (`if len(user_msg) < 10` placed before fallback) — replace with a proper greeting handler that runs ONLY after all other handlers fail AND message < 10 chars | ✅ | 2026-07-28 |
+| TASK-234 | Add `msg_clean = ''.join(c for c in msg_lower if c.isalnum() or c.isspace())` for tokenization so punctuation doesn't break search | ✅ | 2026-07-28 |
+| TASK-235 | Add module code index `module_codes = {m['code'].lower(): m for m in modules}` for O(1) code lookups | ✅ | 2026-07-28 |
+| TASK-236 | Remove the old duplicate condition (`if len(tokens) >= 2...` twice) — one condition + one `if scored` | ✅ | 2026-07-28 |
+| TASK-237 | Verify the Python compiles with `py_compile` | ✅ | 2026-07-28 |
+
+### Implementation Phase 29: GoBot Client-Side UI
+
+- GOAL-29: Implement the GoBot chatbot client-side interface
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-244 | Create `app/static/js/gobot.js` with GoBot object — welcome popup, chat UI, quick-send buttons | ✅ | 2026-07-28 |
+| TASK-245 | Implement message history persistence in localStorage | ✅ | 2026-07-28 |
+| TASK-246 | Implement POST /api/gobot communication with loading states | ✅ | 2026-07-28 |
+| TASK-247 | Add GoBot chat toggle button to base.html (desktop + mobile) | ✅ | 2026-07-28 |
+
+### Implementation Phase 30: Bookmark & Share Features
+
+- GOAL-30: Implement bookmark (favorites) and share functionality
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-248 | Create `app/static/js/bookmark.js` with BookmarkManager — toggle/add/remove/getModules/getCount/clear | ✅ | 2026-07-28 |
+| TASK-249 | Implement localStorage persistence for bookmarks | ✅ | 2026-07-28 |
+| TASK-250 | Create `app/static/js/share.js` with ShareManager — getShareUrl/copyLink/exportCSV/showToast | ✅ | 2026-07-28 |
+| TASK-251 | Add bookmark toggle button to module cards in ui.js | ✅ | 2026-07-28 |
+| TASK-252 | Add share button to module detail modal in detail.js | ✅ | 2026-07-28 |
+
+### Implementation Phase 31: Vote Repository & API
+
+- GOAL-31: Implement VoteRepository class and vote API endpoints
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-253 | Create `VoteRepository` class in app.py with triple-branch pattern (SQLite/PostgreSQL/Supabase) | ✅ | 2026-07-28 |
+| TASK-254 | Implement `get_votes()` — return score and user vote for a single review | ✅ | 2026-07-28 |
+| TASK-255 | Implement `get_votes_bulk()` — return scores for multiple reviews (dashboard optimization) | ✅ | 2026-07-28 |
+| TASK-256 | Implement `vote()` — upsert vote, return updated score | ✅ | 2026-07-28 |
+| TASK-257 | Add GET /api/reviews/<id>/vote endpoint | ✅ | 2026-07-28 |
+| TASK-258 | Add POST /api/reviews/<id>/vote endpoint | ✅ | 2026-07-28 |
+| TASK-259 | Add DELETE /api/reviews/<id>/vote endpoint | ✅ | 2026-07-28 |
+| TASK-260 | Add POST /api/reviews/votes bulk endpoint | ✅ | 2026-07-28 |
+| TASK-261 | Update detail.js and reviews.js to send vote requests and display scores | ✅ | 2026-07-28 |
+
+### Implementation Phase 32: CI Workflow
+
+- GOAL-32: Create GitHub Actions CI workflow for automated testing
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-262 | Create `.github/workflows/ci.yml` — lint, compile check, pytest on push/PR | ✅ | 2026-07-19 |
+| TASK-263 | Add ruff lint step to CI workflow | ✅ | 2026-07-19 |
+| TASK-264 | Add py_compile check step to CI workflow | ✅ | 2026-07-19 |
+| TASK-265 | Add pytest step to CI workflow | ✅ | 2026-07-19 |
+
 ## 3. Alternatives
 
 - **ALT-001**: React/Vue framework - Rejected due to constraint CON-001 (Vanilla JS only)
@@ -651,6 +774,10 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **ALT-009**: Switch to a different accent color (blue, rose) - Rejected because emerald is RP's brand color and already established in the codebase
 - **ALT-010**: Use a CSS framework like shadcn/ui - Rejected because this is a Flask + Jinja project with no React. The existing Tailwind CDN approach works fine
 - **ALT-011**: Add GSAP scroll animations - Rejected as out of scope. The redesign is visual-only; motion can be added later
+- **ALT-G01**: Regex-based intent classification - Rejected, over-engineering for a simple chatbot with ~8 intents
+- **ALT-G02**: Gemini/LLM backend - Rejected, adds latency, cost, rate-limit issues
+- **ALT-G03**: Hardcoded stop-word list - Rejected, creates maintenance burden and misses edge cases (CON-G01)
+- **ALT-G04**: Single `if-elif-else` chain - Rejected, early-return is cleaner and matches existing codebase style
 
 ## 4. Dependencies
 
@@ -669,6 +796,17 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **DEP-013**: Flask-WTF>=1.2.0 — CSRF protection
 - **DEP-014**: Flask-Limiter>=3.0.0 — Rate limiting
 - **DEP-015**: pytest>=8.0,<10.0 — Test framework
+- **DEP-016**: psycopg2-binary>=2.9,<3.0 — PostgreSQL adapter for production database
+- **DEP-017**: playwright>=1.50,<2.0 — Browser automation for scraping (token extraction)
+- **DEP-018**: requests>=2.32,<3.0 — HTTP client for scraping scripts
+- **DEP-019**: httpx>=0.27,<0.29 — Async HTTP client
+- **DEP-020**: crawl4ai>=0.2.0 — Web crawling framework
+- **DEP-021**: beautifulsoup4>=4.12 — HTML parsing for scraping
+- **DEP-022**: Supabase `rp_minors` table (minor programme data from scraping)
+- **DEP-023**: Supabase `career_paths` table (career path data)
+- **DEP-024**: Gemini API key (comparison generation and GoBot chatbot)
+- **DEP-G01**: Only modifies `app.py` function `gobot_chat` — no other files
+- **DEP-G02**: Depends on `_build_modules_list()`, `_load_career_paths()`, `ReviewRepository` — all already exist
 
 ## 5. Files
 
@@ -678,27 +816,37 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | `app/templates/modules/comparison.html` | Module comparison page (Tailwind glassmorphism) |
 | `app/templates/modules/reviews.html` | Review dashboard page (Tailwind glassmorphism) |
 | `app/templates/base.html` | Layout template with glass navbar/footer (Tailwind) |
-| `app/templates/_macros.html` | Shared Jinja macros (hero, navLinks, themeToggle, selectField) |
+| `app/templates/_macros.html` | Shared Jinja macros (hero, navLinks, themeToggle, selectField, glassCard, statCard, modalOverlay, etc.) |
 | `app/static/css/app.css` | Tailwind CSS with `:root` custom properties and glassmorphism tokens |
-| `app/static/js/utils.js` | Shared utilities (escapeHtml, createStars, parseTimestamp, showMessage, createReviewActionsHTML, createModalController, getOwnerToken) |
-| `app/static/js/data.js` | Data loading from `/api/modules` + `/api/courses` with diploma/rating/active filtering |
+| `app/static/js/utils.js` | Shared utilities (escapeHtml, createStars, parseTimestamp, showMessage, createReviewActionsHTML, createModalController, getOwnerToken, formatReviewDate) |
+| `app/static/js/data.js` | Data loading from `/api/modules` + `/api/courses` + `/api/minors` with diploma/minor/rating/active filtering |
 | `app/static/js/ui.js` | UI rendering, search, pagination, filter panel + app initialization (merged from search.js + app.js) |
 | `app/static/js/comparison.js` | Module comparison logic (Tailwind markup) |
 | `app/static/js/detail.js` | Module detail modal + review CRUD (owner token headers) |
 | `app/static/js/reviews.js` | Review dashboard + module detail review CRUD (merged from detail.js) |
-| `app/static/local-data/scripts/` | Python scraping scripts (step1_get_tokens, step2_scrape_all_modules, step3_generate_comparison, step4_scrape_diplomas) |
-| `app/static/local-data/data/` | Scraping output (gitignored) — tokens.json, rp_modules_synopsis, rp_modules_comparison, rp_courses |
-| `app/static/local-data/SCRAPING_GUIDE.md` | Documentation for module scraping pipeline |
-| `app/static/local-data/run_all.py` | Sequential runner for scraping steps 1-4 |
-| `app.py` | Flask backend with Supabase integration, ReviewRepository, CSRF, rate limiting |
-| `upsert_to_supabase.py` | Standalone CLI for upserting scraped JSON to Supabase (used by GitHub Actions) |
-| `requirements.txt` | Python dependencies (Flask, Flask-WTF, Flask-Limiter, supabase, python-dotenv, pytest) |
+| `app/static/js/gobot.js` | GoBot chatbot client-side UI (welcome popup, chat interface, quick-send buttons, message history) |
+| `app/static/js/bookmark.js` | BookmarkManager — favorites with localStorage persistence |
+| `app/static/js/share.js` | ShareManager — clipboard copy, CSV export, toast notifications |
+| `app/static/local-data/scripts/step1_get_tokens.py` | Playwright browser automation for RP session token extraction |
+| `app/static/local-data/scripts/step2_scrape_all_modules.py` | Scrapes module synopsis data from RP OutSystems |
+| `app/static/local-data/scripts/step3_scrape_diplomas.py` | Scrapes diploma curriculum data (courses + module mappings) |
+| `app/static/local-data/scripts/step4_scrape_minors.py` | Scrapes RP minor programme data |
+| `app/static/local-data/scripts/step5_generate_career_paths.py` | Generates career path data from module/career mappings |
+| `app/static/local-data/data/` | Scraping output (gitignored) — tokens.json, rp_modules_synopsis, rp_courses, rp_minors, career_paths |
+| `app/static/local-data/run_all.py` | Sequential runner for scraping steps 1-5 |
+| `app/static/local-data/SCRAPING_GUIDE.md` | Documentation for the scraping pipeline |
+| `app.py` | Flask backend with Supabase integration, ReviewRepository, VoteRepository, CSRF, rate limiting, GoBot chatbot |
+| `upsert_to_supabase.py` | Standalone CLI for upserting scraped JSON to Supabase (modules, courses, minors, career paths) — used by GitHub Actions |
+| `requirements.txt` | Python dependencies (Flask, Flask-WTF, Flask-Limiter, supabase, python-dotenv, pytest, playwright, requests, httpx, crawl4ai, beautifulsoup4, psycopg2-binary) |
+| `requirements-runtime.txt` | Production-only dependencies (subset of requirements.txt) |
 | `tests/test_reviews.py` | Pytest test suite for review API endpoints |
 | `tests/test_security.py` | Pytest test suite for ownership validation, CSRF, rate limiting |
+| `tests/test_comparison.py` | Pytest test suite for comparison API endpoints |
 | `.github/workflows/scrape.yml` | GitHub Actions workflow for weekly automated scraping |
 | `.github/workflows/ci.yml` | GitHub Actions workflow for CI (lint, compile, test) |
-| `.env.example` | Supabase credential template |
+| `.env.example` | Supabase + Gemini credential template |
 | `vercel.json` | Vercel serverless function configuration |
+| `app.py` lines 1591-1711 | GoBot chatbot `gobot_chat` function + `_load_career_paths` helper + Gemini integration |
 
 ## 6. Testing
 
@@ -722,7 +870,7 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **TEST-018**: Arrow keys navigate pages when pagination focused
 - **TEST-019**: Screen reader announces page changes via aria-live
 - **TEST-020**: All pytest tests pass after JS merge refactor
-- **TEST-021**: Run `python app/static/local-data/scripts/step4_scrape_diplomas.py` — ~44 diploma entries output
+- **TEST-021**: Run `python app/static/local-data/scripts/step3_scrape_diplomas.py` — ~44 diploma entries output
 - **TEST-022**: Visual regression — compare before/after screenshots of all 3 pages in light and dark mode
 - **TEST-023**: Contrast audit — verify WCAG AA (4.5:1) for all text against backgrounds in both modes
 - **TEST-024**: Functional regression — run `pytest tests/` to ensure no API or security tests break
@@ -738,6 +886,21 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **TEST-034**: Rating-summary API returns all five distribution buckets, including zero counts
 - **TEST-035**: Five 1-star and five 5-star reviews return average 3.0 and the correct mixed-opinion distribution
 - **TEST-036**: Rating distribution updates immediately after editing and deleting reviews
+- **TEST-G01**: Send "hi" → get greeting, not module list
+- **TEST-G02**: Send "thanks" → get acknowledgment (len < 10, hits the very short fallback)
+- **TEST-G03**: Send "C270" → get module details for C270
+- **TEST-G04**: Send "C270???" → same as TEST-G03 (punctuation stripped)
+- **TEST-G05**: Send "the C270 module" → code "c270" found in tokens → module details
+- **TEST-G06**: Send "python" → gets career match (python is a keyword) or generic search result
+- **TEST-G07**: Send "biology" → generic search (1 token ≥ 5 chars) shows any matching modules
+- **TEST-G08**: Send "reviews for C270" → reviews from DB for C270
+- **TEST-G09**: Send "data analyst" → career matched results
+- **TEST-G10**: Send "asdfghjkl" → fallback help message (10 chars, not caught by short fallback)
+- **TEST-G11**: Send "a" → very short fallback (1 char)
+- **TEST-G12**: Send "?" → very short fallback (1 char)
+- **TEST-G13**: Send "" (empty) → "Please ask me something!"
+- **TEST-G14**: Send "   " (whitespace) → same as empty
+- **TEST-G15**: Send empty JSON `{}` → same as empty
 
 ## 7. Risks & Assumptions
 
@@ -759,12 +922,17 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **RISK-016**: Scraping scripts depend on RP website structure — changes may break scraping. Mitigation: Monitor scraping workflow, fix as needed
 - **RISK-017**: Playwright browser automation is required for CSRF token extraction in step 1. Mitigation: use installed Chrome locally and install Playwright Chromium in GitHub Actions
 - **RISK-018**: RP session tokens may expire during scraping. Mitigation: Pipeline skips step1 if tokens.json exists; GitHub Actions runs fresh each time
+- **RISK-019**: GitHub Actions workflows depend on repository secrets (`SUPABASE_URL`, `SUPABASE_SECRET_KEY`) — must be configured for CI/scraping to work. Mitigation: Manual scraping via `run_all.py` works without secrets
+- **RISK-020**: `VoteRepository` handles vote persistence across three backends — complexity may introduce edge cases. Mitigation: Covered by test_security.py vote tests
 - **ASSUMPTION-001**: Users have modern browsers with JavaScript support
 - **ASSUMPTION-002**: Tailwind CSS CDN and Google Fonts CDN are accessible
 - **ASSUMPTION-003**: Module data in Supabase is accurate and up-to-date
 - **ASSUMPTION-004**: Python 3.12+ is installed on the server
 - **ASSUMPTION-005**: Supabase credentials in `.env` are valid
 - **ASSUMPTION-006**: Single-server deployment (Vercel serverless) — in-memory rate limiting is per-invocation, not global
+- **RISK-G01**: Module codes might share prefixes (e.g., "C270" and "C2701") — token cleaning strips punctuation before exact match, so "C270" only matches if an alphanumeric token exactly equals "c270". A token "C2701" would NOT match "C270". This is correct.
+- **ASSUMPTION-G01**: The `_build_modules_list()` returns data in the expected format with `code`, `name`, `synopsis` keys — verified in existing codebase.
+- **ASSUMPTION-G02**: `ReviewRepository.list_by_module()` and `.rating_summaries()` exist and work — verified in existing codebase.
 
 ## 8. Related Specifications / Further Reading
 

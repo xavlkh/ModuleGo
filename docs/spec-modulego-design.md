@@ -1,11 +1,11 @@
 ---
 title: ModuleGo - Republic Polytechnic Module Viewer Design Specification
-version: 8.0
+version: 9.0
 date_created: 2026-06-29
-last_updated: 2026-07-19
+last_updated: 2026-07-29
 owner: Developer
 status: 'In Progress'
-tags: ['design', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'ui-redesign']
+tags: ['design', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'ui-redesign', 'reviews', 'voting', 'minors', 'career-paths', 'gobot', 'bookmarks', 'share']
 ---
 
 # Introduction
@@ -20,17 +20,22 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 
 **Scope:** Full-stack web application with:
 - Frontend: Vanilla JS, Tailwind CSS (glassmorphism), and HTML
-- Backend: Python Flask server with Supabase PostgreSQL (modules and reviews)
-- API endpoints for module data and review management
+- Backend: Python Flask server with Supabase PostgreSQL (modules, courses, minors, reviews, career paths)
+- API endpoints for module data, review management, voting, career paths, GoBot chatbot, bookmarks, and sharing
 
 **Audience:** Republic Polytechnic students seeking to explore modules and their associated diplomas.
 
 **Assumptions:**
 - Module data is stored in Supabase `rp_modules` table and served via `/api/modules`
-- Course (diploma) data is served via `app/static/local-data/scripts/step4_scrape_diplomas.py` → Supabase `rp_courses` → `/api/courses`
+- Course (diploma) data is served via `app/static/local-data/scripts/step3_scrape_diplomas.py` → Supabase `rp_courses` → `/api/courses`
+- Minor programme data is served via `app/static/local-data/scripts/step4_scrape_minors.py` → Supabase → `/api/minors`
+- Career path data is served via `app/static/local-data/scripts/step5_generate_career_paths.py` → Supabase → `/api/career-paths`
 - Review data (ratings and comments) is stored in Supabase `reviews` table
+- Review votes are stored in Supabase `review_votes` table
 - Backend server runs on Python Flask and proxies all Supabase calls
 - SQLite is used only for automated tests
+- GoBot chatbot uses Gemini API for AI-assisted module recommendations
+- Bookmarks and share functionality are client-side (localStorage)
 
 ## 2. Definitions
 
@@ -71,6 +76,43 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - **REQ-B03**: Module comparison page with side-by-side table view
 - **REQ-B04**: Collapsible filter panel for school, diploma, rating, and active filters
 
+### Review Voting Requirements
+
+- **REQ-V01**: Users can upvote or downvote any review (except their own)
+- **REQ-V02**: Each user can only vote once per review (changing vote replaces previous)
+- **REQ-V03**: Vote buttons show current user's vote state (filled icon if voted)
+- **REQ-V04**: Vote score (net upvotes minus downvotes) displayed next to buttons
+- **REQ-V05**: Votes stored in Supabase (production) and SQLite (tests)
+- **REQ-V06**: Review owner cannot vote on their own review
+
+### GoBot Chatbot Requirements
+
+- **REQ-G01**: "hi", "hello", "hey" → friendly greeting, no module data lookup
+- **REQ-G02**: "thanks", "ok", "okay" → friendly acknowledgment
+- **REQ-G03**: Module code "C270" → show module details
+- **REQ-G04**: "C270???" (punctuation) → still match module C270
+- **REQ-G05**: "python" → search modules (single-term search works)
+- **REQ-G06**: "biology" → search modules (unknown career word still searches)
+- **REQ-G07**: "reviews for C270" → show real reviews from DB
+- **REQ-G08**: "C270 reviews" → same
+- **REQ-G09**: "data analyst" → career-matched modules
+- **REQ-G10**: Nonsense like "asdfghjkl" → fallback help, not fake results
+- **REQ-G11**: Very short input "a", "?" → friendly nudge
+- **CON-G01**: Zero hardcoded word lists (no stop words, no greeting lists)
+- **CON-G02**: All heuristics must use length, position, or data-driven checks
+- **CON-G03**: Punctuation stripped from tokens before matching against module data
+- **CON-G04**: Exact module code matches ranked above text matches
+- **GUD-G01**: Everything on the `gobot_chat` function in `app.py` — no new files
+- **GUD-G02**: Handler order must be intentional — most specific first, fallback last
+- **GUD-G03**: Each handler returns early — no else chains, no flags
+
+### Bookmark & Share Requirements
+
+- **REQ-BS01**: Users can bookmark/favorite modules (persisted in localStorage)
+- **REQ-BS02**: Bookmarked modules are highlighted in search results
+- **REQ-BS03**: Users can share module links via clipboard copy
+- **REQ-BS04**: Users can export module data as CSV
+
 ### Constraints
 
 - **CON-001**: Use only Vanilla JavaScript (no frameworks like React, Vue, Angular)
@@ -93,6 +135,8 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - **GUD-007**: Clean minimal hero sections matching SaaS landing page patterns
 - **GUD-008**: Solid cards with `shadow-sm`, hover elevates to `shadow-xl` — no backdrop-blur on cards
 - **GUD-009**: Smooth transitions using `transition-all duration-300 ease-out` pattern
+- **GUD-010**: Dark mode with `darkMode: 'class'` strategy — three modes: Light, Dark, System (follows OS preference)
+- **GUD-011**: FOUC prevention via inline script in `<head>` that applies theme before body renders
 
 ## 4. Interfaces & Data Contracts
 
@@ -104,16 +148,9 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
   "name": "string (e.g., '3D Printing Hacks')",
   "description": "string (module description text)",
   "school": "string (e.g., 'School of Applied Science')",
-  "url": "string (URL to RP module page)",
-  "summary": "string (auto-generated features text for comparison)",
-  "suitableFor": "string (auto-generated suitability description)"
+  "url": "string (URL to RP module page)"
 }
 ```
-
-The `/api/modules` endpoint maps Supabase columns (`module_code`,
-`module_name`, `module_description`, `school`, `link`) to the frontend
-format and joins with `rp_modules_comparision` table for pre-computed
-`summary` and `suitableFor` fields.
 
 ### Diploma Mapping Schema (Supabase `rp_courses` → `/api/courses`)
 
@@ -132,21 +169,7 @@ format and joins with `rp_modules_comparision` table for pre-computed
 }
 ```
 
-Generated by `app/static/local-data/scripts/step4_scrape_diplomas.py` and imported into Supabase.
-
-### Comparison Data Schema (generated by scrape pipeline step 3)
-
-Generated by `step3_generate_comparison.py` from the synopsis JSON:
-
-```json
-{
-  "module_code": "C270",
-  "summary": "Covers DevOps practices through CI/CD, containerisation, and infrastructure automation.",
-  "suitable_for": "Students interested in DevOps, cloud infrastructure, and software deployment."
-}
-```
-
-Output as `rp_modules_comparison.json` (nested) and `rp_modules_comparison.csv` (flat `utf-8-sig` BOM for Excel).
+Generated by `app/static/local-data/scripts/step3_scrape_diplomas.py` and imported into Supabase. Module comparison summaries are generated on-demand via Gemini (`/api/comparison/generate`).
 
 ### Review Schema (Supabase)
 
@@ -178,18 +201,57 @@ sends it as an `X-Owner-Token` header on create/update/delete. The
 server stores this token in the `owner_token` column and validates it
 before allowing mutations.
 
+### Review Votes Schema
+
+```sql
+-- Supabase (PostgreSQL)
+CREATE TABLE review_votes (
+    id BIGSERIAL PRIMARY KEY,
+    review_id BIGINT NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+    owner_token TEXT NOT NULL,
+    vote_type SMALLINT NOT NULL CHECK (vote_type IN (1, -1)),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(review_id, owner_token)
+);
+
+-- SQLite (tests)
+CREATE TABLE REVIEW_VOTES (
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    REVIEW_ID INTEGER NOT NULL,
+    OWNER_TOKEN TEXT NOT NULL,
+    VOTE_TYPE INTEGER NOT NULL CHECK (VOTE_TYPE IN (1, -1)),
+    CREATED_AT DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (REVIEW_ID) REFERENCES REVIEWS(ID) ON DELETE CASCADE,
+    UNIQUE(REVIEW_ID, OWNER_TOKEN)
+);
+```
+
+**Voting model:** One vote per user per review. The `owner_token` (same
+token used for review ownership) identifies the voter. Changing a vote
+replaces the previous one (upsert on `UNIQUE(review_id, owner_token)`).
+Vote persistence is handled by `VoteRepository` in `app.py` (line 648),
+which supports SQLite (tests), PostgreSQL, and Supabase backends.
+
 ### Backend API Endpoints
 
 | Endpoint | Method | Description | Request Body | Response |
 |----------|--------|-------------|--------------|----------|
 | `/api/modules` | GET | List all modules from Supabase | - | Array of module objects |
 | `/api/courses` | GET | List all courses (diplomas) from Supabase | - | Array of course objects |
+| `/api/minors` | GET | List all minor programmes from Supabase | - | Array of minor objects |
+| `/api/career-paths` | GET | List all career paths | - | Array of career path objects |
 | `/api/reviews` | GET | List all reviews (dashboard) | - | Array of review objects |
 | `/api/reviews` | POST | Create a new review | `{ module_code, rating, comment }` | Review object |
 | `/api/reviews/<module_code>` | GET | Get reviews for a module | - | Array of review objects |
 | `/api/reviews/<review_id>` | PUT | Update a review | `{ rating, comment }` | Review object |
 | `/api/reviews/<review_id>` | DELETE | Delete a review | - | 204 No Content |
 | `/api/ratings` | GET | Get rating summary per module | - | `{ module_code: { average_rating, review_count, distribution } }` |
+| `/api/reviews/<review_id>/vote` | GET | Get vote score and user's vote | - | `{ score, user_vote }` |
+| `/api/reviews/<review_id>/vote` | POST | Add or update vote | `{ vote_type: 1 \| -1 }` | `{ score, user_vote }` |
+| `/api/reviews/<review_id>/vote` | DELETE | Remove vote | - | `{ score, user_vote: 0 }` |
+| `/api/reviews/votes` | POST | Bulk vote scores for multiple reviews | `{ review_ids: [...] }` | `{ votes: { review_id: { score, user_vote } } }` |
+| `/api/comparison/generate` | POST | Generate Gemini comparison summary | `{ module1, module2 }` | Comparison text |
+| `/api/gobot` | POST | Chatbot endpoint | `{ message }` | `{ response }` |
 
 Each `distribution` contains string keys `"5"` through `"1"`, including ratings with a zero count. Example:
 
@@ -239,6 +301,7 @@ app/templates/modules/index.html (Home/Search Page)
 │   ├── Full Module Details
 │   ├── Diploma List
 │   ├── Reviews Section (Rating + Comments)
+│   │   └── Vote Button Group (thumbs-up, score, thumbs-down)
 │   └── Review Submission Form
 
 app/templates/modules/comparison.html (Comparison Page)
@@ -256,7 +319,22 @@ app/templates/modules/reviews.html (Review Dashboard)
 ├── Stat Cards (solid bg)
 ├── Review Toolbar (filters)
 ├── Review Cards Grid (solid bg)
+│   └── Vote Button Group (thumbs-up, score, thumbs-down)
 └── Edit Review Modal (custom implementation)
+
+app/static/js/gobot.js (Chatbot - Gemini-powered)
+├── GoBot object with welcome popup
+├── Chat UI with quick-send buttons
+├── Message history in localStorage
+└── POST /api/gobot communication
+
+app/static/js/bookmark.js (Favorites - localStorage)
+├── BookmarkManager with toggle/add/remove
+└── localStorage persistence
+
+app/static/js/share.js (Share functionality)
+├── getShareUrl(), copyLink(), exportCSV()
+└── Toast notifications
 ```
 
 ## 5. Acceptance Criteria
@@ -302,6 +380,13 @@ app/templates/modules/reviews.html (Review Dashboard)
 - **AC-024**: Given a module has reviews, When its detail window opens, Then all five rating buckets are shown with counts and bars proportional to the total review count
 - **AC-025**: Given a module has no reviews, When its detail window opens, Then "No ratings yet" is shown and the distribution is hidden
 
+### Review Voting
+- **AC-026**: Given user views a review, When user clicks upvote, Then score increments by 1, upvote button fills, and downvote clears
+- **AC-027**: Given user views a review, When user clicks downvote, Then score decrements by 1, downvote button fills, and upvote clears
+- **AC-028**: Given user has voted on a review, When user clicks the same vote again, Then vote is removed and score returns to previous value
+- **AC-029**: Given user is the review owner, When user views vote buttons, Then vote buttons are disabled or hidden
+- **AC-030**: Given user has voted, When page reloads, Then vote state persists (filled icon for active vote)
+
 ## 6. Test Automation Strategy
 
 - **Test Levels**: Automated API tests (pytest), manual browser testing
@@ -324,6 +409,9 @@ app/templates/modules/reviews.html (Review Dashboard)
 7. **Supabase for modules and reviews**: Managed PostgreSQL with real-time capabilities, no self-hosted database
 8. **Flask app structure**: Standard Python Flask layout with templates, static, and data separation
 9. **Collapsible filter panel**: School, diploma, rating, and active filters in a toggleable panel, state persisted in URL params
+10. **GoBot chatbot**: Gemini-powered chatbot with early-return handler pipeline, no hardcoded word lists, data-driven heuristics
+11. **Anonymous ownership**: Token-based ownership for reviews without user authentication, using UUID hex stored in localStorage
+12. **Triple-branch repository pattern**: `ReviewRepository` and `VoteRepository` support SQLite (tests), PostgreSQL, and Supabase backends
 
 **Trade-offs:**
 - Client-side filtering requires loading entire dataset upfront
@@ -336,7 +424,9 @@ app/templates/modules/reviews.html (Review Dashboard)
 ### Data Dependencies
 - **DAT-001**: Supabase `rp_modules` table - Module dataset stored in PostgreSQL
 - **DAT-002**: Supabase `rp_courses` table - Diploma/course data scraped from RP website
-- **DAT-003**: Supabase `rp_modules_comparision` table - Pre-computed comparison fields
+- **DAT-003**: Supabase `rp_minors` table - Minor programme data scraped from RP website
+- **DAT-004**: Gemini API — On-demand module comparison generation and GoBot chatbot responses
+- **DAT-005**: Career path data (Supabase or local JSON) — Module-to-career matching for GoBot
 
 ### External Links
 - **EXT-001**: RP Module Pages - Links to official module information
@@ -349,7 +439,9 @@ app/templates/modules/reviews.html (Review Dashboard)
 - **INF-004**: Lucide Icons via CDN (`unpkg.com/lucide`)
 - **INF-005**: Python 3.12+ runtime
 - **INF-006**: Flask web framework
-- **INF-007**: Supabase project with `rp_modules`, `rp_courses`, and `reviews` tables
+- **INF-007**: Supabase project with `rp_modules`, `rp_courses`, `rp_minors`, `reviews`, `review_votes`, and `career_paths` tables
+- **INF-008**: Scraping pipeline (`app/static/local-data/scripts/`) for automated data collection (5 steps: tokens, modules, diplomas, minors, career paths)
+- **INF-009**: Gemini API key for comparison generation and GoBot chatbot
 
 ### Backend Dependencies
 - **DEP-001**: Flask 3.1.3 - Web framework
@@ -359,6 +451,12 @@ app/templates/modules/reviews.html (Review Dashboard)
 - **DEP-005**: pytest>=8.0,<10.0 - Test framework
 - **DEP-006**: Flask-WTF>=1.2.0 - CSRF protection (API routes exempt)
 - **DEP-007**: Flask-Limiter>=3.0.0 - Rate limiting (20/hr POST, 10/hr PUT/DELETE)
+- **DEP-008**: psycopg2-binary>=2.9,<3.0 - PostgreSQL adapter for production database
+- **DEP-009**: playwright>=1.50,<2.0 - Browser automation for scraping (token extraction)
+- **DEP-010**: requests>=2.32,<3.0 - HTTP client for scraping scripts
+- **DEP-011**: httpx>=0.27,<0.29 - Async HTTP client
+- **DEP-012**: crawl4ai>=0.2.0 - Web crawling framework
+- **DEP-013**: beautifulsoup4>=4.12 - HTML parsing for scraping
 
 ## 9. Examples & Edge Cases
 
@@ -377,6 +475,13 @@ app/templates/modules/reviews.html (Review Dashboard)
 - Empty comment submission: Prevent submission or show validation
 - Very long comments: Limit character count or allow scrolling
 - No comments yet: Show "No comments yet" message
+
+### Voting Edge Cases
+- User votes on own review: Prevent or disable vote buttons
+- User changes vote: Upsert replaces previous vote, score updates
+- User removes vote: Delete vote row, score updates
+- Review deleted with votes: CASCADE delete removes all associated votes
+- Multiple rapid clicks: Debounce or let upsert handle idempotency
 
 ## 10. Validation Criteria
 
