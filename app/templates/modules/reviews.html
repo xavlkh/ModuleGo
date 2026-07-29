@@ -28,13 +28,13 @@
                 <h2 class="text-lg font-bold text-zinc-900 dark:text-white mb-0">All reviews</h2>
                 <p id="dashboardResultCount" class="text-xs text-zinc-500 dark:text-zinc-400">Loading reviews...</p>
             </div>
-            <div class="flex flex-row items-center gap-2">
-                {{ inputSearch('reviewSearch', 'Search comments...', 'flex-1 min-w-0') }}
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                {{ inputSearch('reviewSearch', 'Search comments...', 'w-full sm:w-56') }}
                 {{ selectField('confidenceFilter', [
                     ('all', 'All confidence'),
                     ('high', 'High confidence'),
                     ('low', 'Low confidence')
-                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm flex-shrink-0') }}
+                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm min-w-0 flex-1 sm:flex-none sm:w-auto') }}
                 {{ selectField('ratingFilter', [
                     ('all', 'All ratings'),
                     ('5', '5 stars'),
@@ -42,11 +42,11 @@
                     ('3', '3 stars'),
                     ('2', '2 stars'),
                     ('1', '1 star')
-                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm flex-shrink-0') }}
+                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm min-w-0 flex-1 sm:flex-none sm:w-auto') }}
                 {{ selectField('reviewSort', [
                     ('newest', 'Newest first'),
                     ('oldest', 'Oldest first')
-                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm flex-shrink-0') }}
+                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm min-w-0 flex-1 sm:flex-none sm:w-auto') }}
             </div>
         </div>
 

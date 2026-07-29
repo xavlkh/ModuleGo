@@ -7,7 +7,6 @@ import string
 import time
 
 import httpx
-from bs4 import BeautifulSoup
 
 API_URL = "https://lcs.rp.edu.sg/RPModuleSynopsis/screenservices/RPModuleSynopsis/MainFlow/ModuleSynopsis/ScreenDataSetGetSynopsis?lXamMASFpg1bQfatzeulEg"
 
@@ -29,26 +28,6 @@ SCHOOL_ABBR = {
 }
 
 GENERAL_PREFIXES = {"G", "P"}
-
-
-def fetch_module_urls_from_sitemap():
-    print("  Fetching sitemap...")
-    try:
-        resp = httpx.get("https://www.rp.edu.sg/sitemap.xml", headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "xml")
-        codes = set()
-        for loc in soup.find_all("loc"):
-            url = loc.text
-            if "/education/modules/" in url:
-                slug = url.rstrip("/").split("/modules/")[-1]
-                if slug:
-                    codes.add(slug.upper())
-        print(f"  Sitemap: {len(codes)} module pages")
-        return codes
-    except httpx.HTTPError as e:
-        print(f"  Warning: sitemap fetch failed: {e}")
-        return None
 
 
 def fix_mojibake(text):
@@ -133,8 +112,6 @@ def main():
     with open(token_path, "r", encoding="utf-8") as f:
         tokens = json.load(f)
 
-    valid_codes = fetch_module_urls_from_sitemap()
-
     all_modules = []
     seen_codes = {}
     t0 = time.time()
@@ -182,7 +159,7 @@ def main():
             school_name = m.get("school_name", "") or PREFIX_SCHOOL.get(prefix, "")
             school_abbr = get_school_abbr(school_name)
 
-        url = f"https://www.rp.edu.sg/education/modules/{code.lower()}" if valid_codes is None or code.upper() in valid_codes else ""
+        url = f"https://www.rp.edu.sg/education/modules/{code.lower()}"
         output.append({
             "module_code": code, "module_name": m["module_name"],
             "synopsis": m["synopsis"], "school_name": school_name,
