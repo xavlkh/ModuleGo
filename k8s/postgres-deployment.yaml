@@ -15,9 +15,25 @@ spec:
       labels:
         app: postgres
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:16-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+            capabilities:
+              drop:
+                - ALL
           ports:
             - containerPort: 5432
           envFrom:
@@ -26,6 +42,10 @@ spec:
           volumeMounts:
             - name: pgdata
               mountPath: /var/lib/postgresql/data
+            - name: postgres-runtime
+              mountPath: /var/run/postgresql
+            - name: postgres-tmp
+              mountPath: /tmp
           # Slow start: give postgres time to init before k8s probes it
           startupProbe:
             exec:
@@ -40,3 +60,7 @@ spec:
         - name: pgdata
           persistentVolumeClaim:
             claimName: postgres-pvc
+        - name: postgres-runtime
+          emptyDir: {}
+        - name: postgres-tmp
+          emptyDir: {}
