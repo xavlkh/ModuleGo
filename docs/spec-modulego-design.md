@@ -183,11 +183,7 @@ CREATE TABLE reviews (
     comment text NOT NULL DEFAULT '',
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz,
-    owner_token text, -- legacy rows only
-    user_id uuid references auth.users(id) on delete set null,
-    guest_owner_hash text,
-    is_anonymous boolean not null default true,
-    author_display_name text
+    owner_token text
 );
 
 -- Index for fast per-module lookups.
@@ -199,12 +195,11 @@ ALTER TABLE reviews
     FOREIGN KEY (module_code) REFERENCES rp_modules(module_code);
 ```
 
-**Ownership model:** Account ownership comes only from a verified Supabase
-user ID. Guest ownership comes only from a signed HTTP-only 30-day cookie;
-Flask stores an HMAC hash of the guest ID. The browser cannot submit ownership
-IDs. Public review responses expose only `is_owner` and
-`author.{anonymous,label}`. Existing `owner_token` rows remain readable legacy
-content.
+**Ownership model:** Reviews use anonymous token-based ownership. The
+client generates a random UUID hex token (stored in `localStorage`) and
+sends it as an `X-Owner-Token` header on create/update/delete. The
+server stores this token in the `owner_token` column and validates it
+before allowing mutations.
 
 ### Review Votes Schema
 
@@ -213,36 +208,29 @@ content.
 CREATE TABLE review_votes (
     id BIGSERIAL PRIMARY KEY,
     review_id BIGINT NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
-    owner_token TEXT, -- legacy rows only
-    user_id uuid references auth.users(id) on delete cascade,
-    guest_owner_hash text,
+    owner_token TEXT NOT NULL,
     vote_type SMALLINT NOT NULL CHECK (vote_type IN (1, -1)),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(review_id, owner_token)
 );
-
-CREATE UNIQUE INDEX review_votes_one_per_account
-    ON review_votes (review_id, user_id) WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX review_votes_one_per_guest
-    ON review_votes (review_id, guest_owner_hash)
-    WHERE guest_owner_hash IS NOT NULL;
 
 -- SQLite (tests)
 CREATE TABLE REVIEW_VOTES (
     ID INTEGER PRIMARY KEY AUTOINCREMENT,
     REVIEW_ID INTEGER NOT NULL,
-    OWNER_TOKEN TEXT,
-    USER_ID TEXT,
-    GUEST_OWNER_HASH TEXT,
+    OWNER_TOKEN TEXT NOT NULL,
     VOTE_TYPE INTEGER NOT NULL CHECK (VOTE_TYPE IN (1, -1)),
     CREATED_AT DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (REVIEW_ID) REFERENCES REVIEWS(ID) ON DELETE CASCADE
+    FOREIGN KEY (REVIEW_ID) REFERENCES REVIEWS(ID) ON DELETE CASCADE,
+    UNIQUE(REVIEW_ID, OWNER_TOKEN)
 );
 ```
 
-**Voting model:** One partial unique index enforces one vote per account and
-another enforces one vote per signed guest. Flask rejects self-votes using the
-private owner fields even when an account review is publicly anonymous.
-`VoteRepository` supports SQLite tests, direct PostgreSQL and Supabase.
+**Voting model:** One vote per user per review. The `owner_token` (same
+token used for review ownership) identifies the voter. Changing a vote
+replaces the previous one (upsert on `UNIQUE(review_id, owner_token)`).
+Vote persistence is handled by `VoteRepository` in `app.py` (line 648),
+which supports SQLite (tests), PostgreSQL, and Supabase backends.
 
 ### Backend API Endpoints
 
@@ -253,23 +241,15 @@ private owner fields even when an account review is publicly anonymous.
 | `/api/minors` | GET | List all minor programmes from Supabase | - | Array of minor objects |
 | `/api/career-paths` | GET | List all career paths | - | Array of career path objects |
 | `/api/reviews` | GET | List all reviews (dashboard) | - | Array of review objects |
-| `/register` | GET/POST | Register through Supabase Auth | Form fields | Confirmation message |
-| `/login` | GET/POST | Log in through Supabase Auth | Form fields | Secure Flask session |
-| `/logout` | POST | Revoke and clear session | CSRF form | Redirect |
-| `/api/auth/me` | GET | Safe current-user state | - | `{ authenticated, user }` |
-| `/api/reviews` | POST | Create a new review | `{ module_code, rating, comment, is_anonymous? }` | Public review object |
+| `/api/reviews` | POST | Create a new review | `{ module_code, rating, comment }` | Review object |
 | `/api/reviews/<module_code>` | GET | Get reviews for a module | - | Array of review objects |
-| `/api/reviews/<review_id>` | PUT | Update owned review | `{ rating, comment, is_anonymous? }` | Public review object |
+| `/api/reviews/<review_id>` | PUT | Update a review | `{ rating, comment }` | Review object |
 | `/api/reviews/<review_id>` | DELETE | Delete a review | - | 204 No Content |
 | `/api/ratings` | GET | Get rating summary per module | - | `{ module_code: { average_rating, review_count, distribution } }` |
 | `/api/reviews/<review_id>/vote` | GET | Get vote score and user's vote | - | `{ score, user_vote }` |
 | `/api/reviews/<review_id>/vote` | POST | Add or update vote | `{ vote_type: 1 \| -1 }` | `{ score, user_vote }` |
 | `/api/reviews/<review_id>/vote` | DELETE | Remove vote | - | `{ score, user_vote: 0 }` |
 | `/api/reviews/votes` | POST | Bulk vote scores for multiple reviews | `{ review_ids: [...] }` | `{ votes: { review_id: { score, user_vote } } }` |
-| `/api/bookmarks` | GET/DELETE | List or clear account bookmarks | - | Codes or 204 |
-| `/api/bookmarks/<module_code>` | PUT/DELETE | Add/remove account bookmark | - | Code or 204 |
-| `/api/ownership/pending` | GET | Count claimable guest activity | - | Review/vote counts |
-| `/api/ownership/claim` | POST | Explicit transactional guest claim | `{ bookmark_codes }` | Claim summary |
 | `/api/comparison/generate` | POST | Generate Gemini comparison summary | `{ module1, module2 }` | Comparison text |
 | `/api/gobot` | POST | Chatbot endpoint | `{ message }` | `{ response }` |
 
@@ -469,7 +449,7 @@ app/static/js/share.js (Share functionality)
 - **DEP-003**: python-dotenv 1.2.2 - Environment variable loading
 - **DEP-004**: SQLite3 - Local review database (tests and offline fallback)
 - **DEP-005**: pytest>=8.0,<10.0 - Test framework
-- **DEP-006**: Flask-WTF>=1.2.0 - CSRF protection for forms and state-changing browser APIs
+- **DEP-006**: Flask-WTF>=1.2.0 - CSRF protection (API routes exempt)
 - **DEP-007**: Flask-Limiter>=3.0.0 - Rate limiting (20/hr POST, 10/hr PUT/DELETE)
 - **DEP-008**: psycopg2-binary>=2.9,<3.0 - PostgreSQL adapter for production database
 - **DEP-009**: playwright>=1.50,<2.0 - Browser automation for scraping (token extraction)

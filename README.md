@@ -53,8 +53,6 @@ cd ModuleGo
 ```
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SECRET_KEY=your-service-role-key
-SUPABASE_PUBLISHABLE_KEY=your-publishable-key
-FLASK_SECRET_KEY=your-stable-random-secret
 GEMINI_API_KEY=your-gemini-api-key
 ```
 
@@ -71,24 +69,6 @@ This runs Flask via Gunicorn on port 5000, with a PostgreSQL container for local
 
 > [!NOTE]
 > The frontend never calls Supabase directly. All requests go through Flask so the secret key stays on the server.
-
-### Account ownership setup
-
-Account support uses Supabase Auth while Flask remains the only database
-client. Before testing the `account` branch:
-
-1. Export the existing `reviews` and `review_votes` tables.
-2. Run `docs/sql/account_ownership.sql` in Supabase SQL Editor.
-3. Enable the Email provider, new-user signups and Confirm Email.
-4. Add `http://127.0.0.1:5000/login?confirmed=1` and the exact Vercel
-   login URL to Supabase Auth redirect URLs.
-5. Add `SUPABASE_PUBLISHABLE_KEY` and a stable `FLASK_SECRET_KEY` locally
-   and in Vercel, then redeploy.
-
-Guests use a signed HTTP-only ownership cookie for 30 days. Guest bookmarks
-remain in `moduleGoBookmarks` localStorage. Logged-in reviews, votes and
-bookmarks belong to the verified Supabase user and can be explicitly claimed
-from the current browser after login.
 
 ### With Minikube (Kubernetes)
 
