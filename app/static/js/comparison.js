@@ -337,10 +337,10 @@ const ComparisonManager = {
         ];
 
         this.elements.tableBody.innerHTML = rows.map(([label, v1, v2], i) => `
-            <tr class="${i < 2 ? 'bg-primary-50/40 dark:bg-primary-900/20' : ''}">
-                <th scope="row" class="px-5 py-3.5 text-sm font-semibold text-primary-800 dark:text-primary-200 whitespace-nowrap">${escapeHtml(label)}</th>
-                <td class="px-5 py-3.5 text-sm text-zinc-700 dark:text-zinc-300">${v1}</td>
-                <td class="px-5 py-3.5 text-sm text-zinc-700 dark:text-zinc-300">${v2}</td>
+            <tr class="bg-primary-50/40 dark:bg-primary-900/20">
+                <th scope="row" class="px-5 py-3.5 text-sm font-semibold text-primary-800 dark:text-primary-200">${escapeHtml(label)}</th>
+                <td class="px-5 py-3.5 text-sm text-zinc-700 dark:text-zinc-300 whitespace-normal break-words overflow-hidden">${v1}</td>
+                <td class="px-5 py-3.5 text-sm text-zinc-700 dark:text-zinc-300 whitespace-normal break-words overflow-hidden">${v2}</td>
             </tr>
         `).join('');
         lucide.createIcons();

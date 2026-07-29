@@ -16,7 +16,7 @@
 
 ---
 
-## Purpose
+## About
 
 The official RP Module Viewer makes it hard to discover which diplomas offer a given module, compare modules side-by-side, or get peer feedback. ModuleGo fixes that.
 
