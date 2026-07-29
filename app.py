@@ -1748,7 +1748,7 @@ def _load_career_paths() -> list:
     try:
         result = supabase.table(_CAREER_PATHS_TABLE).select('*').order('id').execute()
         if result.data:
-            return [{'id': r['career_id'], 'label': r['label'], 'keywords': r['keywords']} for r in result.data]
+            return [{'id': r['id'], 'label': r['label'], 'keywords': r['keywords']} for r in result.data]
     except APIError:
         pass
 
