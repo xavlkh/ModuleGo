@@ -31,7 +31,7 @@
     Bookmarks
 </a>
 {% if current_user %}
-<span class="max-w-32 truncate px-2 text-sm font-semibold text-zinc-600 dark:text-zinc-300" title="{{ current_user.display_name }}">Hi, {{ current_user.display_name }}</span>
+<a href="{{ url_for('auth.profile') }}" class="max-w-32 truncate rounded-lg px-2 py-2 text-sm font-semibold text-zinc-600 transition hover:text-primary-600 dark:text-zinc-300 dark:hover:text-primary-400" title="Manage profile for {{ current_user.display_name }}">Hi, {{ current_user.display_name }}</a>
 <form method="post" action="{{ url_for('auth.logout') }}" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="rounded-lg px-3 py-2 text-sm font-semibold text-zinc-600 transition hover:text-primary-600 dark:text-zinc-300 dark:hover:text-primary-400">Log out</button>
