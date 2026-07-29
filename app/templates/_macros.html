@@ -27,19 +27,6 @@
 <a href="{{ url_for('serve_reviews') }}" class="font-display font-semibold text-[15px] {% if active == 'serve_reviews' %}text-zinc-900 dark:text-white underline underline-offset-4{% else %}text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white{% endif %} px-4 py-2 rounded-lg transition-all">
     Reviews
 </a>
-<a href="{{ url_for('serve_bookmarks') }}" class="font-display font-semibold text-[15px] {% if active == 'serve_bookmarks' %}text-zinc-900 dark:text-white underline underline-offset-4{% else %}text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white{% endif %} px-4 py-2 rounded-lg transition-all">
-    Bookmarks
-</a>
-{% if current_user %}
-<span class="max-w-32 truncate px-2 text-sm font-semibold text-zinc-600 dark:text-zinc-300" title="{{ current_user.display_name }}">Hi, {{ current_user.display_name }}</span>
-<form method="post" action="{{ url_for('auth.logout') }}" class="inline">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit" class="rounded-lg px-3 py-2 text-sm font-semibold text-zinc-600 transition hover:text-primary-600 dark:text-zinc-300 dark:hover:text-primary-400">Log out</button>
-</form>
-{% else %}
-<a href="{{ url_for('auth.login') }}" class="rounded-lg px-3 py-2 text-sm font-semibold text-zinc-600 transition hover:text-primary-600 dark:text-zinc-300 dark:hover:text-primary-400">Log in</a>
-<a href="{{ url_for('auth.register') }}" class="rounded-lg bg-primary-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary-600">Create account</a>
-{% endif %}
 {% endmacro %}
 
 {# --------------------------------------------------------------------- #}

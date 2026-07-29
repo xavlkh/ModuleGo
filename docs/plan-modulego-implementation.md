@@ -152,32 +152,6 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | TASK-030 | Create review submission form with rating dropdown and comment textarea | ✅ | 2026-07-04 |
 | TASK-031 | Implement review display with rating stars and timestamp | ✅ | 2026-07-04 |
 
-### Implementation Phase 5B: Hybrid Account Ownership
-
-- GOAL-005B: Keep guest participation while adding optional cross-device
-  Supabase accounts.
-
-| Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-A01 | Add request-scoped Supabase registration, confirmation, login, refresh and logout | Done | 2026-07-29 |
-| TASK-A02 | Replace browser owner tokens with signed HTTP-only guest cookies | Done | 2026-07-29 |
-| TASK-A03 | Add account/guest review and vote ownership with self-vote protection | Done | 2026-07-29 |
-| TASK-A04 | Add anonymous-by-default account reviews with editable visibility | Done | 2026-07-29 |
-| TASK-A05 | Keep guest bookmarks local and add account bookmark APIs | Done | 2026-07-29 |
-| TASK-A06 | Add explicit transactional guest-activity claim flow | Done | 2026-07-29 |
-| TASK-A07 | Protect state-changing APIs with Flask-WTF CSRF tokens | Done | 2026-07-29 |
-| TASK-A08 | Supply idempotent manual Supabase migration and verification guide | Done | 2026-07-29 |
-
-Acceptance checks:
-
-- Guest review/vote ownership survives refresh and is valid for 30 days.
-- Public JSON never includes user IDs, guest hashes, legacy owner tokens or
-  hidden account names.
-- One review per identity per module returns `409` for duplicates.
-- Account content wins claim conflicts; conflicting guest reviews remain
-  read-only and conflicting or self-votes are removed.
-- Local bookmarks are cleared only after a successful claim.
-
 ### Implementation Phase 6: Module Comparison
 
 - GOAL-006: Implement module comparison feature
@@ -579,11 +553,6 @@ Acceptance checks:
 
 #### Phase 25.2: Owner Token Database Schema
 
-> **Superseded on 2026-07-29:** Phases 25.2–25.5 describe the original
-> prototype. Hybrid ownership replaces raw browser `owner_token` headers with
-> verified account IDs or signed HTTP-only guest cookies. `owner_token`
-> remains only for readable legacy rows.
-
 - GOAL-25.2: Add owner_token column to reviews table for anonymous ownership
 
 | Task | Description | Completed | Date |
@@ -849,7 +818,7 @@ The handler pipeline must run in this exact order, each returning early:
 | `app/templates/base.html` | Layout template with glass navbar/footer (Tailwind) |
 | `app/templates/_macros.html` | Shared Jinja macros (hero, navLinks, themeToggle, selectField, glassCard, statCard, modalOverlay, etc.) |
 | `app/static/css/app.css` | Tailwind CSS with `:root` custom properties and glassmorphism tokens |
-| `app/static/js/utils.js` | Shared utilities (`apiFetch`, escaping, stars, timestamps, messages, review actions, modal controller) |
+| `app/static/js/utils.js` | Shared utilities (escapeHtml, createStars, parseTimestamp, showMessage, createReviewActionsHTML, createModalController, getOwnerToken, formatReviewDate) |
 | `app/static/js/data.js` | Data loading from `/api/modules` + `/api/courses` + `/api/minors` with diploma/minor/rating/active filtering |
 | `app/static/js/ui.js` | UI rendering, search, pagination, filter panel + app initialization (merged from search.js + app.js) |
 | `app/static/js/comparison.js` | Module comparison logic (Tailwind markup) |
@@ -947,8 +916,8 @@ The handler pipeline must run in this exact order, each returning early:
 - **RISK-010**: Merging detail.js into reviews.js may cause regression in detail modal - Mitigation: Test coverage of review CRUD
 - **RISK-011**: Changing CSS class names on cards may break JS that targets `.glass-card` — verify `ui.js` and `detail.js` selectors
 - **RISK-012**: Dark mode custom oklch vars may produce unexpected contrast on some monitors — test on multiple screens
-- **RISK-013**: Existing `owner_token` reviews cannot be safely assigned to an account. Mitigation: preserve them as readable legacy content.
-- **RISK-014**: Clearing the signed guest cookie removes guest mutation access. Mitigation: the cookie is HTTP-only, lasts 30 days, and users can explicitly claim activity after login.
+- **RISK-013**: Existing reviews in Supabase have no `owner_token` — they become "orphaned" (read-only). Mitigation: Acceptable for existing data; new reviews will have ownership
+- **RISK-014**: Users clearing localStorage lose ownership of their reviews. Mitigation: Acceptable for anonymous system; reviews remain readable
 - **RISK-015**: Flask-Limiter in-memory storage is per-invocation on Vercel serverless — not global rate limiting. Mitigation: Acceptable for student project scale
 - **RISK-016**: Scraping scripts depend on RP website structure — changes may break scraping. Mitigation: Monitor scraping workflow, fix as needed
 - **RISK-017**: Playwright browser automation is required for CSRF token extraction in step 1. Mitigation: use installed Chrome locally and install Playwright Chromium in GitHub Actions

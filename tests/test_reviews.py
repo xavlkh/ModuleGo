@@ -25,17 +25,6 @@ def create_review(client, module_code="C270", rating=5, comment="Very useful"):
     )
 
 
-def create_review_as_new_guest(
-    client,
-    module_code="C270",
-    rating=5,
-    comment="Very useful",
-):
-    """Create a review from a fresh signed guest identity."""
-    client.delete_cookie("modulego_guest")
-    return create_review(client, module_code, rating, comment)
-
-
 def test_pages_are_available(client):
     assert client.get("/").status_code == 200
     assert client.get("/comparison").status_code == 200
@@ -101,11 +90,9 @@ def test_comment_validation(client):
 
 
 def test_rating_summaries(client):
-    create_review_as_new_guest(client, rating=5, comment="Excellent")
-    create_review_as_new_guest(client, rating=4, comment="Good")
-    create_review_as_new_guest(
-        client, module_code="C110", rating=3, comment="Okay"
-    )
+    create_review(client, rating=5, comment="Excellent")
+    create_review(client, rating=4, comment="Good")
+    create_review(client, module_code="C110", rating=3, comment="Okay")
 
     response = client.get("/api/ratings")
     assert response.status_code == 200
@@ -136,8 +123,8 @@ def test_rating_summaries(client):
 
 def test_rating_distribution_reveals_disagreement(client):
     for _ in range(5):
-        create_review_as_new_guest(client, rating=5)
-        create_review_as_new_guest(client, rating=1)
+        create_review(client, rating=5)
+        create_review(client, rating=1)
 
     summary = client.get("/api/ratings").get_json()["C270"]
 
@@ -156,8 +143,7 @@ def test_rating_distribution_reveals_disagreement(client):
 
 def test_rating_distribution_tracks_update_and_delete(client):
     five_star_id = create_review(client, rating=5).get_json()["id"]
-    other_guest = app_module.app.test_client()
-    one_star_id = create_review(other_guest, rating=1).get_json()["id"]
+    one_star_id = create_review(client, rating=1).get_json()["id"]
 
     update_response = client.put(
         f"/api/reviews/{five_star_id}",
@@ -176,7 +162,7 @@ def test_rating_distribution_tracks_update_and_delete(client):
         "1": 1,
     }
 
-    delete_response = other_guest.delete(f"/api/reviews/{one_star_id}")
+    delete_response = client.delete(f"/api/reviews/{one_star_id}")
     assert delete_response.status_code == 204
 
     deleted_summary = client.get("/api/ratings").get_json()["C270"]
@@ -191,15 +177,6 @@ def test_rating_distribution_tracks_update_and_delete(client):
             "1": 0,
         },
     }
-
-
-def test_one_review_per_guest_per_module(client):
-    first = create_review(client, rating=5)
-    duplicate = create_review(client, rating=1)
-
-    assert first.status_code == 201
-    assert duplicate.status_code == 409
-    assert duplicate.get_json()["error"] == "You already reviewed this module."
 
 
 def test_list_all_reviews_for_dashboard(client):

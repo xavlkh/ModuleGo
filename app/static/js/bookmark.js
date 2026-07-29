@@ -1,5 +1,5 @@
 /**
- * Manage guest bookmarks locally and account bookmarks through Flask.
+ * Manage bookmarked modules using localStorage.
  * @module bookmark
  */
 function _normalizeCode(code) {
@@ -9,98 +9,68 @@ function _normalizeCode(code) {
 const BookmarkManager = {
     storageKey: 'moduleGoBookmarks',
     bookmarks: [],
-    initialized: false,
-    accountMode: Boolean(window.ModuleGoAuth?.authenticated),
 
-    /** Load the correct bookmark store for the current identity. */
-    async init() {
-        if (this.initialized) return;
-        if (this.accountMode) {
-            const response = await fetch('/api/bookmarks');
-            if (!response.ok) throw new Error('Could not load account bookmarks.');
-            const data = await response.json();
-            this.bookmarks = [...new Set(
-                (data.module_codes || []).map(_normalizeCode).filter(Boolean)
-            )];
-        } else {
-            this.loadLocal();
-        }
-        this.initialized = true;
+    init() {
+        this.load();
     },
 
-    /** Read browser-only guest bookmarks. */
-    loadLocal() {
+    load() {
         try {
             const saved = localStorage.getItem(this.storageKey);
             const parsed = saved ? JSON.parse(saved) : [];
-            this.bookmarks = Array.isArray(parsed)
-                ? [...new Set(parsed.map(_normalizeCode).filter(Boolean))]
-                : [];
+            if (!Array.isArray(parsed)) {
+                this.bookmarks = [];
+                return;
+            }
+            this.bookmarks = [...new Set(parsed.map(_normalizeCode).filter(Boolean))];
         } catch {
             this.bookmarks = [];
         }
     },
 
-    /** Save browser-only guest bookmarks. */
-    saveLocal() {
+    save() {
         try {
             localStorage.setItem(this.storageKey, JSON.stringify(this.bookmarks));
         } catch {}
     },
 
-    /** Notify all pages that bookmark state changed. */
-    notify() {
-        document.dispatchEvent(new CustomEvent('bookmarks:changed'));
-    },
-
     isBookmarked(moduleCode) {
         const code = _normalizeCode(moduleCode);
-        return Boolean(code && this.bookmarks.includes(code));
+        return !!code && this.bookmarks.includes(code);
     },
 
-    /** Toggle a bookmark and return its new state. */
-    async toggle(moduleCode) {
+    toggle(moduleCode) {
         const code = _normalizeCode(moduleCode);
         if (!code) return false;
         if (this.bookmarks.includes(code)) {
-            await this.remove(code);
-            return false;
+            this.bookmarks = this.bookmarks.filter(c => c !== code);
+        } else {
+            this.bookmarks.push(code);
         }
-        await this.add(code);
+        this.save();
+        return this.bookmarks.includes(code);
+    },
+
+    add(moduleCode) {
+        const code = _normalizeCode(moduleCode);
+        if (!code) return false;
+        if (!this.bookmarks.includes(code)) {
+            this.bookmarks.push(code);
+            this.save();
+        }
         return true;
     },
 
-    /** Add a guest or account bookmark. */
-    async add(moduleCode) {
+    remove(moduleCode) {
         const code = _normalizeCode(moduleCode);
         if (!code) return false;
-        if (this.accountMode) {
-            const response = await apiFetch(`/api/bookmarks/${encodeURIComponent(code)}`, {
-                method: 'PUT',
-            });
-            if (!response.ok) throw new Error('Could not add bookmark.');
+        const len = this.bookmarks.length;
+        this.bookmarks = this.bookmarks.filter(c => c !== code);
+        if (this.bookmarks.length !== len) {
+            this.save();
+            return true;
         }
-        if (!this.bookmarks.includes(code)) this.bookmarks.push(code);
-        if (!this.accountMode) this.saveLocal();
-        this.notify();
-        return true;
-    },
-
-    /** Remove a guest or account bookmark. */
-    async remove(moduleCode) {
-        const code = _normalizeCode(moduleCode);
-        if (!code) return false;
-        if (this.accountMode) {
-            const response = await apiFetch(`/api/bookmarks/${encodeURIComponent(code)}`, {
-                method: 'DELETE',
-            });
-            if (!response.ok) throw new Error('Could not remove bookmark.');
-        }
-        const previousLength = this.bookmarks.length;
-        this.bookmarks = this.bookmarks.filter(item => item !== code);
-        if (!this.accountMode) this.saveLocal();
-        if (previousLength !== this.bookmarks.length) this.notify();
-        return previousLength !== this.bookmarks.length;
+        return false;
     },
 
     getCodes() {
@@ -111,23 +81,15 @@ const BookmarkManager = {
         if (typeof DataManager === 'undefined' || !Array.isArray(DataManager.modules)) {
             return [];
         }
-        return this.bookmarks
-            .map(code => DataManager.getModule(code))
-            .filter(Boolean);
+        return this.bookmarks.map(code => DataManager.getModule(code)).filter(Boolean);
     },
 
     getCount() {
         return this.bookmarks.length;
     },
 
-    /** Clear the active guest or account bookmark store. */
-    async clear() {
-        if (this.accountMode) {
-            const response = await apiFetch('/api/bookmarks', { method: 'DELETE' });
-            if (!response.ok) throw new Error('Could not clear bookmarks.');
-        }
+    clear() {
         this.bookmarks = [];
-        if (!this.accountMode) this.saveLocal();
-        this.notify();
+        this.save();
     },
 };
