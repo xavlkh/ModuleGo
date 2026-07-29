@@ -135,7 +135,9 @@
                                 <i data-lucide="bookmark" class="w-4 h-4 mr-2 inline-block"></i>Bookmarks
                             </a>
                             {% if current_user %}
-                            <p class="px-4 py-2 text-sm font-semibold text-zinc-700 dark:text-zinc-200">Hi, {{ current_user.display_name }}</p>
+                            <a href="{{ url_for('auth.profile') }}" class="px-4 py-2 text-sm font-semibold text-zinc-700 hover:text-primary-600 dark:text-zinc-200 dark:hover:text-primary-400">
+                                <i data-lucide="user-round" class="mr-2 inline-block h-4 w-4"></i>Hi, {{ current_user.display_name }}
+                            </a>
                             <form method="post" action="{{ url_for('auth.logout') }}" class="px-4">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="py-2 text-sm font-semibold text-primary-600 dark:text-primary-400">Log out</button>

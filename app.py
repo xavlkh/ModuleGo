@@ -819,6 +819,37 @@ class ReviewRepository:
         return None
 
     @staticmethod
+    def update_author_display_name(user_id: str, display_name: str) -> int:
+        """Update the stored author name for every review owned by an account."""
+        if use_sqlite_reviews():
+            with database_connection() as conn:
+                cursor = conn.execute(
+                    '''UPDATE REVIEWS
+                       SET AUTHOR_DISPLAY_NAME = ?
+                       WHERE USER_ID = ?''',
+                    (display_name, user_id),
+                )
+                return cursor.rowcount
+
+        if use_postgres():
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    '''UPDATE REVIEWS
+                       SET AUTHOR_DISPLAY_NAME = %s
+                       WHERE USER_ID = %s''',
+                    (display_name, user_id),
+                )
+                return cur.rowcount
+
+        result = (
+            supabase.table('reviews')
+            .update({'author_display_name': display_name})
+            .eq('user_id', user_id)
+            .execute()
+        )
+        return len(result.data)
+
+    @staticmethod
     def rating_summaries() -> dict:
         """Return average, review count, and rating distribution per module."""
         if use_sqlite_reviews():
@@ -899,6 +930,11 @@ class ReviewRepository:
             }
         except APIError:
             return {}
+
+
+app.extensions['review_repository'] = ReviewRepository
+
+
 # ---------------------------------------------------------------------------
 
 class VoteRepository:

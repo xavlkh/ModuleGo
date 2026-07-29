@@ -71,3 +71,59 @@ class LoginForm(FlaskForm):
         validators=[DataRequired(message="Password is required."), Length(max=128)],
     )
     submit = SubmitField("Log In")
+
+
+class ProfileForm(FlaskForm):
+    """Validate an account display-name change."""
+
+    display_name = StringField(
+        "Display name",
+        filters=[_strip_text],
+        validators=[
+            DataRequired(message="Display name is required."),
+            Length(
+                min=2,
+                max=50,
+                message="Display name must be between 2 and 50 characters.",
+            ),
+        ],
+    )
+    submit = SubmitField("Update Profile")
+
+
+class PasswordChangeForm(FlaskForm):
+    """Validate a password change."""
+
+    current_password = PasswordField(
+        "Current password",
+        validators=[DataRequired(message="Current password is required.")],
+    )
+    new_password = PasswordField(
+        "New password",
+        validators=[
+            DataRequired(message="New password is required."),
+            Length(
+                min=8,
+                max=128,
+                message="Password must be between 8 and 128 characters.",
+            ),
+        ],
+    )
+    confirm_password = PasswordField(
+        "Confirm new password",
+        validators=[
+            DataRequired(message="Confirm your new password."),
+            EqualTo("new_password", message="Passwords must match."),
+        ],
+    )
+    submit = SubmitField("Change Password")
+
+
+class DeleteAccountForm(FlaskForm):
+    """Require the current password before account deletion."""
+
+    current_password = PasswordField(
+        "Current password",
+        validators=[DataRequired(message="Current password is required.")],
+    )
+    submit = SubmitField("Delete Account")

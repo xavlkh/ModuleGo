@@ -107,6 +107,87 @@ def test_account_review_visibility_and_bookmarks(client, monkeypatch):
     assert client.get("/api/bookmarks").get_json() == {"module_codes": []}
 
 
+def test_profile_name_sync_updates_only_owned_review_snapshots(client):
+    """Renaming an account preserves visibility, content, and timestamps."""
+    with app_module.database_connection() as conn:
+        conn.executemany(
+            '''INSERT INTO REVIEWS
+               (MODULE_CODE, RATING, COMMENT, UPDATED_AT, USER_ID,
+                GUEST_OWNER_HASH, IS_ANONYMOUS, AUTHOR_DISPLAY_NAME)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+            [
+                (
+                    "C270", 5, "Named", "2026-07-01 10:00:00",
+                    "user-1", None, 0, "Old Name",
+                ),
+                (
+                    "C110", 4, "Anonymous", "2026-07-02 10:00:00",
+                    "user-1", None, 1, "Old Name",
+                ),
+                (
+                    "A104", 3, "Other account", "2026-07-03 10:00:00",
+                    "user-2", None, 0, "Other Name",
+                ),
+                (
+                    "A105", 2, "Guest", "2026-07-04 10:00:00",
+                    None, "guest-hash", 1, None,
+                ),
+            ],
+        )
+
+    changed = app_module.ReviewRepository.update_author_display_name(
+        "user-1",
+        "New Name",
+    )
+
+    assert changed == 2
+    with app_module.database_connection() as conn:
+        rows = conn.execute(
+            '''SELECT ID, USER_ID, IS_ANONYMOUS, AUTHOR_DISPLAY_NAME,
+                      COMMENT, UPDATED_AT
+               FROM REVIEWS ORDER BY ID'''
+        ).fetchall()
+        named, anonymous, other_account, guest = rows
+
+        assert named["AUTHOR_DISPLAY_NAME"] == "New Name"
+        assert anonymous["AUTHOR_DISPLAY_NAME"] == "New Name"
+        assert other_account["AUTHOR_DISPLAY_NAME"] == "Other Name"
+        assert guest["AUTHOR_DISPLAY_NAME"] is None
+        assert [row["UPDATED_AT"] for row in rows] == [
+            "2026-07-01 10:00:00",
+            "2026-07-02 10:00:00",
+            "2026-07-03 10:00:00",
+            "2026-07-04 10:00:00",
+        ]
+
+        identity = {
+            "kind": "account",
+            "user_id": "user-1",
+            "display_name": "New Name",
+        }
+        assert app_module.public_review(named, identity)["author"] == {
+            "anonymous": False,
+            "label": "New Name",
+        }
+        assert app_module.public_review(anonymous, identity)["author"] == {
+            "anonymous": True,
+            "label": "Anonymous student",
+        }
+
+        conn.execute(
+            "UPDATE REVIEWS SET IS_ANONYMOUS = 0 WHERE ID = ?",
+            (anonymous["ID"],),
+        )
+        visible = conn.execute(
+            "SELECT * FROM REVIEWS WHERE ID = ?",
+            (anonymous["ID"],),
+        ).fetchone()
+        assert app_module.public_review(visible, identity)["author"] == {
+            "anonymous": False,
+            "label": "New Name",
+        }
+
+
 def test_guest_claim_keeps_account_review_on_conflict(client, monkeypatch):
     guest_review = create_review(client, rating=2).get_json()
     other_guest = app_module.app.test_client()

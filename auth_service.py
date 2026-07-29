@@ -30,6 +30,24 @@ def create_auth_client():
         raise AuthServiceError("Could not connect to Supabase Auth.") from exc
 
 
+def create_admin_auth_client():
+    """Create a backend-only client for account deletion."""
+    supabase_url = os.environ.get("SUPABASE_URL", "").strip()
+    secret_key = os.environ.get("SUPABASE_SECRET_KEY", "").strip()
+    if not supabase_url or not secret_key:
+        raise AuthServiceError(
+            "Supabase administrator access is not configured on this server."
+        )
+    if secret_key.startswith("sb_publishable_"):
+        raise AuthServiceError(
+            "SUPABASE_SECRET_KEY must be a backend-only secret key."
+        )
+    try:
+        return create_client(supabase_url, secret_key)
+    except Exception as exc:
+        raise AuthServiceError("Could not connect to Supabase Auth.") from exc
+
+
 def sign_up_user(email, password, display_name, email_redirect_to=None):
     """Create an account and ask Supabase to send its confirmation email."""
     options: dict[str, Any] = {"data": {"display_name": display_name}}
@@ -95,6 +113,63 @@ def sign_out_user(access_token, refresh_token):
         client = create_auth_client()
         client.auth.set_session(access_token, refresh_token)
         client.auth.sign_out()
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def update_display_name(access_token, refresh_token, display_name):
+    """Update the signed-in user's public display-name metadata."""
+    try:
+        client = create_auth_client()
+        client.auth.set_session(access_token, refresh_token)
+        return client.auth.update_user({
+            "data": {"display_name": display_name},
+        })
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def change_user_password(email, current_password, new_password):
+    """Verify the current password before replacing it."""
+    try:
+        client = create_auth_client()
+        client.auth.sign_in_with_password({
+            "email": email,
+            "password": current_password,
+        })
+        client.auth.update_user({"password": new_password})
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def verify_user_password(user_id, email, current_password):
+    """Confirm that a password belongs to the current signed-in account."""
+    try:
+        client = create_auth_client()
+        response = client.auth.sign_in_with_password({
+            "email": email,
+            "password": current_password,
+        })
+        verified_user = user_to_dict(getattr(response, "user", None))
+        if verified_user["id"] != user_id:
+            raise AuthServiceError("The authenticated account does not match.")
+        return verified_user
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def delete_user_account(user_id):
+    """Permanently delete an account after route-level password verification."""
+    try:
+        create_admin_auth_client().auth.admin.delete_user(user_id)
     except AuthServiceError:
         raise
     except Exception as exc:
