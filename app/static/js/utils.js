@@ -3,20 +3,23 @@
  * @module utils
  */
 
-const OWNER_TOKEN_KEY = 'modulego_owner_token';
-
 /**
- * Get or create the anonymous owner token for review ownership.
- * Stored in localStorage for persistence across sessions.
- * @returns {string} A 32-char hex token.
+ * Fetch a same-origin API and attach CSRF protection to unsafe methods.
+ * Guest/account ownership is derived by the server from HTTP-only cookies.
+ * @param {string|URL|Request} input - Fetch target.
+ * @param {RequestInit} [options={}] - Standard fetch options.
+ * @returns {Promise<Response>} Fetch response.
  */
-function getOwnerToken() {
-    let token = localStorage.getItem(OWNER_TOKEN_KEY);
-    if (!token) {
-        token = crypto.randomUUID().replace(/-/g, '');
-        localStorage.setItem(OWNER_TOKEN_KEY, token);
+function apiFetch(input, options = {}) {
+    const requestOptions = { credentials: 'same-origin', ...options };
+    const method = String(requestOptions.method || 'GET').toUpperCase();
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+        const headers = new Headers(requestOptions.headers || {});
+        const token = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (token) headers.set('X-CSRFToken', token);
+        requestOptions.headers = headers;
     }
-    return token;
+    return fetch(input, requestOptions);
 }
 
 /**

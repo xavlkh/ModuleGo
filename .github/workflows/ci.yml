@@ -33,7 +33,9 @@ jobs:
         run: ruff check
 
       - name: Compile Python source
-        run: python -m compileall -q app.py tests
+        run: >-
+          python -m compileall -q app.py auth_routes.py auth_service.py
+          forms.py ownership.py tests
 
       - name: Run API tests
         run: python -m pytest -q

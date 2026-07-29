@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Log In{% endblock %}
+
+{% block content %}
+{% set field_classes = "w-full rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-3 text-zinc-900 shadow-sm outline-none transition placeholder:text-zinc-400 focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-500/15 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-primary-400 dark:focus:bg-zinc-900" %}
+{% set submit_classes = "w-full cursor-pointer rounded-xl border border-primary-600 bg-primary-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:border-primary-700 hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-500/25 dark:border-primary-500 dark:bg-primary-500 dark:hover:border-primary-400 dark:hover:bg-primary-400" %}
+<div class="flex-1 px-4 py-16 sm:px-6">
+    <section class="mx-auto max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-8" aria-labelledby="loginTitle">
+        <span class="text-xs font-bold uppercase tracking-widest text-primary-600 dark:text-primary-400">Student account</span>
+        <h1 id="loginTitle" class="mt-3 font-display text-3xl font-bold text-zinc-900 dark:text-white">Log in</h1>
+        <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Access your reviews and bookmarks on any device.</p>
+
+        <form method="post" class="mt-7 space-y-5" novalidate>
+            {{ form.hidden_tag() }}
+            <div>
+                {{ form.email.label(class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300") }}
+                {{ form.email(class=field_classes, autocomplete="email", placeholder="name@example.com", required=true, aria_invalid="true" if form.email.errors else "false") }}
+                {% for error in form.email.errors %}<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ error }}</p>{% endfor %}
+            </div>
+            <div>
+                {{ form.password.label(class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300") }}
+                {{ form.password(class=field_classes, autocomplete="current-password", placeholder="Enter your password", required=true, aria_invalid="true" if form.password.errors else "false") }}
+                {% for error in form.password.errors %}<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ error }}</p>{% endfor %}
+            </div>
+            {{ form.submit(class=submit_classes) }}
+        </form>
+        <p class="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
+            New to ModuleGo?
+            <a class="font-semibold text-primary-600 hover:underline dark:text-primary-400" href="{{ url_for('auth.register') }}">Create an account</a>
+        </p>
+    </section>
+</div>
+{% endblock %}
