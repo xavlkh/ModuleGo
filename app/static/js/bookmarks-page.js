@@ -18,7 +18,7 @@ const BookmarksPage = {
 
         try {
             await DataManager.loadData();
-            BookmarkManager.init();
+            await BookmarkManager.init();
             DetailManager.init();
             this.render();
         } catch (error) {
@@ -77,17 +77,17 @@ const BookmarksPage = {
         wrapper.querySelector('article').addEventListener('click', () => {
             DetailManager.showModuleDetail(module.code);
         });
-        wrapper.querySelector('.remove-bookmark-btn').addEventListener('click', event => {
+        wrapper.querySelector('.remove-bookmark-btn').addEventListener('click', async event => {
             event.stopPropagation();
-            BookmarkManager.remove(module.code);
+            await BookmarkManager.remove(module.code);
         });
         return wrapper;
     },
 
     /** Remove every bookmark after user confirmation. */
-    clearAll() {
+    async clearAll() {
         if (window.confirm('Remove all bookmarked modules?')) {
-            BookmarkManager.clear();
+            await BookmarkManager.clear();
         }
     },
 };

@@ -17,6 +17,7 @@
     </style>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/icon.png') }}">
     <title>{% block title %}ModuleGo{% endblock %} | ModuleGo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -60,7 +61,7 @@
         <div id="glowOrb"></div>
     </div>
 
-    {% from '_macros.html' import navLinks, themeToggle %}
+    {% from '_macros.html' import navLinks, themeToggle with context %}
 
     <header class="sticky top-0 z-40 glass-strong border-b border-zinc-200/60 dark:bg-zinc-900/90 dark:border-zinc-800">
         <nav class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -130,6 +131,19 @@
                             <a href="{{ url_for('serve_reviews') }}" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
                                 <i data-lucide="message-square" class="w-4 h-4 mr-2 inline-block"></i>Reviews
                             </a>
+                            <a href="{{ url_for('serve_bookmarks') }}" class="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-zinc-800 transition-all">
+                                <i data-lucide="bookmark" class="w-4 h-4 mr-2 inline-block"></i>Bookmarks
+                            </a>
+                            {% if current_user %}
+                            <p class="px-4 py-2 text-sm font-semibold text-zinc-700 dark:text-zinc-200">Hi, {{ current_user.display_name }}</p>
+                            <form method="post" action="{{ url_for('auth.logout') }}" class="px-4">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="py-2 text-sm font-semibold text-primary-600 dark:text-primary-400">Log out</button>
+                            </form>
+                            {% else %}
+                            <a href="{{ url_for('auth.login') }}" class="px-4 py-2.5 text-sm font-semibold text-zinc-600 dark:text-zinc-300">Log in</a>
+                            <a href="{{ url_for('auth.register') }}" class="mx-4 rounded-lg bg-primary-500 px-4 py-2.5 text-center text-sm font-semibold text-white">Create account</a>
+                            {% endif %}
                         </div>
                         <div class="flex items-center gap-2 mt-3 px-4 pt-3 border-t border-zinc-200/60 dark:border-zinc-800">
                             <span class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Theme</span>
@@ -140,6 +154,16 @@
             </div>
         </nav>
     </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="mx-auto w-full max-w-3xl space-y-2 px-4 pt-5" aria-live="polite">
+        {% for category, message in messages %}
+        <div class="rounded-xl border px-4 py-3 text-sm font-medium {% if category == 'success' %}border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200{% else %}border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200{% endif %}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
 
     <main class="flex-1">
         {% block content %}{% endblock %}
@@ -223,6 +247,11 @@
     </footer>
 
     <script>
+        window.ModuleGoAuth = {{ {
+            'authenticated': current_user is not none,
+            'user': current_user
+        } | tojson }};
+
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');
         const mobileMenu = document.getElementById('mobileMenu');
         const menuIconOpen = document.getElementById('menuIconOpen');
@@ -322,6 +351,8 @@
         })();
     </script>
 
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ownership.js') }}"></script>
     <script src="{{ url_for('static', filename='js/gobot.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>

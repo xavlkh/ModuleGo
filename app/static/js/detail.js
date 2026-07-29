@@ -49,8 +49,8 @@ const DetailManager = {
         document.getElementById('bookmarkModuleBtn');
 
         if (bookmarkBtn) {
-            bookmarkBtn.addEventListener('click', () => {
-                const bookmarked = BookmarkManager.toggle(module.code);
+            bookmarkBtn.addEventListener('click', async () => {
+                const bookmarked = await BookmarkManager.toggle(module.code);
 
                 bookmarkBtn.innerHTML = `
                     <i
@@ -271,6 +271,15 @@ const DetailManager = {
                     <textarea id="reviewComment" class="w-full rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-sm px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400" rows="3" maxlength="500" placeholder="What did you think of this module?"></textarea>
                     <p class="mt-1.5 text-xs text-zinc-400 dark:text-zinc-400">Optional, maximum 500 characters.</p>
                 </div>
+                ${window.ModuleGoAuth?.authenticated ? `
+                <label class="mb-4 flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/60">
+                    <input id="reviewAnonymous" type="checkbox" checked class="mt-0.5 h-4 w-4 rounded border-zinc-300 text-primary-600 focus:ring-primary-500">
+                    <span>
+                        <span class="block text-sm font-semibold text-zinc-700 dark:text-zinc-200">Post anonymously</span>
+                        <span class="block text-xs text-zinc-500 dark:text-zinc-400">Turn this off to show your display name.</span>
+                    </span>
+                </label>` : `
+                <p class="mb-4 rounded-xl bg-zinc-50 px-3 py-2 text-xs text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">Guest reviews are shown as Anonymous student and remain editable in this browser for 30 days.</p>`}
                 <div class="flex gap-3 pt-1">
                     <button id="submitReviewBtn" class="rounded-xl bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-primary-600 hover:shadow active:translate-y-0" type="button">Submit Review</button>
                     <button id="cancelEditReviewBtn" class="hidden rounded-xl border border-zinc-200 dark:border-zinc-700 px-6 py-3 text-sm font-semibold text-zinc-600 dark:text-zinc-400 transition-all duration-300 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-800 dark:hover:text-zinc-200 active:translate-y-0" type="button">Cancel edit</button>
@@ -302,9 +311,9 @@ const DetailManager = {
             let votesData = {};
             try {
                 const reviewIds = reviews.map(r => r.id);
-                const votesResponse = await fetch('/api/reviews/votes', {
+                const votesResponse = await apiFetch('/api/reviews/votes', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Owner-Token': getOwnerToken() },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ review_ids: reviewIds }),
                 });
                 if (votesResponse.ok) {
@@ -383,9 +392,9 @@ const DetailManager = {
         const btn = article?.querySelector(`.vote-btn[data-vote="${voteType}"]`);
         if (btn) btn.disabled = true;
         try {
-            const response = await fetch(`/api/reviews/${reviewId}/vote`, {
+            const response = await apiFetch(`/api/reviews/${reviewId}/vote`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Owner-Token': getOwnerToken() },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ vote_type: voteType }),
             });
             if (!response.ok) {
@@ -396,9 +405,7 @@ const DetailManager = {
 
             if (!article) return;
 
-            const votesResponse = await fetch(`/api/reviews/${reviewId}/vote`, {
-                headers: { 'X-Owner-Token': getOwnerToken() },
-            });
+            const votesResponse = await fetch(`/api/reviews/${reviewId}/vote`);
             if (!votesResponse.ok) return;
             const votes = await votesResponse.json();
 
@@ -452,7 +459,7 @@ const DetailManager = {
         const updated = review.updated_at
             ? `<span class="ml-2 text-zinc-400 dark:text-zinc-400">Edited ${formatTimestamp(review.updated_at)}</span>`
             : '';
-        const isOwner = review.owner_token && review.owner_token === getOwnerToken();
+        const isOwner = review.is_owner === true;
         const isOwnReview = isOwner;
 
         const upvoteActive = votes.user_vote === 1;
@@ -473,6 +480,7 @@ const DetailManager = {
                         <div class="star-rating flex gap-0.5 text-sm mb-1.5" aria-label="${review.rating} out of 5 stars">
                             ${createStars(review.rating)}
                         </div>
+                        <p class="mb-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400">${escapeHtml(review.author?.label || 'Anonymous student')}</p>
                         <p class="text-sm text-zinc-700 dark:text-zinc-300">${comment}</p>
                     </div>
                     ${createReviewActionsHTML(review.id, isOwner)}
@@ -572,6 +580,8 @@ const DetailManager = {
         document.getElementById('reviewFormTitle').textContent = 'Edit Review';
         document.getElementById('reviewRating').value = String(review.rating);
         document.getElementById('reviewComment').value = review.comment;
+        const anonymous = document.getElementById('reviewAnonymous');
+        if (anonymous) anonymous.checked = review.author?.anonymous !== false;
         document.getElementById('submitReviewBtn').textContent = 'Save Changes';
         document.getElementById('cancelEditReviewBtn').classList.remove('hidden');
         clearElementMessage('reviewFormMessage');
@@ -586,6 +596,8 @@ const DetailManager = {
         document.getElementById('reviewFormTitle').textContent = 'Leave a Review';
         document.getElementById('reviewRating').value = '5';
         document.getElementById('reviewComment').value = '';
+        const anonymous = document.getElementById('reviewAnonymous');
+        if (anonymous) anonymous.checked = true;
         document.getElementById('submitReviewBtn').textContent = 'Submit Review';
         document.getElementById('cancelEditReviewBtn').classList.add('hidden');
         clearElementMessage('reviewFormMessage');
@@ -603,6 +615,8 @@ const DetailManager = {
         const isEditing = this.editingReviewId !== null;
         const endpoint = isEditing ? `/api/reviews/${this.editingReviewId}` : '/api/reviews';
         const payload = { rating, comment };
+        const anonymous = document.getElementById('reviewAnonymous');
+        if (anonymous) payload.is_anonymous = anonymous.checked;
         if (!isEditing) payload.module_code = moduleCode;
 
         button.disabled = true;
@@ -610,19 +624,20 @@ const DetailManager = {
         clearElementMessage('reviewFormMessage');
 
         try {
-            const headers = { 'Content-Type': 'application/json', 'X-Owner-Token': getOwnerToken() };
-            const response = await fetch(endpoint, {
+            const response = await apiFetch(endpoint, {
                 method: isEditing ? 'PUT' : 'POST',
-                headers,
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
             const result = await response.json();
             if (!response.ok) {
+                if (response.status === 409) {
+                    const ownedReview = [...this.currentReviews.values()]
+                        .find(review => review.is_owner);
+                    if (ownedReview) this.startEditReview(ownedReview.id);
+                }
                 showFormMessage(result.error || 'Could not save review.', 'danger');
                 return;
-            }
-            if (result.owner_token) {
-                localStorage.setItem(OWNER_TOKEN_KEY, result.owner_token);
             }
             this.resetReviewForm();
             await this.refreshReviewViews(moduleCode);
@@ -643,9 +658,8 @@ const DetailManager = {
     async deleteReview(reviewId) {
         if (!window.confirm('Delete this review permanently?')) return;
         try {
-            const response = await fetch(`/api/reviews/${reviewId}`, {
+            const response = await apiFetch(`/api/reviews/${reviewId}`, {
                 method: 'DELETE',
-                headers: { 'X-Owner-Token': getOwnerToken() },
             });
             if (!response.ok) {
                 const result = await response.json();
