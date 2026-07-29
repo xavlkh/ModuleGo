@@ -158,9 +158,9 @@ const UIRenderer = {
 
         const clearBookmarks = document.getElementById('clearBookmarksBtn');
         if (clearBookmarks) {
-            clearBookmarks.addEventListener('click', () => {
+            clearBookmarks.addEventListener('click', async () => {
                 if (confirm('Remove all bookmarks?')) {
-                    BookmarkManager.clear();
+                    await BookmarkManager.clear();
                     if (this.isBookmarksView) {
                         this.handleSearch(this.searchInput.value);
                     }
@@ -507,9 +507,9 @@ const UIRenderer = {
         });
         const bookmarkBtn = col.querySelector('.bookmark-card-btn');
         if (bookmarkBtn) {
-            bookmarkBtn.addEventListener('click', (e) => {
+            bookmarkBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const bookmarked = BookmarkManager.toggle(module.code);
+                const bookmarked = await BookmarkManager.toggle(module.code);
                 bookmarkBtn.className = `bookmark-card-btn flex-shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white/70 dark:bg-zinc-800/70 transition-all hover:border-primary-300 dark:hover:border-primary-600`;
                 bookmarkBtn.innerHTML = `<i data-lucide="bookmark" class="w-4 h-4 ${bookmarked ? 'fill-primary-500 text-primary-500' : 'text-zinc-400 dark:text-zinc-500'}"></i>`;
                 bookmarkBtn.setAttribute('aria-label', bookmarked ? 'Remove bookmark' : 'Add bookmark');
@@ -563,7 +563,7 @@ async function initHomePage() {
         await DataManager.loadData();
         UIRenderer.populateDiplomaFilter();
         UIRenderer.populateMinorFilter();
-        BookmarkManager.init();
+        await BookmarkManager.init();
 
         const urlParams = new URL(window.location);
         const initialQuery = urlParams.searchParams.get('q') || (typeof INITIAL_QUERY !== 'undefined' ? INITIAL_QUERY : '');
