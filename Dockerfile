@@ -47,8 +47,16 @@ COPY --from=scraper /app/app/static/local-data/data/ app/static/local-data/data/
 
 # init_db() runs at import time; the directory must exist before gunicorn
 # starts or SQLite will throw "unable to open db" when DATABASE_URL is unset.
-RUN mkdir -p /app/data
-ENV DATABASE_PATH=/app/data/modulego.db
+RUN addgroup --system --gid 10001 modulego \
+    && adduser --system --uid 10001 --ingroup modulego \
+        --no-create-home modulego \
+    && mkdir -p /app/data \
+    && chown -R modulego:modulego /app/data
+ENV DATABASE_PATH=/app/data/modulego.db \
+    PYTHONDONTWRITEBYTECODE=1
+
+# The runtime process does not need root privileges.
+USER modulego
 
 EXPOSE 5000
 
