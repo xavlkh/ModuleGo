@@ -54,6 +54,7 @@ const ReviewDashboard = {
             editModule: document.getElementById('editReviewModule'),
             editRating: document.getElementById('editReviewRating'),
             editComment: document.getElementById('editReviewComment'),
+            editAnonymous: document.getElementById('editReviewAnonymous'),
             saveButton: document.getElementById('saveDashboardReviewBtn'),
         };
     },
@@ -189,9 +190,9 @@ const ReviewDashboard = {
         let votesData = {};
         try {
             const reviewIds = filtered.map(r => r.id);
-            const votesResponse = await fetch('/api/reviews/votes', {
+            const votesResponse = await apiFetch('/api/reviews/votes', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Owner-Token': getOwnerToken() },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ review_ids: reviewIds }),
             });
             if (votesResponse.ok) {
@@ -213,7 +214,7 @@ const ReviewDashboard = {
      */
     createReviewCard(review, votes = { score: 0, user_vote: 0 }) {
         const module = DataManager.getModule(review.module_code);
-        const isOwner = review.owner_token && review.owner_token === getOwnerToken();
+        const isOwner = review.is_owner === true;
         const isOwnReview = isOwner;
 
         const upvoteActive = votes.user_vote === 1;
@@ -243,6 +244,7 @@ const ReviewDashboard = {
                 ${createReviewActionsHTML(review.id, isOwner)}
             </div>
             <div class="rounded-lg bg-zinc-50 dark:bg-zinc-800/60 pl-3 py-2 mb-3">
+                <p class="mb-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400">${escapeHtml(review.author?.label || 'Anonymous student')}</p>
                 <p class="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">${review.comment ? escapeHtml(review.comment) : 'No written comment'}</p>
             </div>
             <div class="flex items-center gap-3">
@@ -285,17 +287,15 @@ const ReviewDashboard = {
         const btn = article?.querySelector(`.vote-btn[data-vote="${voteType}"]`);
         if (btn) btn.disabled = true;
         try {
-            const response = await fetch(`/api/reviews/${reviewId}/vote`, {
+            const response = await apiFetch(`/api/reviews/${reviewId}/vote`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Owner-Token': getOwnerToken() },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ vote_type: voteType }),
             });
             if (!response.ok) throw new Error('Failed to vote.');
             if (!article) return;
 
-            const votesResponse = await fetch(`/api/reviews/${reviewId}/vote`, {
-                headers: { 'X-Owner-Token': getOwnerToken() },
-            });
+            const votesResponse = await fetch(`/api/reviews/${reviewId}/vote`);
             if (!votesResponse.ok) return;
             const votes = await votesResponse.json();
 
@@ -350,6 +350,9 @@ const ReviewDashboard = {
         this.elements.editModule.textContent = `${review.module_code} - ${module ? module.name : 'Module'}`;
         this.elements.editRating.value = String(review.rating);
         this.elements.editComment.value = review.comment;
+        if (this.elements.editAnonymous) {
+            this.elements.editAnonymous.checked = review.author?.anonymous !== false;
+        }
         this.clearEditMessage();
         this.modal.show();
     },
@@ -363,13 +366,17 @@ const ReviewDashboard = {
         this.elements.saveButton.textContent = 'Saving...';
 
         try {
-            const response = await fetch(`/api/reviews/${this.editingReviewId}`, {
+            const payload = {
+                rating: Number(this.elements.editRating.value),
+                comment: this.elements.editComment.value.trim(),
+            };
+            if (this.elements.editAnonymous) {
+                payload.is_anonymous = this.elements.editAnonymous.checked;
+            }
+            const response = await apiFetch(`/api/reviews/${this.editingReviewId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'X-Owner-Token': getOwnerToken() },
-                body: JSON.stringify({
-                    rating: Number(this.elements.editRating.value),
-                    comment: this.elements.editComment.value.trim(),
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             });
             const result = await response.json();
             if (!response.ok) {
@@ -395,9 +402,8 @@ const ReviewDashboard = {
     async deleteReview(reviewId) {
         if (!window.confirm('Delete this review permanently?')) return;
         try {
-            const response = await fetch(`/api/reviews/${reviewId}`, {
+            const response = await apiFetch(`/api/reviews/${reviewId}`, {
                 method: 'DELETE',
-                headers: { 'X-Owner-Token': getOwnerToken() },
             });
             if (!response.ok) {
                 const result = await response.json();
