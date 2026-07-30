@@ -9,7 +9,6 @@ JSON data into the local PostgreSQL tables.
 
 import json
 import os
-import subprocess
 import sys
 
 import psycopg2

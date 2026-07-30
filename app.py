@@ -98,6 +98,10 @@ limiter.init_app(app)
 
 def _get_commit_hash() -> str | None:
     """Return the short git commit hash, or None if unavailable."""
+    # Environment variable override (set in .env on EC2)
+    env_hash = os.environ.get('COMMIT_HASH', '').strip()
+    if env_hash:
+        return env_hash[:7]
     try:
         result = subprocess.run(
             ['git', 'rev-parse', '--short', 'HEAD'],
@@ -107,9 +111,7 @@ def _get_commit_hash() -> str | None:
             return result.stdout.strip()
     except (OSError, subprocess.SubprocessError):
         pass
-    # Vercel deployments lack a .git directory, so fall back to env injection.
-    vercel_sha = os.environ.get('VERCEL_GIT_COMMIT_SHA')
-    return vercel_sha[:7] if vercel_sha else None
+    return None
 
 
 @app.context_processor
