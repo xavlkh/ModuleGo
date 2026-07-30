@@ -72,11 +72,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Ansible + deps
+      - name: Install Ansible
         run: |
           sudo apt-get update
-          sudo apt-get install -y ansible sshpass
-          pip install boto3
+          sudo apt-get install -y ansible
 
       # Write the SSH private key from secrets to a file Ansible can use
       - name: Configure SSH
@@ -86,13 +85,13 @@ jobs:
           chmod 600 ~/.ssh/modulego-prod.pem
           ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy to production EC2
+      - name: Deploy to EC2
         run: |
           ansible-playbook -i ansible/inventory/prod.ini ansible/playbook.yml --tags deploy
 
       - name: Verify deployment
         run: |
-          sleep 30
+          sleep 15
           curl -sf http://${{ vars.EC2_IP }}:5000 || exit 1
 
   # Deploy to dev EC2 when pushing to dev branch
@@ -106,13 +105,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Ansible + deps
+      - name: Install Ansible
         run: |
           sudo apt-get update
-          sudo apt-get install -y ansible sshpass
-          pip install boto3
+          sudo apt-get install -y ansible
 
-      # Write the SSH private key from secrets to a file Ansible can use
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
@@ -120,11 +117,11 @@ jobs:
           chmod 600 ~/.ssh/modulego-dev.pem
           ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy to dev EC2
+      - name: Deploy to EC2
         run: |
           ansible-playbook -i ansible/inventory/dev.ini ansible/playbook.yml --tags deploy
 
       - name: Verify deployment
         run: |
-          sleep 30
+          sleep 15
           curl -sf http://${{ vars.EC2_IP }}:5001 || exit 1

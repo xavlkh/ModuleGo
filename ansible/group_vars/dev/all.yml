@@ -7,10 +7,10 @@ ghcr_image: ghcr.io/xavlkh/modulego:dev
 
 # PostgreSQL credentials — separate DB name to avoid collisions with prod
 postgres_user: modulego
-postgres_password: "{{ vault_dev_postgres_password }}"
+postgres_password: modulego
 postgres_db: modulego_dev
 
-# Optional — set in secrets.yml or vault
+# Optional — set via GitHub secrets or leave empty to degrade gracefully
 # supabase_url: ""
 # supabase_secret_key: ""
 # gemini_api_key: ""
