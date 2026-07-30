@@ -17,6 +17,8 @@ services:
     restart: unless-stopped
 
   app:
+    # To build from source instead of pulling from GHCR, uncomment below and comment out the image line
+    # build: .
     image: ghcr.io/xavlkh/modulego:c95b6ee
     ports:
       - "${APP_PORT:-5000}:5000"
