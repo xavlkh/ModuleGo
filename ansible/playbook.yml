@@ -68,13 +68,12 @@
       become_user: ubuntu
       when: not app_dir.stat.exists
 
-    - name: Create .env file
+    - name: Update .env file
       template:
         src: templates/env.j2
         dest: "/home/ubuntu/modulego-{{ env }}/.env"
         mode: "0600"
       become_user: ubuntu
-      when: not app_dir.stat.exists
 
     # ── Deploy (always runs) ──
 
