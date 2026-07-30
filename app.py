@@ -1747,12 +1747,12 @@ def get_courses():
                     courses = [{
                         'course_code': r[0], 'course_name': r[1], 'school_name': r[2],
                         'school_abbr': r[3], 'url': r[4],
-                        'general_modules': json.loads(r[5]) if r[5] else [],
-                        'major_modules': json.loads(r[6]) if r[6] else [],
-                        'discipline_modules': json.loads(r[7]) if r[7] else [],
-                        'elective_modules': json.loads(r[8]) if r[8] else [],
-                        'industry_modules': json.loads(r[9]) if r[9] else [],
-                        'major_groups': json.loads(r[10]) if r[10] else [],
+                        'general_modules': r[5] if isinstance(r[5], list) else json.loads(r[5]) if r[5] else [],
+                        'major_modules': r[6] if isinstance(r[6], list) else json.loads(r[6]) if r[6] else [],
+                        'discipline_modules': r[7] if isinstance(r[7], list) else json.loads(r[7]) if r[7] else [],
+                        'elective_modules': r[8] if isinstance(r[8], list) else json.loads(r[8]) if r[8] else [],
+                        'industry_modules': r[9] if isinstance(r[9], list) else json.loads(r[9]) if r[9] else [],
+                        'major_groups': r[10] if isinstance(r[10], (list, dict)) else json.loads(r[10]) if r[10] else [],
                     } for r in rows]
         except (psycopg2.Error, json.JSONDecodeError):
             pass
@@ -1798,7 +1798,7 @@ def get_minors():
                 if rows:
                     minors = [{
                         'minor_name': r[0], 'minor_type': r[1], 'url': r[2],
-                        'modules': json.loads(r[3]) if r[3] else [],
+                        'modules': r[3] if isinstance(r[3], list) else json.loads(r[3]) if r[3] else [],
                         'eligibility': r[4],
                     } for r in rows]
         except (psycopg2.Error, json.JSONDecodeError):
@@ -2111,7 +2111,8 @@ def _get_active_module_codes() -> frozenset:
                     for r in rows:
                         row = {}
                         for i, field in enumerate(('general_modules', 'major_modules', 'discipline_modules', 'elective_modules', 'industry_modules')):
-                            row[field] = json.loads(r[i]) if r[i] else []
+                            val = r[i]
+                            row[field] = val if isinstance(val, list) else json.loads(val) if val else []
                         courses.append(row)
         except (psycopg2.Error, json.JSONDecodeError):
             pass
@@ -2445,7 +2446,7 @@ def _load_career_paths() -> list:
                 cur.execute('SELECT CAREER_ID, LABEL, KEYWORDS FROM CAREER_PATHS ORDER BY ID')
                 rows = cur.fetchall()
                 if rows:
-                    return [{'id': r[0], 'label': r[1], 'keywords': json.loads(r[2])} for r in rows]
+                    return [{'id': r[0], 'label': r[1], 'keywords': r[2] if isinstance(r[2], list) else json.loads(r[2]) if r[2] else []} for r in rows]
         except (psycopg2.Error, json.JSONDecodeError):
             pass
         paths = _load_career_paths_from_file()
