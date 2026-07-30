@@ -1,7 +1,7 @@
 ---
 # Production environment config
 app_name: modulego-prod
-app_port: 5000
+app_port: 80
 ghcr_image: ghcr.io/xavlkh/modulego:latest
 
 # PostgreSQL DB name (non-sensitive)

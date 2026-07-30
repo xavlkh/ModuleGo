@@ -110,16 +110,16 @@ ModuleGo can be deployed to AWS EC2 using Ansible for infrastructure provisionin
 
 ### First-time setup
 
-1. **Provision EC2 instances:**
+1. **Provision EC2 instance** (run once):
 
 ```bash
 cd ansible
 
-# Provision production instance
-ansible-playbook -i inventory/prod.ini playbook.yml --tags setup
+# Setup production instance
+ansible-playbook -i inventory/prod.ini setup.yml
 
-# Provision development instance
-ansible-playbook -i inventory/dev.ini playbook.yml --tags setup
+# Setup development instance
+ansible-playbook -i inventory/dev.ini setup.yml
 ```
 
 2. **Update inventory files** with the EC2 public IPs from the setup output:
@@ -169,10 +169,10 @@ git push origin dev
 cd ansible
 
 # Deploy to production
-ansible-playbook -i inventory/prod.ini playbook.yml --tags deploy
+ansible-playbook -i inventory/prod.ini deploy.yml -e "ansible_host=YOUR_IP env=prod"
 
 # Deploy to development
-ansible-playbook -i inventory/dev.ini playbook.yml --tags deploy
+ansible-playbook -i inventory/dev.ini deploy.yml -e "ansible_host=YOUR_IP env=dev"
 ```
 
 ### Updating environment variables
@@ -183,13 +183,7 @@ Edit the files in `ansible/group_vars/`:
 - `prod/all.yml` — production-specific (ports, image tags)
 - `dev/all.yml` — development-specific
 
-For secrets, create `ansible/secrets.yml` (gitignored):
-
-```yaml
-supabase_url: ""
-supabase_secret_key: ""
-gemini_api_key: ""
-```
+Secrets are passed via GitHub Secrets and extra vars (`-e`) at runtime.
 
 ## Without Docker
 

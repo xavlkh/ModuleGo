@@ -37,8 +37,10 @@ app/static/local-data/              Scraping pipeline (scripts/, data/, run_all.
 tests/                              pytest (SQLite only)
 docs/                               spec + implementation plan
 upsert_to_supabase.py               Imports scraped JSON into Supabase tables
-Dockerfile                          Multi-stage: scraper (data gen) + runtime (gunicorn)
+Dockerfile                          Lean runtime image (no scraper stage)
 docker-compose.yml                  PostgreSQL + Flask app
+ansible/setup.yml                   One-time EC2 setup (install Docker, etc.)
+ansible/deploy.yml                  Pull image + restart containers
 ```
 
 ## API Routes (app.py)
@@ -80,8 +82,6 @@ docker-compose.yml                  PostgreSQL + Flask app
 
 ## Environment (.env)
 ```
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_SECRET_KEY=sb_secret_xxx    # backend-only, never expose to browser
 GEMINI_API_KEY=xxx                    # for /api/comparison/generate and /api/gobot
 GEMINI_MODEL=gemini-3.1-flash-lite    # optional, default shown
 DATABASE_URL=postgresql://...         # optional, use PostgreSQL instead of SQLite
