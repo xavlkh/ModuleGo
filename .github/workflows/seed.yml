@@ -57,44 +57,37 @@ jobs:
           scp -i ~/.ssh/id.pem \
             app/static/local-data/data/*.json seed_db.py \
             ubuntu@${{ vars.EC2_IP }}:/tmp/
+          echo "Verifying upload..."
+          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "ls -la /tmp/seed_db.py /tmp/*.json"
 
-      - name: Seed database on EC2
-        env:
-          EC2_HOST: ${{ vars.EC2_IP }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          ENV: ${{ inputs.environment || 'dev' }}
+      - name: Get container ID
+        id: container
         run: |
-          if [ "$ENV" = "dev" ]; then
-            DB_NAME="modulego_dev"
-            PROJECT_DIR="modulego-dev"
+          if [ "${{ inputs.environment || 'dev' }}" = "dev" ]; then
+            COMPOSE_FILE="/home/ubuntu/modulego-dev/docker-compose.yml"
           else
-            DB_NAME="modulego"
-            PROJECT_DIR="modulego-prod"
+            COMPOSE_FILE="/home/ubuntu/modulego-prod/docker-compose.yml"
           fi
+          CONTAINER_ID=$(ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "docker compose -f ${COMPOSE_FILE} ps -q app" | tr -d '\r\n')
+          echo "id=${CONTAINER_ID}" >> "$GITHUB_OUTPUT"
+          echo "Container ID: ${CONTAINER_ID}"
 
-          ssh -i ~/.ssh/id.pem ubuntu@${EC2_HOST} bash -s -- "$DB_NAME" "$PROJECT_DIR" "$POSTGRES_USER" "$POSTGRES_PASSWORD" << 'SCRIPT'
-            set -e
-            DB_NAME="$1"
-            PROJECT_DIR="$2"
-            PG_USER="$3"
-            PG_PASS="$4"
+      - name: Copy files into container
+        run: |
+          CONTAINER="${{ steps.container.outputs.id }}"
+          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "docker cp /tmp/seed_db.py ${CONTAINER}:/app/seed_db.py"
+          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "docker cp /tmp/*.json ${CONTAINER}:/app/"
 
-            CONTAINER=$(docker compose -f /home/ubuntu/${PROJECT_DIR}/docker-compose.yml ps -q app)
-            echo "Container: ${CONTAINER}"
+      - name: Run seed script
+        run: |
+          CONTAINER="${{ steps.container.outputs.id }}"
+          DB_NAME="modulego"
+          if [ "${{ inputs.environment || 'dev' }}" = "dev" ]; then
+            DB_NAME="modulego_dev"
+          fi
+          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "docker exec ${CONTAINER} sh -c 'DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/${DB_NAME} python seed_db.py'"
 
-            if [ -z "$CONTAINER" ]; then
-              echo "ERROR: App container not found"
-              exit 1
-            fi
-
-            docker cp /tmp/seed_db.py ${CONTAINER}:/app/seed_db.py
-            docker cp /tmp/*.json ${CONTAINER}:/app/
-            docker exec ${CONTAINER} sh -c "DATABASE_URL=postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME} python seed_db.py"
-            docker exec ${CONTAINER} rm -f /app/seed_db.py /app/*.json
-          SCRIPT
-
-      - name: Cleanup
+      - name: Cleanup remote files
         if: always()
         run: |
           ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "rm -f /tmp/*.json /tmp/seed_db.py" || true
