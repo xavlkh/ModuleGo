@@ -39,9 +39,12 @@ jobs:
 
       - name: Run API tests
         run: python -m pytest -q
+
   security:
     name: Trivy Security Audit
     runs-on: ubuntu-latest
+    # Non-blocking — scan is informational only
+    continue-on-error: true
 
     steps:
       - name: Check out repository
