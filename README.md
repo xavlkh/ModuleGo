@@ -90,36 +90,108 @@ remain in `moduleGoBookmarks` localStorage. Logged-in reviews, votes and
 bookmarks belong to the verified Supabase user and can be explicitly claimed
 from the current browser after login.
 
-### With Minikube (Kubernetes)
+## Deploying to AWS EC2
 
-For local Kubernetes deployment (requires [minikube](https://minikube.sigs.k8s.io/) and [kubectl](https://kubernetes.io/docs/tasks/tools/)):
+ModuleGo can be deployed to AWS EC2 using Ansible for infrastructure provisioning and GitHub Actions for CI/CD.
 
-<details>
-<summary>Linux / macOS</summary>
+### Architecture
+
+- **GitHub Actions** builds Docker images on push to `main` or `dev` branches
+- **GHCR** (GitHub Container Registry) stores the pre-built images
+- **Ansible** provisions EC2 instances and pulls images from GHCR
+- Two environments: **production** (`main` branch) and **development** (`dev` branch)
+
+### Prerequisites
+
+- AWS account with IAM user that has EC2 permissions
+- Python 3.12+ with `boto3` installed (`pip install boto3`)
+- Ansible installed (`pip install ansible`)
+- SSH key pair for EC2 access
+
+### First-time setup
+
+1. **Provision EC2 instances:**
 
 ```bash
-./deploy.sh
-kubectl -n modulego port-forward svc/modulego 5000:5000
+cd ansible
+
+# Provision production instance
+ansible-playbook -i inventory/prod.ini playbook.yml --tags setup
+
+# Provision development instance
+ansible-playbook -i inventory/dev.ini playbook.yml --tags setup
 ```
 
-</details>
+2. **Update inventory files** with the EC2 public IPs from the setup output:
 
-<details>
-<summary>Windows (PowerShell)</summary>
+```ini
+# inventory/prod.ini
+[ec2]
+modulego-prod ansible_host=YOUR_PROD_EC2_IP
 
-```powershell
-bash ./deploy.sh
-kubectl -n modulego port-forward svc/modulego 5000:5000
+# inventory/dev.ini
+[ec2]
+modulego-dev ansible_host=YOUR_DEV_EC2_IP
 ```
 
-> [!NOTE]
-> `deploy.sh` is a bash script. On Windows, run it via Git Bash, WSL, or `bash` from the project root.
+3. **Create GitHub repository secrets:**
 
-</details>
+| Secret | Description |
+|--------|-------------|
+| `EC2_SSH_PRIVATE_KEY` | Private key content for SSH access to EC2 |
 
-Then open `http://localhost:5000`.
+4. **Create GitHub environments:**
 
-### Without Docker
+- Go to Settings → Environments → New environment
+- Create `production` and `development` environments
+- Add environment variables: `EC2_IP` with the respective EC2 public IPs
+
+5. **Enable GHCR:**
+
+- Go to Settings → Actions → General → Workflow permissions
+- Select **Read and write permissions**
+
+### Deployment flow
+
+Once configured, deployments happen automatically:
+
+```bash
+# Push to main → deploys to production (port 5000)
+git push origin main
+
+# Push to dev → deploys to development (port 5001)
+git push origin dev
+```
+
+### Manual deployment
+
+```bash
+cd ansible
+
+# Deploy to production
+ansible-playbook -i inventory/prod.ini playbook.yml --tags deploy
+
+# Deploy to development
+ansible-playbook -i inventory/dev.ini playbook.yml --tags deploy
+```
+
+### Updating environment variables
+
+Edit the files in `ansible/group_vars/`:
+
+- `all.yml` — shared settings (AWS region, instance type)
+- `prod/all.yml` — production-specific (ports, image tags)
+- `dev/all.yml` — development-specific
+
+For secrets, create `ansible/secrets.yml` (gitignored):
+
+```yaml
+supabase_url: ""
+supabase_secret_key: ""
+gemini_api_key: ""
+```
+
+## Without Docker
 
 <details>
 <summary>Linux / macOS</summary>
