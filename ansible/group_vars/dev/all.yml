@@ -1,0 +1,16 @@
+---
+# Development environment config
+# Port 5001 for dev to avoid conflicts with production
+app_name: modulego-dev
+app_port: 5001
+ghcr_image: ghcr.io/xavlkh/modulego:dev
+
+# PostgreSQL credentials — separate DB name to avoid collisions with prod
+postgres_user: modulego
+postgres_password: "{{ vault_dev_postgres_password }}"
+postgres_db: modulego_dev
+
+# Optional — set in secrets.yml or vault
+# supabase_url: ""
+# supabase_secret_key: ""
+# gemini_api_key: ""

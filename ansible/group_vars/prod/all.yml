@@ -1,0 +1,16 @@
+---
+# Production environment config
+# Port 5000 for production (default)
+app_name: modulego-prod
+app_port: 5000
+ghcr_image: ghcr.io/xavlkh/modulego:latest
+
+# PostgreSQL credentials — replace with secure values in production
+postgres_user: modulego
+postgres_password: "{{ vault_prod_postgres_password }}"
+postgres_db: modulego
+
+# Optional — set in secrets.yml or vault
+# supabase_url: ""
+# supabase_secret_key: ""
+# gemini_api_key: ""

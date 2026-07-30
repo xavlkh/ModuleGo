@@ -39,8 +39,6 @@ docs/                               spec + implementation plan
 upsert_to_supabase.py               Imports scraped JSON into Supabase tables
 Dockerfile                          Multi-stage: scraper (data gen) + runtime (gunicorn)
 docker-compose.yml                  PostgreSQL + Flask app
-deploy.sh                           Minikube deploy script
-k8s/                                Kubernetes manifests (namespace, postgres, app)
 ```
 
 ## API Routes (app.py)
