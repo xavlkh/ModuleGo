@@ -1567,7 +1567,19 @@ def _load_local_minors() -> list[dict] | None:
 
 
 def _build_modules_list() -> list | None:
-    """Fetch modules from Supabase, falling back to local JSON files."""
+    """Fetch modules from PostgreSQL/Supabase, falling back to local JSON files."""
+    # PostgreSQL path
+    if use_postgres():
+        try:
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute('SELECT module_code, module_name, synopsis, school_name, school_abbr, url FROM rp_modules ORDER BY module_code')
+                rows = cur.fetchall()
+                if rows:
+                    return [{'code': r[0], 'name': r[1], 'synopsis': r[2], 'school': r[3], 'school_abbr': r[4], 'url': r[5]} for r in rows]
+        except psycopg2.Error:
+            pass
+
+    # Supabase path
     if supabase is not None:
         try:
             result = supabase.table("rp_modules").select("*").order("module_code").execute()
@@ -1581,6 +1593,7 @@ def _build_modules_list() -> list | None:
             } for row in result.data]
         except APIError:
             pass
+
     return _load_local_modules()
 
 
@@ -1717,13 +1730,35 @@ COURSES_CACHE_TTL = 300
 
 @app.route('/api/courses', methods=['GET'])
 def get_courses():
-    """Return all courses (diplomas) from Supabase rp_courses table."""
+    """Return all courses (diplomas) from PostgreSQL/Supabase rp_courses table."""
     now = time.time()
     if _courses_cache['data'] is not None and (now - _courses_cache['timestamp']) < COURSES_CACHE_TTL:
         return jsonify(_courses_cache['data']), 200
 
     courses = None
-    if supabase is not None:
+
+    # PostgreSQL path
+    if use_postgres():
+        try:
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute('SELECT course_code, course_name, school_name, school_abbr, url, general_modules, major_modules, discipline_modules, elective_modules, industry_modules, major_groups FROM rp_courses')
+                rows = cur.fetchall()
+                if rows:
+                    courses = [{
+                        'course_code': r[0], 'course_name': r[1], 'school_name': r[2],
+                        'school_abbr': r[3], 'url': r[4],
+                        'general_modules': json.loads(r[5]) if r[5] else [],
+                        'major_modules': json.loads(r[6]) if r[6] else [],
+                        'discipline_modules': json.loads(r[7]) if r[7] else [],
+                        'elective_modules': json.loads(r[8]) if r[8] else [],
+                        'industry_modules': json.loads(r[9]) if r[9] else [],
+                        'major_groups': json.loads(r[10]) if r[10] else [],
+                    } for r in rows]
+        except (psycopg2.Error, json.JSONDecodeError):
+            pass
+
+    # Supabase path
+    if courses is None and supabase is not None:
         try:
             result = supabase.table('rp_courses').select('*').execute()
             courses = result.data
@@ -1747,13 +1782,30 @@ MINORS_CACHE_TTL = 300
 
 @app.route('/api/minors', methods=['GET'])
 def get_minors():
-    """Return all minor programmes from Supabase rp_minors table."""
+    """Return all minor programmes from PostgreSQL/Supabase rp_minors table."""
     now = time.time()
     if _minors_cache['data'] is not None and (now - _minors_cache['timestamp']) < MINORS_CACHE_TTL:
         return jsonify(_minors_cache['data']), 200
 
     minors = None
-    if supabase is not None:
+
+    # PostgreSQL path
+    if use_postgres():
+        try:
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute('SELECT minor_name, minor_type, url, modules, eligibility FROM rp_minors')
+                rows = cur.fetchall()
+                if rows:
+                    minors = [{
+                        'minor_name': r[0], 'minor_type': r[1], 'url': r[2],
+                        'modules': json.loads(r[3]) if r[3] else [],
+                        'eligibility': r[4],
+                    } for r in rows]
+        except (psycopg2.Error, json.JSONDecodeError):
+            pass
+
+    # Supabase path
+    if minors is None and supabase is not None:
         try:
             result = supabase.table('rp_minors').select('*').execute()
             minors = result.data
@@ -2047,12 +2099,31 @@ _CAREER_KEYWORD_STOPWORDS = frozenset({
 def _get_active_module_codes() -> frozenset:
     """Return frozenset of module codes linked to active courses/diplomas."""
     courses = None
-    if supabase is not None:
+
+    # PostgreSQL path
+    if use_postgres():
+        try:
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute('SELECT general_modules, major_modules, discipline_modules, elective_modules, industry_modules FROM rp_courses')
+                rows = cur.fetchall()
+                if rows:
+                    courses = []
+                    for r in rows:
+                        row = {}
+                        for i, field in enumerate(('general_modules', 'major_modules', 'discipline_modules', 'elective_modules', 'industry_modules')):
+                            row[field] = json.loads(r[i]) if r[i] else []
+                        courses.append(row)
+        except (psycopg2.Error, json.JSONDecodeError):
+            pass
+
+    # Supabase path
+    if courses is None and supabase is not None:
         try:
             result = supabase.table("rp_courses").select("*").execute()
             courses = result.data
         except APIError:
             pass
+
     if courses is None:
         courses = _load_local_courses()
     if not courses:
