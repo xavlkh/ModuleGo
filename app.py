@@ -11,7 +11,6 @@ import subprocess
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from uuid import uuid4
 
 import psycopg2
 import psycopg2.extras
@@ -22,13 +21,39 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 from postgrest.exceptions import APIError
-from supabase import create_client
+
+from auth_routes import auth_bp
+from db import (
+    public_review,
+    review_to_dict,
+    select_review,
+    supabase,
+)
+from ownership import (
+    current_guest_hash,
+    identity_owns,
+    request_identity,
+    rotate_guest_cookie,
+    set_pending_guest_cookie,
+)
 
 load_dotenv()
 
 app = Flask(__name__,
             static_folder='app/static',
             template_folder='app/templates')
+app.config.update(
+    SECRET_KEY=os.environ.get(
+        'FLASK_SECRET_KEY',
+        'modulego-local-development-secret-change-me',
+    ),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=os.environ.get('VERCEL') == '1',
+    PERMANENT_SESSION_LIFETIME=30 * 24 * 60 * 60,
+)
+app.register_blueprint(auth_bp)
+app.after_request(set_pending_guest_cookie)
 
 csrf = CSRFProtect()
 
@@ -53,6 +78,7 @@ limiter = Limiter(
 )
 
 _base_dir = os.path.dirname(os.path.abspath(__file__))
+LOCAL_DATA_DIR = os.path.join(_base_dir, 'app', 'static', 'local-data', 'data')
 MAX_COMMENT_LENGTH = 500
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.1-flash-lite')
 GEMINI_TIMEOUT_SECONDS = 25
@@ -63,28 +89,6 @@ class GeminiServiceError(RuntimeError):
     """Raised when Gemini cannot return a valid comparison."""
 
 
-def _owner_token_from_request() -> str | None:
-    """Extract and strip the owner token from request headers."""
-    return request.headers.get('X-Owner-Token', '').strip() or None
-
-
-def generate_owner_token() -> str:
-    """Generate a random 32-char hex token for anonymous review ownership."""
-    return uuid4().hex
-
-supabase_url = os.environ.get('SUPABASE_URL')
-supabase_secret_key = os.environ.get('SUPABASE_SECRET_KEY')
-supabase = None
-
-if supabase_url and supabase_secret_key:
-    if not supabase_url.startswith(('https://', 'http://')):
-        raise RuntimeError('SUPABASE_URL must be a complete HTTP(S) URL.')
-    if supabase_secret_key.startswith('sb_publishable_'):
-        raise RuntimeError(
-            'SUPABASE_SECRET_KEY must use the backend-only sb_secret_ key, not a '
-            'publishable browser key.'
-        )
-    supabase = create_client(supabase_url, supabase_secret_key)
 db_name = os.environ.get('DATABASE_PATH', os.path.join(_base_dir, 'modulego.db'))
 database_url = os.environ.get('DATABASE_URL')
 
@@ -177,27 +181,6 @@ def pg_connection():
         conn.close()
 
 
-def review_to_dict(row: sqlite3.Row) -> dict:
-    """Convert a database row to a review dictionary."""
-    return {
-        'id': row['ID'],
-        'module_code': row['MODULE_CODE'],
-        'rating': row['RATING'],
-        'comment': row['COMMENT'],
-        'created_at': row['CREATED_AT'],
-        'updated_at': row['UPDATED_AT'],
-        'owner_token': row['OWNER_TOKEN'],
-    }
-
-
-def select_review(conn: sqlite3.Connection, review_id: int) -> sqlite3.Row:
-    """Fetch a single review by ID from the database."""
-    return conn.execute(
-        '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT, OWNER_TOKEN
-           FROM REVIEWS WHERE ID = ?''',
-        (review_id,),
-    ).fetchone()
-
 
 def init_db() -> None:
     """Create or upgrade the SQLite review + career_paths tables."""
@@ -210,7 +193,10 @@ def init_db() -> None:
                 COMMENT TEXT NOT NULL DEFAULT '',
                 CREATED_AT DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UPDATED_AT DATETIME,
-                OWNER_TOKEN TEXT)'''
+                USER_ID TEXT,
+                GUEST_OWNER_HASH TEXT,
+                IS_ANONYMOUS INTEGER NOT NULL DEFAULT 1,
+                AUTHOR_DISPLAY_NAME TEXT)'''
         )
         columns = {
             row['name']
@@ -218,8 +204,19 @@ def init_db() -> None:
         }
         if 'UPDATED_AT' not in columns:
             conn.execute('ALTER TABLE REVIEWS ADD COLUMN UPDATED_AT DATETIME')
-        if 'OWNER_TOKEN' not in columns:
-            conn.execute('ALTER TABLE REVIEWS ADD COLUMN OWNER_TOKEN TEXT')
+        if 'USER_ID' not in columns:
+            conn.execute('ALTER TABLE REVIEWS ADD COLUMN USER_ID TEXT')
+        if 'GUEST_OWNER_HASH' not in columns:
+            conn.execute('ALTER TABLE REVIEWS ADD COLUMN GUEST_OWNER_HASH TEXT')
+        if 'IS_ANONYMOUS' not in columns:
+            conn.execute(
+                'ALTER TABLE REVIEWS ADD COLUMN IS_ANONYMOUS INTEGER '
+                'NOT NULL DEFAULT 1'
+            )
+        if 'AUTHOR_DISPLAY_NAME' not in columns:
+            conn.execute(
+                'ALTER TABLE REVIEWS ADD COLUMN AUTHOR_DISPLAY_NAME TEXT'
+            )
         conn.execute(
             'CREATE INDEX IF NOT EXISTS IDX_REVIEWS_MODULE_CODE '
             'ON REVIEWS (MODULE_CODE)'
@@ -228,15 +225,54 @@ def init_db() -> None:
             '''CREATE TABLE IF NOT EXISTS REVIEW_VOTES
                (ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 REVIEW_ID INTEGER NOT NULL,
-                OWNER_TOKEN TEXT NOT NULL,
+                USER_ID TEXT,
+                GUEST_OWNER_HASH TEXT,
                 VOTE_TYPE INTEGER NOT NULL CHECK (VOTE_TYPE IN (1, -1)),
                 CREATED_AT DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (REVIEW_ID) REFERENCES REVIEWS(ID) ON DELETE CASCADE,
-                UNIQUE(REVIEW_ID, OWNER_TOKEN))'''
+                FOREIGN KEY (REVIEW_ID) REFERENCES REVIEWS(ID) ON DELETE CASCADE)'''
         )
+        vote_columns = {
+            row['name']
+            for row in conn.execute('PRAGMA table_info(REVIEW_VOTES)').fetchall()
+        }
+        if 'USER_ID' not in vote_columns:
+            conn.execute('ALTER TABLE REVIEW_VOTES ADD COLUMN USER_ID TEXT')
+        if 'GUEST_OWNER_HASH' not in vote_columns:
+            conn.execute(
+                'ALTER TABLE REVIEW_VOTES ADD COLUMN GUEST_OWNER_HASH TEXT'
+            )
         conn.execute(
             'CREATE INDEX IF NOT EXISTS IDX_REVIEW_VOTES_REVIEW_ID '
             'ON REVIEW_VOTES (REVIEW_ID)'
+        )
+        conn.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS '
+            'UQ_REVIEWS_ACCOUNT_MODULE ON REVIEWS (MODULE_CODE, USER_ID) '
+            'WHERE USER_ID IS NOT NULL'
+        )
+        conn.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS '
+            'UQ_REVIEWS_GUEST_MODULE ON REVIEWS '
+            '(MODULE_CODE, GUEST_OWNER_HASH) '
+            'WHERE GUEST_OWNER_HASH IS NOT NULL'
+        )
+        conn.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS '
+            'UQ_VOTES_ACCOUNT_REVIEW ON REVIEW_VOTES (REVIEW_ID, USER_ID) '
+            'WHERE USER_ID IS NOT NULL'
+        )
+        conn.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS '
+            'UQ_VOTES_GUEST_REVIEW ON REVIEW_VOTES '
+            '(REVIEW_ID, GUEST_OWNER_HASH) '
+            'WHERE GUEST_OWNER_HASH IS NOT NULL'
+        )
+        conn.execute(
+            '''CREATE TABLE IF NOT EXISTS BOOKMARKS
+               (USER_ID TEXT NOT NULL,
+                MODULE_CODE TEXT NOT NULL,
+                CREATED_AT DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (USER_ID, MODULE_CODE))'''
         )
         conn.execute(
             '''CREATE TABLE IF NOT EXISTS CAREER_PATHS
@@ -249,16 +285,13 @@ def init_db() -> None:
 
 
 def _load_career_paths_from_file() -> list | None:
-    """Read career paths from local JSON file. Returns None if all fail."""
-    for name in ('rp_career_paths.json',):
-        for folder in ('local-data',):
-            p = os.path.join(_base_dir, 'app', 'static', folder, 'data', name)
-            try:
-                with open(p, encoding='utf-8') as f:
-                    return json.load(f)
-            except (OSError, json.JSONDecodeError):
-                continue
-    return None
+    """Read career paths from local JSON file."""
+    path = os.path.join(LOCAL_DATA_DIR, 'rp_career_paths.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def _seed_career_paths() -> None:
@@ -294,7 +327,23 @@ def init_pg_db() -> None:
                 COMMENT TEXT NOT NULL DEFAULT '',
                 CREATED_AT TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 UPDATED_AT TIMESTAMPTZ,
-                OWNER_TOKEN TEXT)'''
+                USER_ID UUID,
+                GUEST_OWNER_HASH TEXT,
+                IS_ANONYMOUS BOOLEAN NOT NULL DEFAULT TRUE,
+                AUTHOR_DISPLAY_NAME TEXT)'''
+        )
+        cur.execute('ALTER TABLE REVIEWS ADD COLUMN IF NOT EXISTS USER_ID UUID')
+        cur.execute(
+            'ALTER TABLE REVIEWS ADD COLUMN IF NOT EXISTS '
+            'GUEST_OWNER_HASH TEXT'
+        )
+        cur.execute(
+            'ALTER TABLE REVIEWS ADD COLUMN IF NOT EXISTS '
+            'IS_ANONYMOUS BOOLEAN NOT NULL DEFAULT TRUE'
+        )
+        cur.execute(
+            'ALTER TABLE REVIEWS ADD COLUMN IF NOT EXISTS '
+            'AUTHOR_DISPLAY_NAME TEXT'
         )
         cur.execute(
             'CREATE INDEX IF NOT EXISTS IDX_REVIEWS_MODULE_CODE ON REVIEWS (MODULE_CODE)'
@@ -303,14 +352,46 @@ def init_pg_db() -> None:
             '''CREATE TABLE IF NOT EXISTS REVIEW_VOTES
                (ID SERIAL PRIMARY KEY,
                 REVIEW_ID INTEGER NOT NULL,
-                OWNER_TOKEN TEXT NOT NULL,
+                USER_ID UUID,
+                GUEST_OWNER_HASH TEXT,
                 VOTE_TYPE INTEGER NOT NULL CHECK (VOTE_TYPE IN (1, -1)),
                 CREATED_AT TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (REVIEW_ID) REFERENCES REVIEWS(ID) ON DELETE CASCADE,
-                UNIQUE(REVIEW_ID, OWNER_TOKEN))'''
+                FOREIGN KEY (REVIEW_ID) REFERENCES REVIEWS(ID) ON DELETE CASCADE)'''
+        )
+        cur.execute(
+            'ALTER TABLE REVIEW_VOTES ADD COLUMN IF NOT EXISTS USER_ID UUID'
+        )
+        cur.execute(
+            'ALTER TABLE REVIEW_VOTES ADD COLUMN IF NOT EXISTS '
+            'GUEST_OWNER_HASH TEXT'
         )
         cur.execute(
             'CREATE INDEX IF NOT EXISTS IDX_REVIEW_VOTES_REVIEW_ID ON REVIEW_VOTES (REVIEW_ID)'
+        )
+        cur.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS UQ_REVIEWS_ACCOUNT_MODULE '
+            'ON REVIEWS (MODULE_CODE, USER_ID) WHERE USER_ID IS NOT NULL'
+        )
+        cur.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS UQ_REVIEWS_GUEST_MODULE '
+            'ON REVIEWS (MODULE_CODE, GUEST_OWNER_HASH) '
+            'WHERE GUEST_OWNER_HASH IS NOT NULL'
+        )
+        cur.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS UQ_VOTES_ACCOUNT_REVIEW '
+            'ON REVIEW_VOTES (REVIEW_ID, USER_ID) WHERE USER_ID IS NOT NULL'
+        )
+        cur.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS UQ_VOTES_GUEST_REVIEW '
+            'ON REVIEW_VOTES (REVIEW_ID, GUEST_OWNER_HASH) '
+            'WHERE GUEST_OWNER_HASH IS NOT NULL'
+        )
+        cur.execute(
+            '''CREATE TABLE IF NOT EXISTS BOOKMARKS
+               (USER_ID UUID NOT NULL,
+                MODULE_CODE TEXT NOT NULL,
+                CREATED_AT TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (USER_ID, MODULE_CODE))'''
         )
         cur.execute(
             '''CREATE TABLE IF NOT EXISTS CAREER_PATHS
@@ -353,165 +434,262 @@ elif use_postgres():
 # Review repository - encapsulates dual-database branching
 # ---------------------------------------------------------------------------
 
+# Triple-branch pattern: every repository method checks use_sqlite_reviews()
+# then use_postgres(), falling through to Supabase.  SQLite is used for
+# tests and local dev, PostgreSQL for self-hosted, Supabase for production.
+
 class ReviewRepository:
     """Handles review persistence for SQLite, PostgreSQL, and Supabase."""
 
     @staticmethod
-    def list_all() -> list:
-        """Return all reviews ordered by creation date descending."""
+    def list_all(identity=None) -> list:
+        """Return public reviews ordered by creation date descending."""
         if use_sqlite_reviews():
             with database_connection() as conn:
                 rows = conn.execute(
-                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT, OWNER_TOKEN
+                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
+                              UPDATED_AT, USER_ID,
+                              GUEST_OWNER_HASH, IS_ANONYMOUS,
+                              AUTHOR_DISPLAY_NAME
                        FROM REVIEWS ORDER BY CREATED_AT DESC, ID DESC'''
                 ).fetchall()
-            return [review_to_dict(row) for row in rows]
+            return [public_review(row, identity) for row in rows]
 
         if use_postgres():
             with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
-                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT, OWNER_TOKEN
+                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
+                              UPDATED_AT, USER_ID,
+                              GUEST_OWNER_HASH, IS_ANONYMOUS,
+                              AUTHOR_DISPLAY_NAME
                        FROM REVIEWS ORDER BY CREATED_AT DESC, ID DESC'''
                 )
                 rows = cur.fetchall()
-            return [dict(row) for row in rows]
+            return [public_review(row, identity) for row in rows]
 
         result = (
             supabase.table('reviews')
-            .select('id,module_code,rating,comment,created_at,updated_at,owner_token')
+            .select(
+                'id,module_code,rating,comment,created_at,updated_at,'
+                'user_id,guest_owner_hash,is_anonymous,'
+                'author_display_name'
+            )
             .order('created_at', desc=True)
             .execute()
         )
-        return result.data
+        return [public_review(row, identity) for row in result.data]
 
     @staticmethod
-    def list_by_module(module_code: str) -> list:
-        """Return all reviews for a specific module code."""
+    def list_by_module(module_code: str, identity=None) -> list:
+        """Return public reviews for one module code."""
         normalized = module_code.strip().upper()
         if use_sqlite_reviews():
             with database_connection() as conn:
                 rows = conn.execute(
-                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT, OWNER_TOKEN
+                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
+                              UPDATED_AT, USER_ID,
+                              GUEST_OWNER_HASH, IS_ANONYMOUS,
+                              AUTHOR_DISPLAY_NAME
                        FROM REVIEWS WHERE MODULE_CODE = ?
                        ORDER BY CREATED_AT DESC, ID DESC''',
                     (normalized,),
                 ).fetchall()
-            return [review_to_dict(row) for row in rows]
+            return [public_review(row, identity) for row in rows]
 
         if use_postgres():
             with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
-                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT, OWNER_TOKEN
+                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
+                              UPDATED_AT, USER_ID,
+                              GUEST_OWNER_HASH, IS_ANONYMOUS,
+                              AUTHOR_DISPLAY_NAME
                        FROM REVIEWS WHERE MODULE_CODE = %s
                        ORDER BY CREATED_AT DESC, ID DESC''',
                     (normalized,),
                 )
                 rows = cur.fetchall()
-            return [dict(row) for row in rows]
+            return [public_review(row, identity) for row in rows]
 
         result = (
             supabase.table('reviews')
-            .select('id,module_code,rating,comment,created_at,updated_at,owner_token')
+            .select(
+                'id,module_code,rating,comment,created_at,updated_at,'
+                'user_id,guest_owner_hash,is_anonymous,'
+                'author_display_name'
+            )
             .eq('module_code', normalized)
             .order('created_at', desc=True)
             .execute()
         )
-        return result.data
+        return [public_review(row, identity) for row in result.data]
 
     @staticmethod
-    def create(payload: dict) -> tuple:
+    def create(payload: dict, identity: dict) -> tuple:
         """Create a new review. Returns (review_dict, error_response)."""
-        owner_token = payload.pop('owner_token', None)
-        if not owner_token:
-            owner_token = generate_owner_token()
-
-        if use_sqlite_reviews():
-            with database_connection() as conn:
-                cursor = conn.execute(
-                    '''INSERT INTO REVIEWS (MODULE_CODE, RATING, COMMENT, OWNER_TOKEN)
-                       VALUES (?, ?, ?, ?)''',
-                    (payload['module_code'], payload['rating'], payload['comment'], owner_token),
-                )
-                row = select_review(conn, cursor.lastrowid)
-            return review_to_dict(row), None
-
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(
-                    '''INSERT INTO REVIEWS (MODULE_CODE, RATING, COMMENT, OWNER_TOKEN)
-                       VALUES (%s, %s, %s, %s)
-                       RETURNING ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT, OWNER_TOKEN''',
-                    (payload['module_code'], payload['rating'], payload['comment'], owner_token),
-                )
-                row = cur.fetchone()
-            return dict(row), None
+        ownership = {
+            'user_id': identity.get('user_id'),
+            'guest_owner_hash': identity.get('guest_owner_hash'),
+        }
+        is_anonymous = (
+            True if identity['kind'] == 'guest'
+            else bool(payload.get('is_anonymous', True))
+        )
+        author_name = (
+            identity.get('display_name')
+            if identity['kind'] == 'account'
+            else None
+        )
 
         try:
-            result = supabase.table('reviews').insert({**payload, 'owner_token': owner_token}).execute()
+            if use_sqlite_reviews():
+                with database_connection() as conn:
+                    cursor = conn.execute(
+                        '''INSERT INTO REVIEWS
+                           (MODULE_CODE, RATING, COMMENT, USER_ID,
+                            GUEST_OWNER_HASH, IS_ANONYMOUS,
+                            AUTHOR_DISPLAY_NAME)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                        (
+                            payload['module_code'], payload['rating'],
+                            payload['comment'], ownership['user_id'],
+                            ownership['guest_owner_hash'], int(is_anonymous),
+                            author_name,
+                        ),
+                    )
+                    row = select_review(conn, cursor.lastrowid)
+                return public_review(row, identity), None
+
+            if use_postgres():
+                with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                    cur.execute(
+                        '''INSERT INTO REVIEWS
+                           (MODULE_CODE, RATING, COMMENT, USER_ID,
+                            GUEST_OWNER_HASH, IS_ANONYMOUS,
+                            AUTHOR_DISPLAY_NAME)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)
+                           RETURNING *''',
+                        (
+                            payload['module_code'], payload['rating'],
+                            payload['comment'], ownership['user_id'],
+                            ownership['guest_owner_hash'], is_anonymous,
+                            author_name,
+                        ),
+                    )
+                    row = cur.fetchone()
+                return public_review(row, identity), None
+
+            insert_payload = {
+                'module_code': payload['module_code'],
+                'rating': payload['rating'],
+                'comment': payload['comment'],
+                **ownership,
+                'is_anonymous': is_anonymous,
+                'author_display_name': author_name,
+            }
+            result = supabase.table('reviews').insert(insert_payload).execute()
+            return public_review(result.data[0], identity), None
+        except (sqlite3.IntegrityError, psycopg2.IntegrityError) as error:
+            if 'unique' in str(error).lower():
+                return None, (jsonify({
+                    'error': 'You already reviewed this module.',
+                }), 409)
+            raise
         except APIError as error:
             if error.code == '23503':
                 return None, (jsonify({'error': 'Module code does not exist.'}), 400)
+            if error.code == '23505':
+                return None, (jsonify({
+                    'error': 'You already reviewed this module.',
+                }), 409)
             raise
-        return result.data[0], None
 
     @staticmethod
-    def update(review_id: int, payload: dict, owner_token: str | None = None) -> tuple:
+    def update(review_id: int, payload: dict, identity: dict) -> tuple:
         """Update an existing review. Returns (review_dict, error_response)."""
         if use_sqlite_reviews():
             with database_connection() as conn:
                 existing = conn.execute(
-                    'SELECT OWNER_TOKEN FROM REVIEWS WHERE ID = ?', (review_id,)
+                    'SELECT * FROM REVIEWS WHERE ID = ?', (review_id,)
                 ).fetchone()
                 if not existing:
                     return None, (jsonify({'error': 'Review not found.'}), 404)
-                if owner_token and existing['OWNER_TOKEN'] and existing['OWNER_TOKEN'] != owner_token:
+                if not identity_owns(review_to_dict(existing), identity):
                     return None, (jsonify({'error': 'Forbidden: you do not own this review.'}), 403)
+                anonymous = (
+                    True if identity['kind'] == 'guest'
+                    else bool(payload.get(
+                        'is_anonymous',
+                        review_to_dict(existing)['is_anonymous'],
+                    ))
+                )
                 conn.execute(
                     '''UPDATE REVIEWS
-                       SET RATING = ?, COMMENT = ?, UPDATED_AT = CURRENT_TIMESTAMP
+                       SET RATING = ?, COMMENT = ?, IS_ANONYMOUS = ?,
+                           UPDATED_AT = CURRENT_TIMESTAMP
                        WHERE ID = ?''',
-                    (payload['rating'], payload['comment'], review_id),
+                    (
+                        payload['rating'], payload['comment'], int(anonymous),
+                        review_id,
+                    ),
                 )
                 row = select_review(conn, review_id)
-            return review_to_dict(row), None
+            return public_review(row, identity), None
 
         if use_postgres():
             with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(
-                    'SELECT OWNER_TOKEN FROM REVIEWS WHERE ID = %s', (review_id,)
-                )
+                cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
                 existing = cur.fetchone()
                 if not existing:
                     return None, (jsonify({'error': 'Review not found.'}), 404)
-                if owner_token and existing['OWNER_TOKEN'] and existing['OWNER_TOKEN'] != owner_token:
+                if not identity_owns(review_to_dict(existing), identity):
                     return None, (jsonify({'error': 'Forbidden: you do not own this review.'}), 403)
+                anonymous = (
+                    True if identity['kind'] == 'guest'
+                    else bool(payload.get(
+                        'is_anonymous',
+                        review_to_dict(existing)['is_anonymous'],
+                    ))
+                )
                 cur.execute(
                     '''UPDATE REVIEWS
-                       SET RATING = %s, COMMENT = %s, UPDATED_AT = CURRENT_TIMESTAMP
+                       SET RATING = %s, COMMENT = %s, IS_ANONYMOUS = %s,
+                           UPDATED_AT = CURRENT_TIMESTAMP
                        WHERE ID = %s''',
-                    (payload['rating'], payload['comment'], review_id),
+                    (
+                        payload['rating'], payload['comment'], anonymous,
+                        review_id,
+                    ),
                 )
-                cur.execute(
-                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT, OWNER_TOKEN
-                       FROM REVIEWS WHERE ID = %s''',
-                    (review_id,),
-                )
+                cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
                 row = cur.fetchone()
-            return dict(row), None
+            return public_review(row, identity), None
 
         existing_result = (
             supabase.table('reviews')
-            .select('id,owner_token')
+            .select(
+                'id,module_code,rating,comment,created_at,updated_at,'
+                'user_id,guest_owner_hash,is_anonymous,'
+                'author_display_name'
+            )
             .eq('id', review_id)
             .limit(1)
             .execute()
         )
         if not existing_result.data:
             return None, (jsonify({'error': 'Review not found.'}), 404)
-        if owner_token and existing_result.data[0].get('owner_token') and existing_result.data[0]['owner_token'] != owner_token:
+        existing = review_to_dict(existing_result.data[0])
+        if not identity_owns(existing, identity):
             return None, (jsonify({'error': 'Forbidden: you do not own this review.'}), 403)
 
-        payload['updated_at'] = datetime.now(timezone.utc).isoformat()
+        payload = {
+            'rating': payload['rating'],
+            'comment': payload['comment'],
+            'is_anonymous': (
+                True if identity['kind'] == 'guest'
+                else bool(payload.get('is_anonymous', existing['is_anonymous']))
+            ),
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }
         result = (
             supabase.table('reviews')
             .update(payload)
@@ -520,47 +698,105 @@ class ReviewRepository:
         )
         if not result.data:
             return None, (jsonify({'error': 'Review not found.'}), 404)
-        return result.data[0], None
+        return public_review(result.data[0], identity), None
 
     @staticmethod
-    def delete(review_id: int, owner_token: str | None = None) -> tuple | None:
+    def delete(review_id: int, identity: dict) -> tuple | None:
         """Delete a review. Returns None on success or error response."""
         if use_sqlite_reviews():
             with database_connection() as conn:
                 existing = conn.execute(
-                    'SELECT OWNER_TOKEN FROM REVIEWS WHERE ID = ?', (review_id,)
+                    'SELECT * FROM REVIEWS WHERE ID = ?', (review_id,)
                 ).fetchone()
                 if not existing:
                     return jsonify({'error': 'Review not found.'}), 404
-                if owner_token and existing['OWNER_TOKEN'] and existing['OWNER_TOKEN'] != owner_token:
+                if not identity_owns(review_to_dict(existing), identity):
                     return jsonify({'error': 'Forbidden: you do not own this review.'}), 403
                 conn.execute('DELETE FROM REVIEWS WHERE ID = ?', (review_id,))
             return None
 
         if use_postgres():
-            with pg_connection() as conn, conn.cursor() as cur:
-                cur.execute('SELECT OWNER_TOKEN FROM REVIEWS WHERE ID = %s', (review_id,))
+            with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
                 existing = cur.fetchone()
                 if not existing:
                     return jsonify({'error': 'Review not found.'}), 404
-                if owner_token and existing[0] and existing[0] != owner_token:
+                if not identity_owns(review_to_dict(existing), identity):
                     return jsonify({'error': 'Forbidden: you do not own this review.'}), 403
                 cur.execute('DELETE FROM REVIEWS WHERE ID = %s', (review_id,))
             return None
 
         existing = (
             supabase.table('reviews')
-            .select('id,owner_token')
+            .select('id,user_id,guest_owner_hash')
             .eq('id', review_id)
             .limit(1)
             .execute()
         )
         if not existing.data:
             return jsonify({'error': 'Review not found.'}), 404
-        if owner_token and existing.data[0].get('owner_token') and existing.data[0]['owner_token'] != owner_token:
+        if not identity_owns(existing.data[0], identity):
             return jsonify({'error': 'Forbidden: you do not own this review.'}), 403
         supabase.table('reviews').delete().eq('id', review_id).execute()
         return None
+
+    @staticmethod
+    def update_author_display_name(user_id: str, display_name: str) -> int:
+        """Update the stored author name for every review owned by an account."""
+        if use_sqlite_reviews():
+            with database_connection() as conn:
+                cursor = conn.execute(
+                    '''UPDATE REVIEWS
+                       SET AUTHOR_DISPLAY_NAME = ?
+                       WHERE USER_ID = ?''',
+                    (display_name, user_id),
+                )
+                return cursor.rowcount
+
+        if use_postgres():
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    '''UPDATE REVIEWS
+                       SET AUTHOR_DISPLAY_NAME = %s
+                       WHERE USER_ID = %s''',
+                    (display_name, user_id),
+                )
+                return cur.rowcount
+
+        result = (
+            supabase.table('reviews')
+            .update({'author_display_name': display_name})
+            .eq('user_id', user_id)
+            .execute()
+        )
+        return len(result.data)
+
+    @staticmethod
+    def count_by_user(user_id: str) -> int:
+        """Count reviews authored by a specific user account."""
+        if use_sqlite_reviews():
+            with database_connection() as conn:
+                row = conn.execute(
+                    'SELECT COUNT(*) as cnt FROM REVIEWS WHERE USER_ID = ?',
+                    (user_id,),
+                ).fetchone()
+            return row['cnt']
+
+        if use_postgres():
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    'SELECT COUNT(*) FROM REVIEWS WHERE USER_ID = %s',
+                    (user_id,),
+                )
+                return cur.fetchone()[0]
+
+        result = (
+            supabase.table('reviews')
+            .select('id', count='exact')
+            .eq('user_id', user_id)
+            .execute()
+        )
+        return result.count
 
     @staticmethod
     def rating_summaries() -> dict:
@@ -643,228 +879,196 @@ class ReviewRepository:
             }
         except APIError:
             return {}
+
+
+app.extensions['review_repository'] = ReviewRepository
+
+
 # ---------------------------------------------------------------------------
 
 class VoteRepository:
     """Handles vote persistence for SQLite, PostgreSQL, and Supabase."""
 
     @staticmethod
-    def get_votes(review_id: int) -> dict:
-        """Return vote score and user's vote for a review."""
-        owner_token = _owner_token_from_request()
-
-        if use_sqlite_reviews():
-            with database_connection() as conn:
-                row = conn.execute(
-                    '''SELECT COALESCE(SUM(VOTE_TYPE), 0) as score
-                       FROM REVIEW_VOTES WHERE REVIEW_ID = ?''',
-                    (review_id,),
-                ).fetchone()
-                score = row['score'] if row else 0
-
-                user_vote = 0
-                if owner_token:
-                    row = conn.execute(
-                        '''SELECT VOTE_TYPE FROM REVIEW_VOTES
-                           WHERE REVIEW_ID = ? AND OWNER_TOKEN = ?''',
-                        (review_id, owner_token),
-                    ).fetchone()
-                    if row:
-                        user_vote = row['VOTE_TYPE']
-            return {'score': score, 'user_vote': user_vote}
-
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(
-                    '''SELECT COALESCE(SUM(VOTE_TYPE), 0) as score
-                       FROM REVIEW_VOTES WHERE REVIEW_ID = %s''',
-                    (review_id,),
-                )
-                row = cur.fetchone()
-                score = row['score'] if row else 0
-
-                user_vote = 0
-                if owner_token:
-                    cur.execute(
-                        '''SELECT VOTE_TYPE FROM REVIEW_VOTES
-                           WHERE REVIEW_ID = %s AND OWNER_TOKEN = %s''',
-                        (review_id, owner_token),
-                    )
-                    row = cur.fetchone()
-                    if row:
-                        user_vote = row['VOTE_TYPE']
-            return {'score': score, 'user_vote': user_vote}
-
-        try:
-            result = (
-                supabase.table('review_votes')
-                .select('vote_type')
-                .eq('review_id', review_id)
-                .execute()
-            )
-            score = sum(v['vote_type'] for v in result.data) if result.data else 0
-
-            user_vote = 0
-            if owner_token:
-                user_result = (
-                    supabase.table('review_votes')
-                    .select('vote_type')
-                    .eq('review_id', review_id)
-                    .eq('owner_token', owner_token)
-                    .limit(1)
-                    .execute()
-                )
-                if user_result.data:
-                    user_vote = user_result.data[0]['vote_type']
-            return {'score': score, 'user_vote': user_vote}
-        except APIError:
-            return {'score': 0, 'user_vote': 0}
+    def _identity_filter(identity):
+        """Return the ownership column and value for an identity."""
+        if not identity:
+            return None, None
+        if identity['kind'] == 'account':
+            return 'user_id', identity['user_id']
+        return 'guest_owner_hash', identity['guest_owner_hash']
 
     @staticmethod
-    def get_votes_bulk(review_ids: list) -> dict:
-        """Return vote scores for multiple reviews at once."""
+    def get_votes(review_id: int, identity=None) -> dict:
+        """Return total score and the request identity's vote."""
+        return VoteRepository.get_votes_bulk([review_id], identity).get(
+            review_id,
+            {'score': 0, 'user_vote': 0},
+        )
+
+    @staticmethod
+    def get_votes_bulk(review_ids: list, identity=None) -> dict:
+        """Return vote scores for several reviews without exposing ownership."""
         if not review_ids:
             return {}
-
-        owner_token = _owner_token_from_request()
+        column, value = VoteRepository._identity_filter(identity)
+        scores = {}
+        user_votes = {}
 
         if use_sqlite_reviews():
+            placeholders = ','.join('?' * len(review_ids))
             with database_connection() as conn:
-                placeholders = ','.join('?' * len(review_ids))
                 rows = conn.execute(
-                    f'''SELECT REVIEW_ID, COALESCE(SUM(VOTE_TYPE), 0) as score
-                        FROM REVIEW_VOTES WHERE REVIEW_ID IN ({placeholders})
+                    f'''SELECT REVIEW_ID, COALESCE(SUM(VOTE_TYPE), 0) score
+                        FROM REVIEW_VOTES
+                        WHERE REVIEW_ID IN ({placeholders})
                         GROUP BY REVIEW_ID''',
                     review_ids,
                 ).fetchall()
                 scores = {row['REVIEW_ID']: row['score'] for row in rows}
-
-                user_votes = {}
-                if owner_token:
+                if column:
                     rows = conn.execute(
                         f'''SELECT REVIEW_ID, VOTE_TYPE FROM REVIEW_VOTES
-                            WHERE REVIEW_ID IN ({placeholders}) AND OWNER_TOKEN = ?''',
-                        (*review_ids, owner_token),
+                            WHERE REVIEW_ID IN ({placeholders})
+                              AND {column.upper()} = ?''',
+                        (*review_ids, value),
                     ).fetchall()
-                    user_votes = {row['REVIEW_ID']: row['VOTE_TYPE'] for row in rows}
-
-            return {
-                rid: {
-                    'score': scores.get(rid, 0),
-                    'user_vote': user_votes.get(rid, 0),
-                }
-                for rid in review_ids
-            }
-
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                placeholders = ','.join(['%s'] * len(review_ids))
+                    user_votes = {
+                        row['REVIEW_ID']: row['VOTE_TYPE'] for row in rows
+                    }
+        elif use_postgres():
+            placeholders = ','.join(['%s'] * len(review_ids))
+            with pg_connection() as conn, conn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor
+            ) as cur:
                 cur.execute(
-                    f'''SELECT REVIEW_ID, COALESCE(SUM(VOTE_TYPE), 0) as score
-                        FROM REVIEW_VOTES WHERE REVIEW_ID IN ({placeholders})
+                    f'''SELECT REVIEW_ID, COALESCE(SUM(VOTE_TYPE), 0) score
+                        FROM REVIEW_VOTES
+                        WHERE REVIEW_ID IN ({placeholders})
                         GROUP BY REVIEW_ID''',
                     review_ids,
                 )
-                rows = cur.fetchall()
-                scores = {row['REVIEW_ID']: row['score'] for row in rows}
-
-                user_votes = {}
-                if owner_token:
+                scores = {row['review_id']: row['score'] for row in cur.fetchall()}
+                if column:
                     cur.execute(
                         f'''SELECT REVIEW_ID, VOTE_TYPE FROM REVIEW_VOTES
-                            WHERE REVIEW_ID IN ({placeholders}) AND OWNER_TOKEN = %s''',
-                        (*review_ids, owner_token),
+                            WHERE REVIEW_ID IN ({placeholders})
+                              AND {column} = %s''',
+                        (*review_ids, value),
                     )
-                    rows = cur.fetchall()
-                    user_votes = {row['REVIEW_ID']: row['VOTE_TYPE'] for row in rows}
+                    user_votes = {
+                        row['review_id']: row['vote_type']
+                        for row in cur.fetchall()
+                    }
+        else:
+            try:
+                rows = (
+                    supabase.table('review_votes')
+                    .select('review_id,vote_type,user_id,guest_owner_hash')
+                    .in_('review_id', review_ids)
+                    .execute()
+                    .data
+                )
+                for row in rows:
+                    review_id = row['review_id']
+                    scores[review_id] = (
+                        scores.get(review_id, 0) + row['vote_type']
+                    )
+                    if column and str(row.get(column) or '') == str(value):
+                        user_votes[review_id] = row['vote_type']
+            except APIError:
+                pass
 
-            return {
-                rid: {
-                    'score': scores.get(rid, 0),
-                    'user_vote': user_votes.get(rid, 0),
-                }
-                for rid in review_ids
+        return {
+            review_id: {
+                'score': scores.get(review_id, 0),
+                'user_vote': user_votes.get(review_id, 0),
             }
-
-        try:
-            result = (
-                supabase.table('review_votes')
-                .select('review_id,vote_type,owner_token')
-                .in_('review_id', review_ids)
-                .execute()
-            )
-            scores = {}
-            user_votes = {}
-            for v in result.data:
-                rid = v['review_id']
-                scores[rid] = scores.get(rid, 0) + v['vote_type']
-                if owner_token and v.get('owner_token') == owner_token:
-                    user_votes[rid] = v['vote_type']
-
-            return {
-                rid: {
-                    'score': scores.get(rid, 0),
-                    'user_vote': user_votes.get(rid, 0),
-                }
-                for rid in review_ids
-            }
-        except APIError:
-            return {rid: {'score': 0, 'user_vote': 0} for rid in review_ids}
+            for review_id in review_ids
+        }
 
     @staticmethod
-    def vote(review_id: int, vote_type: int) -> tuple:
-        """Add or update a vote. Returns (result_dict, error_response)."""
-        owner_token = _owner_token_from_request()
-        if not owner_token:
-            return None, (jsonify({'error': 'Authentication required.'}), 401)
+    def _review_owned(review_id, identity):
+        """Return whether the request identity wrote the target review."""
+        if use_sqlite_reviews():
+            with database_connection() as conn:
+                row = conn.execute(
+                    'SELECT * FROM REVIEWS WHERE ID = ?',
+                    (review_id,),
+                ).fetchone()
+        elif use_postgres():
+            with pg_connection() as conn, conn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor
+            ) as cur:
+                cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
+                row = cur.fetchone()
+        else:
+            result = (
+                supabase.table('reviews')
+                .select('id,user_id,guest_owner_hash')
+                .eq('id', review_id)
+                .limit(1)
+                .execute()
+            )
+            row = result.data[0] if result.data else None
+        return row is not None and identity_owns(review_to_dict(row), identity)
 
+    @staticmethod
+    def vote(review_id: int, vote_type: int, identity: dict) -> tuple:
+        """Toggle or change an owned account/guest vote."""
         if vote_type not in (1, -1):
-            return None, (jsonify({'error': 'Vote type must be 1 or -1.'}), 400)
+            return None, (jsonify({
+                'error': 'Vote type must be 1 or -1.',
+            }), 400)
+        if VoteRepository._review_owned(review_id, identity):
+            return None, (jsonify({
+                'error': 'You cannot vote on your own review.',
+            }), 403)
+        column, value = VoteRepository._identity_filter(identity)
 
         if use_sqlite_reviews():
             with database_connection() as conn:
-                existing = conn.execute(
-                    'SELECT ID, VOTE_TYPE FROM REVIEW_VOTES WHERE REVIEW_ID = ? AND OWNER_TOKEN = ?',
-                    (review_id, owner_token),
+                review = conn.execute(
+                    'SELECT ID FROM REVIEWS WHERE ID = ?', (review_id,)
                 ).fetchone()
-
-                if existing:
-                    if existing['VOTE_TYPE'] == vote_type:
-                        conn.execute('DELETE FROM REVIEW_VOTES WHERE ID = ?', (existing['ID'],))
-                        return {'action': 'removed', 'vote_type': 0}, None
-                    conn.execute(
-                        'UPDATE REVIEW_VOTES SET VOTE_TYPE = ? WHERE ID = ?',
-                        (vote_type, existing['ID']),
-                    )
-                    return {'action': 'updated', 'vote_type': vote_type}, None
-
-                conn.execute(
-                    'INSERT INTO REVIEW_VOTES (REVIEW_ID, OWNER_TOKEN, VOTE_TYPE) VALUES (?, ?, ?)',
-                    (review_id, owner_token, vote_type),
-                )
-                return {'action': 'added', 'vote_type': vote_type}, None
+                if not review:
+                    return None, (jsonify({'error': 'Review not found.'}), 404)
+                existing = conn.execute(
+                    f'''SELECT ID, VOTE_TYPE FROM REVIEW_VOTES
+                        WHERE REVIEW_ID = ? AND {column.upper()} = ?''',
+                    (review_id, value),
+                ).fetchone()
+                return VoteRepository._write_sqlite_vote(
+                    conn, existing, review_id, vote_type, column, value
+                ), None
 
         if use_postgres():
-            with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            with pg_connection() as conn, conn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor
+            ) as cur:
                 cur.execute(
-                    'SELECT ID, VOTE_TYPE FROM REVIEW_VOTES WHERE REVIEW_ID = %s AND OWNER_TOKEN = %s',
-                    (review_id, owner_token),
+                    f'''SELECT ID, VOTE_TYPE FROM REVIEW_VOTES
+                        WHERE REVIEW_ID = %s AND {column} = %s''',
+                    (review_id, value),
                 )
                 existing = cur.fetchone()
-
                 if existing:
-                    if existing['VOTE_TYPE'] == vote_type:
-                        cur.execute('DELETE FROM REVIEW_VOTES WHERE ID = %s', (existing['ID'],))
+                    if existing['vote_type'] == vote_type:
+                        cur.execute(
+                            'DELETE FROM REVIEW_VOTES WHERE ID = %s',
+                            (existing['id'],),
+                        )
                         return {'action': 'removed', 'vote_type': 0}, None
                     cur.execute(
                         'UPDATE REVIEW_VOTES SET VOTE_TYPE = %s WHERE ID = %s',
-                        (vote_type, existing['ID']),
+                        (vote_type, existing['id']),
                     )
                     return {'action': 'updated', 'vote_type': vote_type}, None
-
                 cur.execute(
-                    'INSERT INTO REVIEW_VOTES (REVIEW_ID, OWNER_TOKEN, VOTE_TYPE) VALUES (%s, %s, %s)',
-                    (review_id, owner_token, vote_type),
+                    f'''INSERT INTO REVIEW_VOTES
+                        (REVIEW_ID, {column}, VOTE_TYPE)
+                        VALUES (%s, %s, %s)''',
+                    (review_id, value, vote_type),
                 )
                 return {'action': 'added', 'vote_type': vote_type}, None
 
@@ -873,26 +1077,369 @@ class VoteRepository:
                 supabase.table('review_votes')
                 .select('id,vote_type')
                 .eq('review_id', review_id)
-                .eq('owner_token', owner_token)
+                .eq(column, value)
                 .limit(1)
                 .execute()
             )
-
             if existing.data:
-                if existing.data[0]['vote_type'] == vote_type:
-                    supabase.table('review_votes').delete().eq('id', existing.data[0]['id']).execute()
+                vote = existing.data[0]
+                if vote['vote_type'] == vote_type:
+                    (
+                        supabase.table('review_votes')
+                        .delete()
+                        .eq('id', vote['id'])
+                        .execute()
+                    )
                     return {'action': 'removed', 'vote_type': 0}, None
-                supabase.table('review_votes').update({'vote_type': vote_type}).eq('id', existing.data[0]['id']).execute()
+                (
+                    supabase.table('review_votes')
+                    .update({'vote_type': vote_type})
+                    .eq('id', vote['id'])
+                    .execute()
+                )
                 return {'action': 'updated', 'vote_type': vote_type}, None
-
             supabase.table('review_votes').insert({
                 'review_id': review_id,
-                'owner_token': owner_token,
+                column: value,
                 'vote_type': vote_type,
             }).execute()
             return {'action': 'added', 'vote_type': vote_type}, None
-        except APIError as e:
-            return None, (jsonify({'error': str(e)}), 500)
+        except APIError as error:
+            if error.code == '23503':
+                return None, (jsonify({'error': 'Review not found.'}), 404)
+            raise
+
+    @staticmethod
+    def _write_sqlite_vote(
+        conn, existing, review_id, vote_type, column, value
+    ):
+        """Apply SQLite vote toggle semantics."""
+        if existing:
+            if existing['VOTE_TYPE'] == vote_type:
+                conn.execute(
+                    'DELETE FROM REVIEW_VOTES WHERE ID = ?',
+                    (existing['ID'],),
+                )
+                return {'action': 'removed', 'vote_type': 0}
+            conn.execute(
+                'UPDATE REVIEW_VOTES SET VOTE_TYPE = ? WHERE ID = ?',
+                (vote_type, existing['ID']),
+            )
+            return {'action': 'updated', 'vote_type': vote_type}
+        conn.execute(
+            f'''INSERT INTO REVIEW_VOTES (REVIEW_ID, {column.upper()}, VOTE_TYPE)
+                VALUES (?, ?, ?)''',
+            (review_id, value, vote_type),
+        )
+        return {'action': 'added', 'vote_type': vote_type}
+
+    @staticmethod
+    def remove(review_id: int, identity: dict) -> None:
+        """Remove the request identity's vote."""
+        column, value = VoteRepository._identity_filter(identity)
+        if use_sqlite_reviews():
+            with database_connection() as conn:
+                conn.execute(
+                    f'''DELETE FROM REVIEW_VOTES
+                        WHERE REVIEW_ID = ? AND {column.upper()} = ?''',
+                    (review_id, value),
+                )
+        elif use_postgres():
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    f'''DELETE FROM REVIEW_VOTES
+                        WHERE REVIEW_ID = %s AND {column} = %s''',
+                    (review_id, value),
+                )
+        else:
+            (
+                supabase.table('review_votes')
+                .delete()
+                .eq('review_id', review_id)
+                .eq(column, value)
+                .execute()
+            )
+
+
+class BookmarkRepository:
+    """Persist cross-device bookmarks for authenticated accounts."""
+
+    @staticmethod
+    def list_for_user(user_id):
+        """Return an account's bookmark module codes."""
+        if use_sqlite_reviews():
+            with database_connection() as conn:
+                rows = conn.execute(
+                    '''SELECT MODULE_CODE FROM BOOKMARKS
+                       WHERE USER_ID = ? ORDER BY CREATED_AT''',
+                    (user_id,),
+                ).fetchall()
+            return [row['MODULE_CODE'] for row in rows]
+        if use_postgres():
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    '''SELECT MODULE_CODE FROM BOOKMARKS
+                       WHERE USER_ID = %s ORDER BY CREATED_AT''',
+                    (user_id,),
+                )
+                return [row[0] for row in cur.fetchall()]
+        result = (
+            supabase.table('bookmarks')
+            .select('module_code')
+            .eq('user_id', user_id)
+            .order('created_at')
+            .execute()
+        )
+        return [row['module_code'] for row in result.data]
+
+    @staticmethod
+    def add(user_id, module_code):
+        """Add a bookmark idempotently."""
+        code = module_code.strip().upper()
+        if use_sqlite_reviews():
+            with database_connection() as conn:
+                conn.execute(
+                    '''INSERT OR IGNORE INTO BOOKMARKS
+                       (USER_ID, MODULE_CODE) VALUES (?, ?)''',
+                    (user_id, code),
+                )
+        elif use_postgres():
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    '''INSERT INTO BOOKMARKS (USER_ID, MODULE_CODE)
+                       VALUES (%s, %s) ON CONFLICT DO NOTHING''',
+                    (user_id, code),
+                )
+        else:
+            try:
+                supabase.table('bookmarks').upsert({
+                    'user_id': user_id,
+                    'module_code': code,
+                }, on_conflict='user_id,module_code').execute()
+            except APIError as error:
+                if error.code == '23503':
+                    return None, (jsonify({
+                        'error': 'Module code does not exist.',
+                    }), 400)
+                raise
+        return code, None
+
+    @staticmethod
+    def remove(user_id, module_code=None):
+        """Remove one or every account bookmark."""
+        if use_sqlite_reviews():
+            with database_connection() as conn:
+                if module_code:
+                    conn.execute(
+                        '''DELETE FROM BOOKMARKS
+                           WHERE USER_ID = ? AND MODULE_CODE = ?''',
+                        (user_id, module_code.strip().upper()),
+                    )
+                else:
+                    conn.execute(
+                        'DELETE FROM BOOKMARKS WHERE USER_ID = ?',
+                        (user_id,),
+                    )
+        elif use_postgres():
+            with pg_connection() as conn, conn.cursor() as cur:
+                if module_code:
+                    cur.execute(
+                        '''DELETE FROM BOOKMARKS
+                           WHERE USER_ID = %s AND MODULE_CODE = %s''',
+                        (user_id, module_code.strip().upper()),
+                    )
+                else:
+                    cur.execute(
+                        'DELETE FROM BOOKMARKS WHERE USER_ID = %s',
+                        (user_id,),
+                    )
+        else:
+            query = (
+                supabase.table('bookmarks')
+                .delete()
+                .eq('user_id', user_id)
+            )
+            if module_code:
+                query = query.eq('module_code', module_code.strip().upper())
+            query.execute()
+
+
+class OwnershipRepository:
+    """Inspect and explicitly claim signed guest activity."""
+
+    @staticmethod
+    def pending_counts(guest_hash):
+        """Return guest reviews and votes eligible for claiming."""
+        if not guest_hash:
+            return {'reviews': 0, 'votes': 0}
+        if use_sqlite_reviews():
+            with database_connection() as conn:
+                reviews = conn.execute(
+                    '''SELECT COUNT(*) FROM REVIEWS
+                       WHERE GUEST_OWNER_HASH = ?''',
+                    (guest_hash,),
+                ).fetchone()[0]
+                votes = conn.execute(
+                    '''SELECT COUNT(*) FROM REVIEW_VOTES
+                       WHERE GUEST_OWNER_HASH = ?''',
+                    (guest_hash,),
+                ).fetchone()[0]
+            return {'reviews': reviews, 'votes': votes}
+        if use_postgres():
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    '''SELECT COUNT(*) FROM REVIEWS
+                       WHERE GUEST_OWNER_HASH = %s''',
+                    (guest_hash,),
+                )
+                reviews = cur.fetchone()[0]
+                cur.execute(
+                    '''SELECT COUNT(*) FROM REVIEW_VOTES
+                       WHERE GUEST_OWNER_HASH = %s''',
+                    (guest_hash,),
+                )
+                votes = cur.fetchone()[0]
+            return {'reviews': reviews, 'votes': votes}
+        reviews = (
+            supabase.table('reviews')
+            .select('id', count='exact')
+            .eq('guest_owner_hash', guest_hash)
+            .execute()
+        )
+        votes = (
+            supabase.table('review_votes')
+            .select('id', count='exact')
+            .eq('guest_owner_hash', guest_hash)
+            .execute()
+        )
+        return {
+            'reviews': reviews.count or 0,
+            'votes': votes.count or 0,
+        }
+
+    @staticmethod
+    def claim(identity, guest_hash, bookmark_codes):
+        """Claim guest rows; account rows win every conflict."""
+        if not guest_hash:
+            return {
+                'claimed_reviews': 0,
+                'legacy_reviews': 0,
+                'claimed_votes': 0,
+                'removed_votes': 0,
+                'bookmarks': len(BookmarkRepository.list_for_user(
+                    identity['user_id']
+                )),
+            }
+        codes = sorted({
+            str(code).strip().upper() for code in bookmark_codes
+            if isinstance(code, str) and code.strip()
+        })
+        if use_sqlite_reviews():
+            return OwnershipRepository._claim_sqlite(
+                identity, guest_hash, codes
+            )
+        if use_postgres():
+            return OwnershipRepository._claim_postgres(
+                identity, guest_hash, codes
+            )
+        result = supabase.rpc('claim_guest_activity', {
+            'p_user_id': identity['user_id'],
+            'p_guest_owner_hash': guest_hash,
+            'p_display_name': identity['display_name'],
+            'p_bookmark_codes': codes,
+        }).execute()
+        return result.data
+
+    @staticmethod
+    def _claim_sqlite(identity, guest_hash, codes):
+        """Run the test/local ownership claim in one SQLite transaction."""
+        user_id = identity['user_id']
+        with database_connection() as conn:
+            conflicts = conn.execute(
+                '''SELECT guest.ID FROM REVIEWS guest
+                   JOIN REVIEWS account
+                     ON account.MODULE_CODE = guest.MODULE_CODE
+                    AND account.USER_ID = ?
+                   WHERE guest.GUEST_OWNER_HASH = ?''',
+                (user_id, guest_hash),
+            ).fetchall()
+            conflict_ids = [row['ID'] for row in conflicts]
+            claimed_reviews = conn.execute(
+                '''UPDATE REVIEWS
+                   SET USER_ID = ?, GUEST_OWNER_HASH = NULL,
+                       AUTHOR_DISPLAY_NAME = ?, IS_ANONYMOUS = 1
+                   WHERE GUEST_OWNER_HASH = ?
+                     AND MODULE_CODE NOT IN (
+                         SELECT MODULE_CODE FROM REVIEWS
+                         WHERE USER_ID = ?
+                     )''',
+                (
+                    user_id, identity['display_name'], guest_hash, user_id,
+                ),
+            ).rowcount
+
+            removed_votes = 0
+            claimed_votes = 0
+            guest_votes = conn.execute(
+                '''SELECT ID, REVIEW_ID FROM REVIEW_VOTES
+                   WHERE GUEST_OWNER_HASH = ?''',
+                (guest_hash,),
+            ).fetchall()
+            for vote in guest_votes:
+                account_vote = conn.execute(
+                    '''SELECT 1 FROM REVIEW_VOTES
+                       WHERE REVIEW_ID = ? AND USER_ID = ?''',
+                    (vote['REVIEW_ID'], user_id),
+                ).fetchone()
+                own_review = conn.execute(
+                    '''SELECT 1 FROM REVIEWS
+                       WHERE ID = ? AND USER_ID = ?''',
+                    (vote['REVIEW_ID'], user_id),
+                ).fetchone()
+                if account_vote or own_review:
+                    conn.execute(
+                        'DELETE FROM REVIEW_VOTES WHERE ID = ?',
+                        (vote['ID'],),
+                    )
+                    removed_votes += 1
+                else:
+                    conn.execute(
+                        '''UPDATE REVIEW_VOTES
+                           SET USER_ID = ?, GUEST_OWNER_HASH = NULL
+                           WHERE ID = ?''',
+                        (user_id, vote['ID']),
+                    )
+                    claimed_votes += 1
+            for code in codes:
+                conn.execute(
+                    '''INSERT OR IGNORE INTO BOOKMARKS
+                       (USER_ID, MODULE_CODE) VALUES (?, ?)''',
+                    (user_id, code),
+                )
+            bookmark_count = conn.execute(
+                'SELECT COUNT(*) FROM BOOKMARKS WHERE USER_ID = ?',
+                (user_id,),
+            ).fetchone()[0]
+        return {
+            'claimed_reviews': claimed_reviews,
+            'legacy_reviews': len(conflict_ids),
+            'claimed_votes': claimed_votes,
+            'removed_votes': removed_votes,
+            'bookmarks': bookmark_count,
+        }
+
+    @staticmethod
+    def _claim_postgres(identity, guest_hash, codes):
+        """Call the same database function in direct PostgreSQL mode."""
+        with pg_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                'SELECT claim_guest_activity(%s, %s, %s, %s)',
+                (
+                    identity['user_id'], guest_hash,
+                    identity['display_name'], codes,
+                ),
+            )
+            return cur.fetchone()[0]
 
 
 # ---------------------------------------------------------------------------
@@ -928,6 +1475,10 @@ def validate_review_payload(data: dict | None, require_module_code: bool = False
         return None, f'Comment must be {MAX_COMMENT_LENGTH} characters or fewer.'
 
     payload = {'rating': rating, 'comment': comment}
+    if 'is_anonymous' in data:
+        if not isinstance(data['is_anonymous'], bool):
+            return None, 'Anonymous visibility must be true or false.'
+        payload['is_anonymous'] = data['is_anonymous']
     if require_module_code:
         module_code = data.get('module_code')
         if not isinstance(module_code, str) or not module_code.strip():
@@ -967,7 +1518,7 @@ def validate_comparison_payload(data: dict | None) -> tuple:
 # Module data caching
 # ---------------------------------------------------------------------------
 
-# Simple TTL cache to avoid hitting Supabase rate limits on every keystroke.
+# Manual TTL cache — avoids hitting Supabase rate limits on every keystroke.
 _modules_cache = {'data': None, 'timestamp': 0}
 MODULE_CACHE_TTL = 300  # 5 minutes
 
@@ -1223,7 +1774,7 @@ def get_minors():
 @app.route('/api/reviews', methods=['GET'])
 def list_reviews():
     """Return all reviews ordered by creation date for the dashboard."""
-    reviews = ReviewRepository.list_all()
+    reviews = ReviewRepository.list_all(request_identity())
     return jsonify(reviews), 200
 
 
@@ -1238,11 +1789,10 @@ def add_review():
     if error:
         return jsonify({'error': error}), 400
 
-    owner_token = _owner_token_from_request()
-    if owner_token:
-        payload['owner_token'] = owner_token
-
-    review, error_response = ReviewRepository.create(payload)
+    review, error_response = ReviewRepository.create(
+        payload,
+        request_identity(create_guest=True),
+    )
     if error_response:
         return error_response
     return jsonify(review), 201
@@ -1251,7 +1801,10 @@ def add_review():
 @app.route('/api/reviews/<module_code>', methods=['GET'])
 def get_reviews(module_code):
     """Return all reviews for a specific module code."""
-    reviews = ReviewRepository.list_by_module(module_code)
+    reviews = ReviewRepository.list_by_module(
+        module_code,
+        request_identity(),
+    )
     return jsonify(reviews), 200
 
 
@@ -1263,7 +1816,11 @@ def update_review(review_id):
     if error:
         return jsonify({'error': error}), 400
 
-    review, error_response = ReviewRepository.update(review_id, payload, _owner_token_from_request())
+    review, error_response = ReviewRepository.update(
+        review_id,
+        payload,
+        request_identity(create_guest=True),
+    )
     if error_response:
         return error_response
     return jsonify(review), 200
@@ -1273,7 +1830,10 @@ def update_review(review_id):
 @limiter.limit("10/hour")
 def delete_review(review_id):
     """Delete a review by ID."""
-    error_response = ReviewRepository.delete(review_id, _owner_token_from_request())
+    error_response = ReviewRepository.delete(
+        review_id,
+        request_identity(create_guest=True),
+    )
     if error_response:
         return error_response
     return '', 204
@@ -1282,7 +1842,7 @@ def delete_review(review_id):
 @app.route('/api/reviews/<int:review_id>/vote', methods=['GET'])
 def get_review_votes(review_id):
     """Return vote score and user's vote for a review."""
-    votes = VoteRepository.get_votes(review_id)
+    votes = VoteRepository.get_votes(review_id, request_identity())
     return jsonify(votes), 200
 
 
@@ -1298,7 +1858,11 @@ def vote_review(review_id):
     if vote_type not in (1, -1):
         return jsonify({'error': 'vote_type must be 1 or -1.'}), 400
 
-    result, error_response = VoteRepository.vote(review_id, vote_type)
+    result, error_response = VoteRepository.vote(
+        review_id,
+        vote_type,
+        request_identity(create_guest=True),
+    )
     if error_response:
         return error_response
     return jsonify(result), 200
@@ -1308,25 +1872,10 @@ def vote_review(review_id):
 @limiter.limit("30/hour")
 def remove_review_vote(review_id):
     """Remove a user's vote from a review."""
-    owner_token = _owner_token_from_request()
-    if not owner_token:
-        return jsonify({'error': 'Authentication required.'}), 401
-
-    if use_sqlite_reviews():
-        with database_connection() as conn:
-            conn.execute(
-                'DELETE FROM REVIEW_VOTES WHERE REVIEW_ID = ? AND OWNER_TOKEN = ?',
-                (review_id, owner_token),
-            )
-    elif use_postgres():
-        with pg_connection() as conn, conn.cursor() as cur:
-            cur.execute(
-                'DELETE FROM REVIEW_VOTES WHERE REVIEW_ID = %s AND OWNER_TOKEN = %s',
-                (review_id, owner_token),
-            )
-    else:
-        supabase.table('review_votes').delete().eq('review_id', review_id).eq('owner_token', owner_token).execute()
-
+    VoteRepository.remove(
+        review_id,
+        request_identity(create_guest=True),
+    )
     return '', 204
 
 
@@ -1341,8 +1890,91 @@ def get_bulk_votes():
     if not isinstance(review_ids, list):
         return jsonify({'error': 'review_ids must be an array.'}), 400
 
-    votes = VoteRepository.get_votes_bulk(review_ids)
+    votes = VoteRepository.get_votes_bulk(review_ids, request_identity())
     return jsonify(votes), 200
+
+
+def _authenticated_identity():
+    """Return the current account identity or a standard 401 response."""
+    identity = request_identity()
+    if not identity or identity['kind'] != 'account':
+        return None, (jsonify({'error': 'Login required.'}), 401)
+    return identity, None
+
+
+@app.route('/api/bookmarks', methods=['GET'])
+def get_bookmarks():
+    """Return cross-device bookmarks for the current account."""
+    identity, error = _authenticated_identity()
+    if error:
+        return error
+    return jsonify({
+        'module_codes': BookmarkRepository.list_for_user(identity['user_id'])
+    }), 200
+
+
+@app.route('/api/bookmarks/<module_code>', methods=['PUT'])
+def add_bookmark(module_code):
+    """Add one cross-device account bookmark."""
+    identity, error = _authenticated_identity()
+    if error:
+        return error
+    code, repository_error = BookmarkRepository.add(
+        identity['user_id'],
+        module_code,
+    )
+    if repository_error:
+        return repository_error
+    return jsonify({'module_code': code}), 200
+
+
+@app.route('/api/bookmarks/<module_code>', methods=['DELETE'])
+def delete_bookmark(module_code):
+    """Delete one cross-device account bookmark."""
+    identity, error = _authenticated_identity()
+    if error:
+        return error
+    BookmarkRepository.remove(identity['user_id'], module_code)
+    return '', 204
+
+
+@app.route('/api/bookmarks', methods=['DELETE'])
+def clear_bookmarks():
+    """Delete every cross-device account bookmark."""
+    identity, error = _authenticated_identity()
+    if error:
+        return error
+    BookmarkRepository.remove(identity['user_id'])
+    return '', 204
+
+
+@app.route('/api/ownership/pending', methods=['GET'])
+def get_pending_ownership():
+    """Describe claimable signed-guest activity for the logged-in account."""
+    _identity, error = _authenticated_identity()
+    if error:
+        return error
+    counts = OwnershipRepository.pending_counts(current_guest_hash())
+    return jsonify(counts), 200
+
+
+@app.route('/api/ownership/claim', methods=['POST'])
+def claim_guest_ownership():
+    """Explicitly transfer this browser's guest activity to its account."""
+    identity, error = _authenticated_identity()
+    if error:
+        return error
+    payload = request.get_json(silent=True) or {}
+    bookmark_codes = payload.get('bookmark_codes', [])
+    if not isinstance(bookmark_codes, list):
+        return jsonify({'error': 'bookmark_codes must be an array.'}), 400
+    result = OwnershipRepository.claim(
+        identity,
+        current_guest_hash(),
+        bookmark_codes,
+    )
+    rotate_guest_cookie()
+    return jsonify(result), 200
 
 
 @app.route('/api/ratings', methods=['GET'])
@@ -1783,7 +2415,7 @@ _CAREER_FALLBACK = [
 
 
 # ---------------------------------------------------------------------------
-# CSRF exemptions for API endpoints (custom-header auth pattern)
+# CSRF exemptions for read-only or stateless API endpoints
 # ---------------------------------------------------------------------------
 
 csrf.exempt(get_modules)
@@ -1794,12 +2426,7 @@ csrf.exempt(get_rating_summaries)
 csrf.exempt(generate_comparison)
 csrf.exempt(get_career_paths)
 csrf.exempt(gobot_chat)
-csrf.exempt(add_review)
-csrf.exempt(update_review)
-csrf.exempt(delete_review)
 csrf.exempt(get_review_votes)
-csrf.exempt(vote_review)
-csrf.exempt(remove_review_vote)
 csrf.exempt(get_bulk_votes)
 
 

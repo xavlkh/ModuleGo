@@ -3,6 +3,14 @@
 # Usage: ./deploy.sh
 set -euo pipefail
 
+pause_on_exit() {
+    echo ""
+    read -rsp "Press any key to exit..." -n1
+    echo ""
+}
+
+trap pause_on_exit EXIT
+
 echo "==> Checking minikube status..."
 if ! minikube status --format='{{.Host}}' 2>/dev/null | grep -q Running; then
   echo "    Starting minikube..."
