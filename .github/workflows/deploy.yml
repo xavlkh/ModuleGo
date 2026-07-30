@@ -84,6 +84,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/modulego-prod.pem
           chmod 600 ~/.ssh/modulego-prod.pem
+          ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Deploy to production EC2
         run: |
@@ -117,6 +118,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/modulego-dev.pem
           chmod 600 ~/.ssh/modulego-dev.pem
+          ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Deploy to dev EC2
         run: |
