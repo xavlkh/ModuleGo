@@ -1,10 +1,10 @@
 # CI/CD pipeline: build Docker image → push to GHCR → deploy to EC2 via Ansible
-# main branch → production (port 5000), dev branch → development (port 5001)
+# master branch → production (port 80), dev branch → development (port 5001)
 name: Build & Deploy
 
 on:
   push:
-    branches: [main, dev]
+    branches: [master, dev]
 
 env:
   REGISTRY: ghcr.io
@@ -24,12 +24,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      # Tag images as "latest" for main branch, "dev" for dev branch
       - name: Determine environment
         id: env
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
             echo "environment=prod" >> $GITHUB_OUTPUT
           else
             echo "environment=dev" >> $GITHUB_OUTPUT
@@ -42,7 +43,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Tags: branch name (e.g. "dev"), "latest" on main, and short SHA
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -61,23 +61,26 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # Deploy to production EC2 when pushing to main
+  # Deploy to production EC2 when pushing to master
   deploy-prod:
     needs: build-and-push
     if: needs.build-and-push.outputs.environment == 'prod'
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install Ansible
         run: |
           sudo apt-get update
           sudo apt-get install -y ansible
 
-      # Write the SSH private key from secrets to a file Ansible can use
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
@@ -91,8 +94,8 @@ jobs:
 
       - name: Verify deployment
         run: |
-          sleep 15
-          curl -sf http://${{ vars.EC2_IP }}:5000 || exit 1
+          sleep 5
+          curl -sf http://${{ vars.EC2_IP }} || exit 1
 
   # Deploy to dev EC2 when pushing to dev branch
   deploy-dev:
@@ -100,10 +103,14 @@ jobs:
     if: needs.build-and-push.outputs.environment == 'dev'
     runs-on: ubuntu-latest
     environment: development
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install Ansible
         run: |
@@ -123,5 +130,5 @@ jobs:
 
       - name: Verify deployment
         run: |
-          sleep 15
+          sleep 5
           curl -sf http://${{ vars.EC2_IP }}:5001 || exit 1

@@ -158,11 +158,11 @@ def upsert_courses(conn, data):
             }
             for key in module_keys:
                 modules = d.get(key, [])
-                row[key] = json.dumps([m['code'] for m in modules if 'code' in m])
+                row[key] = psycopg2.extras.Json([m['code'] for m in modules if 'code' in m])
             if 'major_groups' in d:
-                row['major_groups'] = json.dumps(d['major_groups'])
+                row['major_groups'] = psycopg2.extras.Json(d['major_groups'])
             else:
-                row['major_groups'] = '[]'
+                row['major_groups'] = psycopg2.extras.Json([])
             cur.execute("""
                 INSERT INTO rp_courses (course_code, course_name, school_name, school_abbr, url,
                     general_modules, major_modules, discipline_modules, elective_modules, industry_modules, major_groups)
@@ -203,7 +203,7 @@ def upsert_minors(conn, data):
                 m['minor_name'],
                 m.get('minor_type', ''),
                 m.get('url', ''),
-                json.dumps([{'code': mod['code'], 'name': mod['name']} for mod in m.get('modules', [])]),
+                psycopg2.extras.Json([{'code': mod['code'], 'name': mod['name']} for mod in m.get('modules', [])]),
                 m.get('eligibility', ''),
             ))
     conn.commit()
@@ -223,7 +223,7 @@ def upsert_career_paths(conn, data):
             """, (
                 p['id'],
                 p['label'],
-                json.dumps(p.get('keywords', [])),
+                psycopg2.extras.Json(p.get('keywords', [])),
                 p.get('module_count', 0),
             ))
     conn.commit()

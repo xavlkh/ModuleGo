@@ -45,7 +45,7 @@ jobs:
 
       - name: Upload data and seed script to EC2
         run: |
-          scp -i ~/.ssh/id.pem -o StrictHostKeyChecking=no \
+          scp -i ~/.ssh/id.pem \
             app/static/local-data/data/*.json seed_db.py \
             ubuntu@${{ vars.EC2_IP }}:/tmp/
 
