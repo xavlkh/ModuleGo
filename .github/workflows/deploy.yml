@@ -87,7 +87,7 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ansible-playbook -i ansible/inventory/prod.ini ansible/playbook.yml --tags deploy -e "ghcr_token=${{ secrets.GITHUB_TOKEN }} ec2_ip=${{ vars.EC2_IP }} postgres_user=${{ secrets.POSTGRES_USER }} postgres_password=${{ secrets.POSTGRES_PASSWORD }} gemini_api_key=${{ secrets.GEMINI_API_KEY }}"
+          ansible-playbook -i ansible/inventory/prod.ini ansible/playbook.yml --tags deploy -e "ansible_host=${{ vars.EC2_IP }} env=prod ghcr_token=${{ secrets.GITHUB_TOKEN }} postgres_user=${{ secrets.POSTGRES_USER }} postgres_password=${{ secrets.POSTGRES_PASSWORD }} gemini_api_key=${{ secrets.GEMINI_API_KEY }} gemini_model=${{ vars.GEMINI_MODEL }}"
 
       - name: Verify deployment
         run: |
@@ -126,7 +126,7 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ansible-playbook -i ansible/inventory/dev.ini ansible/playbook.yml --tags deploy -e "ghcr_token=${{ secrets.GITHUB_TOKEN }} ec2_ip=${{ vars.EC2_IP }} postgres_user=${{ secrets.POSTGRES_USER }} postgres_password=${{ secrets.POSTGRES_PASSWORD }} gemini_api_key=${{ secrets.GEMINI_API_KEY }}"
+          ansible-playbook -i ansible/inventory/dev.ini ansible/playbook.yml --tags deploy -e "ansible_host=${{ vars.EC2_IP }} env=dev ghcr_token=${{ secrets.GITHUB_TOKEN }} postgres_user=${{ secrets.POSTGRES_USER }} postgres_password=${{ secrets.POSTGRES_PASSWORD }} gemini_api_key=${{ secrets.GEMINI_API_KEY }} gemini_model=${{ vars.GEMINI_MODEL }}"
 
       - name: Verify deployment
         run: |
