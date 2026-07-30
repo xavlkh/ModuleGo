@@ -47,7 +47,7 @@
       register: app_dir
 
     - name: Login to GHCR
-      command: docker login ghcr.io -u "{{ ghcr_username }}" -p "{{ ghcr_token }}"
+      shell: echo "{{ ghcr_token }}" | docker login ghcr.io -u "{{ ghcr_username }}" --password-stdin
       become_user: ubuntu
       no_log: true
       when: docker_check.rc != 0 or not app_dir.stat.exists
@@ -78,7 +78,7 @@
     # ── Deploy (always runs) ──
 
     - name: Login to GHCR
-      command: docker login ghcr.io -u "{{ ghcr_username }}" -p "{{ ghcr_token }}"
+      shell: echo "{{ ghcr_token }}" | docker login ghcr.io -u "{{ ghcr_username }}" --password-stdin
       become_user: ubuntu
       no_log: true
 
@@ -100,8 +100,8 @@
         status_code: 200
       register: health
       until: health.status == 200
-      retries: 15
-      delay: 10
+      retries: 10
+      delay: 3
 
     - name: Print access URL
       debug:
