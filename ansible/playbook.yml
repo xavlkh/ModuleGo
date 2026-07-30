@@ -15,6 +15,7 @@
   vars_files:
     - group_vars/all.yml
     - "group_vars/{{ env }}/all.yml"
+    - secrets.yml
   tasks:
     - name: Update apt cache
       apt:
