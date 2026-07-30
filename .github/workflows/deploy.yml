@@ -117,6 +117,13 @@ jobs:
           chmod 600 ~/.ssh/modulego-dev.pem
           ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
+      - name: Debug SSH key
+        run: |
+          echo "Key lines: $(wc -l < ~/.ssh/modulego-dev.pem)"
+          echo "First line: $(head -1 ~/.ssh/modulego-dev.pem)"
+          echo "Last line: $(tail -1 ~/.ssh/modulego-dev.pem)"
+          ssh-keygen -l -f ~/.ssh/modulego-dev.pem
+
       - name: Deploy to EC2
         run: |
           ansible-playbook -i ansible/inventory/dev.ini ansible/playbook.yml --tags deploy
