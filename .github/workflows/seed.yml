@@ -1,0 +1,74 @@
+# Manual workflow to scrape RP data and upsert to EC2 PostgreSQL
+# Trigger: Actions tab → Run workflow → pick environment
+name: Seed Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install scraper dependencies
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Run scraper
+        run: python app/static/local-data/run_all.py
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id.pem
+          chmod 600 ~/.ssh/id.pem
+          ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload data to EC2
+        run: |
+          scp -i ~/.ssh/id.pem -o StrictHostKeyChecking=no \
+            app/static/local-data/data/*.json \
+            ubuntu@${{ vars.EC2_IP }}:/tmp/
+
+      - name: Run seed script on EC2
+        run: |
+          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} \
+            "cd ~/modulego-${{ inputs.environment }} && \
+             docker compose exec -T postgres psql -U modulego -d modulego${{ inputs.environment == 'dev' && '_dev' || '' }} -c 'SELECT 1'" && \
+          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} \
+            "cd ~/modulego-${{ inputs.environment }} && \
+             docker compose run --rm -e DATABASE_URL=postgresql://modulego:modulego@postgres:5432/modulego${{ inputs.environment == 'dev' && '_dev' || '' }} \
+             app python seed_db.py" || true
+
+      - name: Copy seed script and run
+        run: |
+          scp -i ~/.ssh/id.pem -o StrictHostKeyChecking=no \
+            seed_db.py \
+            ubuntu@${{ vars.EC2_IP }}:/tmp/seed_db.py
+          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} \
+            "DATABASE_URL=postgresql://modulego:modulego@postgres:5432/modulego${{ inputs.environment == 'dev' && '_dev' || '' }} \
+             python3 /tmp/seed_db.py"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "rm -f /tmp/*.json /tmp/seed_db.py" || true
