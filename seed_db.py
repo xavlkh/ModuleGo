@@ -15,7 +15,7 @@ import sys
 import psycopg2
 import psycopg2.extras
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app', 'static', 'local-data', 'data')
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)))
 
 
 def read_json(filename):
@@ -234,14 +234,6 @@ def main():
     db_url = os.environ.get('DATABASE_URL')
     if not db_url:
         sys.exit('DATABASE_URL must be set.')
-
-    # Run scraper if data files don't exist
-    if not os.path.exists(os.path.join(DATA_DIR, 'rp_modules_synopsis.json')):
-        print("Data files not found, running scraper...")
-        scraper = os.path.join(os.path.dirname(__file__), 'app', 'static', 'local-data', 'run_all.py')
-        result = subprocess.run([sys.executable, scraper], check=False)
-        if result.returncode != 0:
-            sys.exit(f"Scraper failed with exit code {result.returncode}")
 
     print("Connecting to PostgreSQL...")
     conn = psycopg2.connect(db_url)
