@@ -1,21 +1,47 @@
 {% extends "base.html" %}
+{% from '_macros.html' import glassCard, statCard, alert %}
+
 {% block title %}My Profile{% endblock %}
 
 {% block content %}
 {% set field_classes = "w-full rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-3 text-zinc-900 shadow-sm outline-none transition placeholder:text-zinc-400 focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-500/15 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-primary-400 dark:focus:bg-zinc-900" %}
 {% set primary_button = "cursor-pointer rounded-xl border border-primary-600 bg-primary-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:border-primary-700 hover:bg-primary-700 focus:outline-none focus:ring-4 focus:ring-primary-500/25 dark:border-primary-500 dark:bg-primary-500 dark:hover:bg-primary-400" %}
-<div class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+
+<div class="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
     <a href="{{ url_for('serve_index') }}" class="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-600 transition hover:border-primary-400 hover:text-primary-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-primary-400">
         <i data-lucide="arrow-left" class="h-4 w-4"></i>Back
     </a>
 
-    <div class="mt-6 grid gap-6 lg:grid-cols-2 lg:items-start">
-        <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-8" aria-labelledby="profileTitle">
-            <span class="text-xs font-bold uppercase tracking-widest text-primary-600 dark:text-primary-400">Student account</span>
-            <h1 id="profileTitle" class="mt-3 font-display text-3xl font-bold text-zinc-900 dark:text-white">My profile</h1>
-            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Choose the name shown on your non-anonymous reviews.</p>
+    {# ── User Identity Header ──────────────────────────────────────────── #}
+    <div class="mt-8 flex items-center gap-5">
+        <div class="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-primary-600 text-3xl font-bold text-white shadow-lg shadow-primary-500/25 dark:bg-primary-500">
+            {{ current_user.display_name[0] | upper }}
+        </div>
+        <div>
+            <h1 class="font-display text-3xl font-bold text-zinc-900 dark:text-white">{{ current_user.display_name }}</h1>
+            <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ current_user.email }}</p>
+            <span class="mt-2 inline-flex items-center gap-1 rounded-full bg-primary-100 px-2.5 py-0.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                <i data-lucide="shield-check" class="h-3 w-3"></i>Student Account
+            </span>
+        </div>
+    </div>
 
-            <form method="post" action="{{ url_for('auth.update_profile') }}" class="mt-7 space-y-5" novalidate>
+    {# ── Stats Row ─────────────────────────────────────────────────────── #}
+    <div class="mt-8 grid grid-cols-2 gap-4">
+        {{ statCard(review_count, 'Reviews') }}
+        {{ statCard(bookmark_count, 'Bookmarks') }}
+    </div>
+
+    {# ── Profile Section ───────────────────────────────────────────────── #}
+    <section class="mt-8" aria-labelledby="profileTitle">
+        {% call glassCard() %}
+            <div class="flex items-center gap-2 mb-6">
+                <i data-lucide="user" class="h-5 w-5 text-primary-500"></i>
+                <h2 id="profileTitle" class="text-xl font-bold text-zinc-900 dark:text-white">Profile</h2>
+            </div>
+            <p class="mb-6 text-sm text-zinc-500 dark:text-zinc-400">Choose the name shown on your non-anonymous reviews.</p>
+
+            <form method="post" action="{{ url_for('auth.update_profile') }}" class="space-y-5" novalidate>
                 {{ profile_form.hidden_tag() }}
                 <div>
                     {{ profile_form.display_name.label(class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300") }}
@@ -29,42 +55,54 @@
                 </div>
                 {{ profile_form.submit(class=primary_button) }}
             </form>
-        </section>
+        {% endcall %}
+    </section>
 
-        <div class="space-y-6">
-            <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-8" aria-labelledby="passwordTitle">
-                <h2 id="passwordTitle" class="font-display text-2xl font-bold text-zinc-900 dark:text-white">Change password</h2>
-                <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Enter your current password before choosing a new one.</p>
-                <form method="post" action="{{ url_for('auth.change_password') }}" class="mt-6 space-y-4" novalidate>
-                    {{ password_form.hidden_tag() }}
-                    {% for field in [password_form.current_password, password_form.new_password, password_form.confirm_password] %}
-                    <div>
-                        {{ field.label(class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300") }}
-                        {{ field(class=field_classes, autocomplete="current-password" if field.name == "current_password" else "new-password", minlength="8" if field.name != "current_password" else none, required=true, aria_invalid="true" if field.errors else "false") }}
-                        {% for error in field.errors %}<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ error }}</p>{% endfor %}
-                    </div>
-                    {% endfor %}
-                    {{ password_form.submit(class=primary_button) }}
-                </form>
-            </section>
+    {# ── Security Section ──────────────────────────────────────────────── #}
+    <section class="mt-6" aria-labelledby="passwordTitle">
+        {% call glassCard() %}
+            <div class="flex items-center gap-2 mb-6">
+                <i data-lucide="shield" class="h-5 w-5 text-primary-500"></i>
+                <h2 id="passwordTitle" class="text-xl font-bold text-zinc-900 dark:text-white">Security</h2>
+            </div>
+            <p class="mb-6 text-sm text-zinc-500 dark:text-zinc-400">Enter your current password before choosing a new one.</p>
 
-            <section class="rounded-2xl border border-red-300 bg-red-50/60 p-6 shadow-sm dark:border-red-800 dark:bg-red-950/20 sm:p-8" aria-labelledby="deleteTitle">
-                <h2 id="deleteTitle" class="font-display text-2xl font-bold text-red-700 dark:text-red-400">Delete account</h2>
-                <p class="mt-2 text-sm text-red-700/80 dark:text-red-300">This permanently removes your login, votes and saved account bookmarks. Existing reviews remain as anonymous historical feedback.</p>
-                <form id="deleteAccountForm" method="post" action="{{ url_for('auth.delete_account') }}" data-verify-url="{{ url_for('auth.verify_account_deletion') }}" data-delete-url="{{ url_for('auth.delete_account') }}" class="mt-6 space-y-4" novalidate>
-                    {{ delete_form.hidden_tag() }}
-                    <input id="deleteAccountToken" type="hidden" name="delete_token" value="">
-                    <div>
-                        {{ delete_form.current_password.label(class="mb-1.5 block text-sm font-semibold text-red-800 dark:text-red-300") }}
-                        {{ delete_form.current_password(class=field_classes, autocomplete="current-password", required=true, aria_invalid="true" if delete_form.current_password.errors else "false") }}
-                        {% for error in delete_form.current_password.errors %}<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ error }}</p>{% endfor %}
-                    </div>
-                    <p id="deleteAccountError" class="hidden text-sm font-medium text-red-700 dark:text-red-300" role="alert"></p>
-                    {{ delete_form.submit(id="deleteAccountButton", class="cursor-pointer rounded-xl border border-red-600 bg-red-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/25 disabled:cursor-not-allowed disabled:opacity-60") }}
-                </form>
-            </section>
+            <form method="post" action="{{ url_for('auth.change_password') }}" class="space-y-4" novalidate>
+                {{ password_form.hidden_tag() }}
+                {% for field in [password_form.current_password, password_form.new_password, password_form.confirm_password] %}
+                <div>
+                    {{ field.label(class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300") }}
+                    {{ field(class=field_classes, autocomplete="current-password" if field.name == "current_password" else "new-password", minlength="8" if field.name != "current_password" else none, required=true, aria_invalid="true" if field.errors else "false") }}
+                    {% for error in field.errors %}<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ error }}</p>{% endfor %}
+                </div>
+                {% endfor %}
+                {{ password_form.submit(class=primary_button) }}
+            </form>
+        {% endcall %}
+    </section>
+
+    {# ── Danger Zone ───────────────────────────────────────────────────── #}
+    <section class="mt-6" aria-labelledby="deleteTitle">
+        <div class="rounded-2xl border border-red-200 bg-red-50 p-6 shadow-sm dark:border-red-800/50 dark:bg-red-950/30 sm:p-8">
+            <div class="flex items-center gap-2 mb-4">
+                <i data-lucide="alert-triangle" class="h-5 w-5 text-red-600 dark:text-red-400"></i>
+                <h2 id="deleteTitle" class="text-xl font-bold text-red-700 dark:text-red-400">Danger Zone</h2>
+            </div>
+            <p class="mb-6 text-sm text-red-700/80 dark:text-red-300/80">This permanently removes your login, votes and saved account bookmarks. Existing reviews remain as anonymous historical feedback.</p>
+
+            <form id="deleteAccountForm" method="post" action="{{ url_for('auth.delete_account') }}" data-verify-url="{{ url_for('auth.verify_account_deletion') }}" data-delete-url="{{ url_for('auth.delete_account') }}" class="space-y-4" novalidate>
+                {{ delete_form.hidden_tag() }}
+                <input id="deleteAccountToken" type="hidden" name="delete_token" value="">
+                <div>
+                    {{ delete_form.current_password.label(class="mb-1.5 block text-sm font-semibold text-red-800 dark:text-red-300") }}
+                    {{ delete_form.current_password(class="w-full rounded-xl border border-red-300 bg-white px-4 py-3 text-red-900 shadow-sm outline-none transition placeholder:text-red-400 focus:border-red-500 focus:bg-white focus:ring-4 focus:ring-red-500/15 dark:border-red-700 dark:bg-red-900/50 dark:text-white dark:placeholder:text-red-500 dark:focus:border-red-400 dark:focus:bg-red-900", autocomplete="current-password", required=true, aria_invalid="true" if delete_form.current_password.errors else "false") }}
+                    {% for error in delete_form.current_password.errors %}<p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ error }}</p>{% endfor %}
+                </div>
+                <p id="deleteAccountError" class="hidden text-sm font-medium text-red-700 dark:text-red-300" role="alert"></p>
+                {{ delete_form.submit(id="deleteAccountButton", class="cursor-pointer rounded-xl border border-red-600 bg-red-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/25 disabled:cursor-not-allowed disabled:opacity-60") }}
+            </form>
         </div>
-    </div>
+    </section>
 </div>
 {% endblock %}
 

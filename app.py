@@ -21,9 +21,14 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 from postgrest.exceptions import APIError
-from supabase import create_client
 
 from auth_routes import auth_bp
+from db import (
+    public_review,
+    review_to_dict,
+    select_review,
+    supabase,
+)
 from ownership import (
     current_guest_hash,
     identity_owns,
@@ -73,6 +78,7 @@ limiter = Limiter(
 )
 
 _base_dir = os.path.dirname(os.path.abspath(__file__))
+LOCAL_DATA_DIR = os.path.join(_base_dir, 'app', 'static', 'local-data', 'data')
 MAX_COMMENT_LENGTH = 500
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.1-flash-lite')
 GEMINI_TIMEOUT_SECONDS = 25
@@ -83,19 +89,6 @@ class GeminiServiceError(RuntimeError):
     """Raised when Gemini cannot return a valid comparison."""
 
 
-supabase_url = os.environ.get('SUPABASE_URL')
-supabase_secret_key = os.environ.get('SUPABASE_SECRET_KEY')
-supabase = None
-
-if supabase_url and supabase_secret_key:
-    if not supabase_url.startswith(('https://', 'http://')):
-        raise RuntimeError('SUPABASE_URL must be a complete HTTP(S) URL.')
-    if supabase_secret_key.startswith('sb_publishable_'):
-        raise RuntimeError(
-            'SUPABASE_SECRET_KEY must use the backend-only sb_secret_ key, not a '
-            'publishable browser key.'
-        )
-    supabase = create_client(supabase_url, supabase_secret_key)
 db_name = os.environ.get('DATABASE_PATH', os.path.join(_base_dir, 'modulego.db'))
 database_url = os.environ.get('DATABASE_URL')
 
@@ -188,72 +181,6 @@ def pg_connection():
         conn.close()
 
 
-def _row_value(row, key, default=None):
-    """Read a value from SQLite, PostgreSQL, or Supabase row mappings."""
-    try:
-        return row[key]
-    except (KeyError, IndexError):
-        try:
-            return row[key.upper()]
-        except (KeyError, IndexError):
-            return default
-
-
-def review_to_dict(row) -> dict:
-    """Convert a database row to the internal review representation."""
-    return {
-        'id': _row_value(row, 'id'),
-        'module_code': _row_value(row, 'module_code'),
-        'rating': _row_value(row, 'rating'),
-        'comment': _row_value(row, 'comment', ''),
-        'created_at': _row_value(row, 'created_at'),
-        'updated_at': _row_value(row, 'updated_at'),
-        'owner_token': _row_value(row, 'owner_token'),
-        'user_id': _row_value(row, 'user_id'),
-        'guest_owner_hash': _row_value(row, 'guest_owner_hash'),
-        'is_anonymous': bool(_row_value(row, 'is_anonymous', True)),
-        'author_display_name': _row_value(row, 'author_display_name'),
-    }
-
-
-def public_review(row, identity=None) -> dict:
-    """Return a review without leaking private ownership fields."""
-    review = review_to_dict(row)
-    is_owner = identity_owns(review, identity)
-    anonymous = (
-        not review['user_id']
-        or review['is_anonymous']
-        or not review['author_display_name']
-    )
-    return {
-        'id': review['id'],
-        'module_code': review['module_code'],
-        'rating': review['rating'],
-        'comment': review['comment'],
-        'created_at': review['created_at'],
-        'updated_at': review['updated_at'],
-        'is_owner': is_owner,
-        'author': {
-            'anonymous': anonymous,
-            'label': (
-                'Anonymous student'
-                if anonymous
-                else review['author_display_name']
-            ),
-        },
-    }
-
-
-def select_review(conn: sqlite3.Connection, review_id: int) -> sqlite3.Row:
-    """Fetch a single review by ID from the database."""
-    return conn.execute(
-        '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT, UPDATED_AT,
-                  OWNER_TOKEN, USER_ID, GUEST_OWNER_HASH, IS_ANONYMOUS,
-                  AUTHOR_DISPLAY_NAME
-           FROM REVIEWS WHERE ID = ?''',
-        (review_id,),
-    ).fetchone()
-
 
 def init_db() -> None:
     """Create or upgrade the SQLite review + career_paths tables."""
@@ -266,7 +193,6 @@ def init_db() -> None:
                 COMMENT TEXT NOT NULL DEFAULT '',
                 CREATED_AT DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UPDATED_AT DATETIME,
-                OWNER_TOKEN TEXT,
                 USER_ID TEXT,
                 GUEST_OWNER_HASH TEXT,
                 IS_ANONYMOUS INTEGER NOT NULL DEFAULT 1,
@@ -278,8 +204,6 @@ def init_db() -> None:
         }
         if 'UPDATED_AT' not in columns:
             conn.execute('ALTER TABLE REVIEWS ADD COLUMN UPDATED_AT DATETIME')
-        if 'OWNER_TOKEN' not in columns:
-            conn.execute('ALTER TABLE REVIEWS ADD COLUMN OWNER_TOKEN TEXT')
         if 'USER_ID' not in columns:
             conn.execute('ALTER TABLE REVIEWS ADD COLUMN USER_ID TEXT')
         if 'GUEST_OWNER_HASH' not in columns:
@@ -301,7 +225,6 @@ def init_db() -> None:
             '''CREATE TABLE IF NOT EXISTS REVIEW_VOTES
                (ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 REVIEW_ID INTEGER NOT NULL,
-                OWNER_TOKEN TEXT,
                 USER_ID TEXT,
                 GUEST_OWNER_HASH TEXT,
                 VOTE_TYPE INTEGER NOT NULL CHECK (VOTE_TYPE IN (1, -1)),
@@ -362,16 +285,13 @@ def init_db() -> None:
 
 
 def _load_career_paths_from_file() -> list | None:
-    """Read career paths from local JSON file. Returns None if all fail."""
-    for name in ('rp_career_paths.json',):
-        for folder in ('local-data',):
-            p = os.path.join(_base_dir, 'app', 'static', folder, 'data', name)
-            try:
-                with open(p, encoding='utf-8') as f:
-                    return json.load(f)
-            except (OSError, json.JSONDecodeError):
-                continue
-    return None
+    """Read career paths from local JSON file."""
+    path = os.path.join(LOCAL_DATA_DIR, 'rp_career_paths.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def _seed_career_paths() -> None:
@@ -407,7 +327,6 @@ def init_pg_db() -> None:
                 COMMENT TEXT NOT NULL DEFAULT '',
                 CREATED_AT TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 UPDATED_AT TIMESTAMPTZ,
-                OWNER_TOKEN TEXT,
                 USER_ID UUID,
                 GUEST_OWNER_HASH TEXT,
                 IS_ANONYMOUS BOOLEAN NOT NULL DEFAULT TRUE,
@@ -433,7 +352,6 @@ def init_pg_db() -> None:
             '''CREATE TABLE IF NOT EXISTS REVIEW_VOTES
                (ID SERIAL PRIMARY KEY,
                 REVIEW_ID INTEGER NOT NULL,
-                OWNER_TOKEN TEXT,
                 USER_ID UUID,
                 GUEST_OWNER_HASH TEXT,
                 VOTE_TYPE INTEGER NOT NULL CHECK (VOTE_TYPE IN (1, -1)),
@@ -516,6 +434,10 @@ elif use_postgres():
 # Review repository - encapsulates dual-database branching
 # ---------------------------------------------------------------------------
 
+# Triple-branch pattern: every repository method checks use_sqlite_reviews()
+# then use_postgres(), falling through to Supabase.  SQLite is used for
+# tests and local dev, PostgreSQL for self-hosted, Supabase for production.
+
 class ReviewRepository:
     """Handles review persistence for SQLite, PostgreSQL, and Supabase."""
 
@@ -526,7 +448,7 @@ class ReviewRepository:
             with database_connection() as conn:
                 rows = conn.execute(
                     '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
-                              UPDATED_AT, OWNER_TOKEN, USER_ID,
+                              UPDATED_AT, USER_ID,
                               GUEST_OWNER_HASH, IS_ANONYMOUS,
                               AUTHOR_DISPLAY_NAME
                        FROM REVIEWS ORDER BY CREATED_AT DESC, ID DESC'''
@@ -537,7 +459,7 @@ class ReviewRepository:
             with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
-                              UPDATED_AT, OWNER_TOKEN, USER_ID,
+                              UPDATED_AT, USER_ID,
                               GUEST_OWNER_HASH, IS_ANONYMOUS,
                               AUTHOR_DISPLAY_NAME
                        FROM REVIEWS ORDER BY CREATED_AT DESC, ID DESC'''
@@ -549,7 +471,7 @@ class ReviewRepository:
             supabase.table('reviews')
             .select(
                 'id,module_code,rating,comment,created_at,updated_at,'
-                'owner_token,user_id,guest_owner_hash,is_anonymous,'
+                'user_id,guest_owner_hash,is_anonymous,'
                 'author_display_name'
             )
             .order('created_at', desc=True)
@@ -565,7 +487,7 @@ class ReviewRepository:
             with database_connection() as conn:
                 rows = conn.execute(
                     '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
-                              UPDATED_AT, OWNER_TOKEN, USER_ID,
+                              UPDATED_AT, USER_ID,
                               GUEST_OWNER_HASH, IS_ANONYMOUS,
                               AUTHOR_DISPLAY_NAME
                        FROM REVIEWS WHERE MODULE_CODE = ?
@@ -578,7 +500,7 @@ class ReviewRepository:
             with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
-                              UPDATED_AT, OWNER_TOKEN, USER_ID,
+                              UPDATED_AT, USER_ID,
                               GUEST_OWNER_HASH, IS_ANONYMOUS,
                               AUTHOR_DISPLAY_NAME
                        FROM REVIEWS WHERE MODULE_CODE = %s
@@ -592,7 +514,7 @@ class ReviewRepository:
             supabase.table('reviews')
             .select(
                 'id,module_code,rating,comment,created_at,updated_at,'
-                'owner_token,user_id,guest_owner_hash,is_anonymous,'
+                'user_id,guest_owner_hash,is_anonymous,'
                 'author_display_name'
             )
             .eq('module_code', normalized)
@@ -746,7 +668,7 @@ class ReviewRepository:
             supabase.table('reviews')
             .select(
                 'id,module_code,rating,comment,created_at,updated_at,'
-                'owner_token,user_id,guest_owner_hash,is_anonymous,'
+                'user_id,guest_owner_hash,is_anonymous,'
                 'author_display_name'
             )
             .eq('id', review_id)
@@ -848,6 +770,33 @@ class ReviewRepository:
             .execute()
         )
         return len(result.data)
+
+    @staticmethod
+    def count_by_user(user_id: str) -> int:
+        """Count reviews authored by a specific user account."""
+        if use_sqlite_reviews():
+            with database_connection() as conn:
+                row = conn.execute(
+                    'SELECT COUNT(*) as cnt FROM REVIEWS WHERE USER_ID = ?',
+                    (user_id,),
+                ).fetchone()
+            return row['cnt']
+
+        if use_postgres():
+            with pg_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    'SELECT COUNT(*) FROM REVIEWS WHERE USER_ID = %s',
+                    (user_id,),
+                )
+                return cur.fetchone()[0]
+
+        result = (
+            supabase.table('reviews')
+            .select('id', count='exact')
+            .eq('user_id', user_id)
+            .execute()
+        )
+        return result.count
 
     @staticmethod
     def rating_summaries() -> dict:
@@ -1569,7 +1518,7 @@ def validate_comparison_payload(data: dict | None) -> tuple:
 # Module data caching
 # ---------------------------------------------------------------------------
 
-# Simple TTL cache to avoid hitting Supabase rate limits on every keystroke.
+# Manual TTL cache — avoids hitting Supabase rate limits on every keystroke.
 _modules_cache = {'data': None, 'timestamp': 0}
 MODULE_CACHE_TTL = 300  # 5 minutes
 

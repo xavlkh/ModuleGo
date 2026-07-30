@@ -388,62 +388,7 @@ const DetailManager = {
      * @param {number} voteType - 1 for upvote, -1 for downvote.
      */
     async handleVote(reviewId, voteType) {
-        const article = document.querySelector(`.review-item[data-review-id="${reviewId}"]`);
-        const btn = article?.querySelector(`.vote-btn[data-vote="${voteType}"]`);
-        if (btn) btn.disabled = true;
-        try {
-            const response = await apiFetch(`/api/reviews/${reviewId}/vote`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ vote_type: voteType }),
-            });
-            if (!response.ok) {
-                const errBody = await response.text();
-                console.error(`Vote failed: ${response.status} - ${errBody}`);
-                throw new Error('Failed to vote.');
-            }
-
-            if (!article) return;
-
-            const votesResponse = await fetch(`/api/reviews/${reviewId}/vote`);
-            if (!votesResponse.ok) return;
-            const votes = await votesResponse.json();
-
-            // Update vote buttons and score
-            const scoreEl = article.querySelector('.vote-score');
-            if (scoreEl) scoreEl.textContent = votes.score;
-
-            const upBtn = article.querySelector('.vote-btn[data-vote="1"]');
-            const downBtn = article.querySelector('.vote-btn[data-vote="-1"]');
-            if (upBtn) {
-                const upIcon = upBtn.querySelector('i') || upBtn.querySelector('svg');
-                if (upIcon) {
-                    if (votes.user_vote === 1) {
-                        upIcon.setAttribute('class', 'w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 fill-emerald-500');
-                        upBtn.classList.add('bg-emerald-500/10');
-                    } else {
-                        upIcon.setAttribute('class', 'w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 hover:text-emerald-500 dark:hover:text-emerald-400');
-                        upBtn.classList.remove('bg-emerald-500/10');
-                    }
-                }
-            }
-            if (downBtn) {
-                const downIcon = downBtn.querySelector('i') || downBtn.querySelector('svg');
-                if (downIcon) {
-                    if (votes.user_vote === -1) {
-                        downIcon.setAttribute('class', 'w-3.5 h-3.5 text-red-500 dark:text-red-400 fill-red-500');
-                        downBtn.classList.add('bg-red-500/10');
-                    } else {
-                        downIcon.setAttribute('class', 'w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400');
-                        downBtn.classList.remove('bg-red-500/10');
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error voting:', error);
-        } finally {
-            if (btn) btn.disabled = false;
-        }
+        return handleVote(reviewId, voteType, `.review-item[data-review-id="${reviewId}"]`);
     },
 
     /**
@@ -460,18 +405,6 @@ const DetailManager = {
             ? `<span class="ml-2 text-zinc-400 dark:text-zinc-400">Edited ${formatTimestamp(review.updated_at)}</span>`
             : '';
         const isOwner = review.is_owner === true;
-        const isOwnReview = isOwner;
-
-        const upvoteActive = votes.user_vote === 1;
-        const downvoteActive = votes.user_vote === -1;
-        const upvoteClass = upvoteActive
-            ? 'text-emerald-500 dark:text-emerald-400 fill-emerald-500'
-            : 'text-zinc-400 dark:text-zinc-500 hover:text-emerald-500 dark:hover:text-emerald-400';
-        const downvoteClass = downvoteActive
-            ? 'text-red-500 dark:text-red-400 fill-red-500'
-            : 'text-zinc-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400';
-        const upvoteBtnClass = upvoteActive ? 'bg-emerald-500/10' : '';
-        const downvoteBtnClass = downvoteActive ? 'bg-red-500/10' : '';
 
         return `
             <article class="review-item" data-review-id="${review.id}">
@@ -488,13 +421,7 @@ const DetailManager = {
                 <div class="flex items-center gap-3">
                     <small class="text-xs text-zinc-400 dark:text-zinc-400">${formatTimestamp(review.created_at)}${updated}</small>
                     <div class="flex items-center gap-1 ml-auto">
-                        <button class="vote-btn p-1.5 rounded-lg transition-colors ${isOwnReview ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${upvoteBtnClass}" data-review-id="${review.id}" data-vote="1" ${isOwnReview ? 'disabled' : ''} title="Upvote">
-                            <i data-lucide="thumbs-up" class="w-3.5 h-3.5 ${upvoteClass}"></i>
-                        </button>
-                        <span class="vote-score text-xs font-semibold text-zinc-600 dark:text-zinc-300 min-w-[1rem] text-center">${votes.score}</span>
-                        <button class="vote-btn p-1.5 rounded-lg transition-colors ${isOwnReview ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${downvoteBtnClass}" data-review-id="${review.id}" data-vote="-1" ${isOwnReview ? 'disabled' : ''} title="Downvote">
-                            <i data-lucide="thumbs-down" class="w-3.5 h-3.5 ${downvoteClass}"></i>
-                        </button>
+                        ${createVoteButtonsHTML(review.id, votes, isOwner)}
                     </div>
                 </div>
             </article>

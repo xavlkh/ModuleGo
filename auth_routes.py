@@ -1,10 +1,12 @@
-"""Supabase authentication routes and secure Flask session handling."""
+"""Supabase authentication routes, session handling, and account management."""
 
 import base64
 import binascii
 import json
+import os
 import secrets
 import time
+from typing import Any
 
 from flask import (
     Blueprint,
@@ -18,27 +20,339 @@ from flask import (
     session,
     url_for,
 )
+from flask_wtf import FlaskForm
+from supabase import create_client
+from wtforms import EmailField, PasswordField, StringField, SubmitField
+from wtforms.validators import DataRequired, Email, EqualTo, Length
 
-from auth_service import (
-    AuthServiceError,
-    change_user_password,
-    delete_user_account,
-    refresh_user_session,
-    sign_in_user,
-    sign_out_user,
-    sign_up_user,
-    update_display_name,
-    user_to_dict,
-    verify_access_token,
-    verify_user_password,
-)
-from forms import (
-    DeleteAccountForm,
-    LoginForm,
-    PasswordChangeForm,
-    ProfileForm,
-    RegistrationForm,
-)
+# ---------------------------------------------------------------------------
+# Forms
+# ---------------------------------------------------------------------------
+
+
+def _strip_text(value):
+    """Trim surrounding whitespace."""
+    return value.strip() if isinstance(value, str) else value
+
+
+def _normalise_email(value):
+    """Trim and lowercase an email address."""
+    return value.strip().lower() if isinstance(value, str) else value
+
+
+class RegistrationForm(FlaskForm):
+    """Validate public account registration."""
+
+    display_name = StringField(
+        "Display name",
+        filters=[_strip_text],
+        validators=[
+            DataRequired(message="Display name is required."),
+            Length(min=2, max=50,
+                   message="Display name must be between 2 and 50 characters."),
+        ],
+    )
+    email = EmailField(
+        "Email",
+        filters=[_normalise_email],
+        validators=[
+            DataRequired(message="Email is required."),
+            Email(message="Enter a valid email address."),
+            Length(max=254),
+        ],
+    )
+    password = PasswordField(
+        "Password",
+        validators=[
+            DataRequired(message="Password is required."),
+            Length(min=8, max=128,
+                   message="Password must be between 8 and 128 characters."),
+        ],
+    )
+    confirm_password = PasswordField(
+        "Confirm password",
+        validators=[
+            DataRequired(message="Confirm your password."),
+            EqualTo("password", message="Passwords must match."),
+        ],
+    )
+    submit = SubmitField("Create Account")
+
+
+class LoginForm(FlaskForm):
+    """Validate email/password login."""
+
+    email = EmailField(
+        "Email",
+        filters=[_normalise_email],
+        validators=[
+            DataRequired(message="Email is required."),
+            Email(message="Enter a valid email address."),
+            Length(max=254),
+        ],
+    )
+    password = PasswordField(
+        "Password",
+        validators=[DataRequired(message="Password is required."), Length(max=128)],
+    )
+    submit = SubmitField("Log In")
+
+
+class ProfileForm(FlaskForm):
+    """Validate an account display-name change."""
+
+    display_name = StringField(
+        "Display name",
+        filters=[_strip_text],
+        validators=[
+            DataRequired(message="Display name is required."),
+            Length(
+                min=2,
+                max=50,
+                message="Display name must be between 2 and 50 characters.",
+            ),
+        ],
+    )
+    submit = SubmitField("Update Profile")
+
+
+class PasswordChangeForm(FlaskForm):
+    """Validate a password change."""
+
+    current_password = PasswordField(
+        "Current password",
+        validators=[DataRequired(message="Current password is required.")],
+    )
+    new_password = PasswordField(
+        "New password",
+        validators=[
+            DataRequired(message="New password is required."),
+            Length(
+                min=8,
+                max=128,
+                message="Password must be between 8 and 128 characters.",
+            ),
+        ],
+    )
+    confirm_password = PasswordField(
+        "Confirm new password",
+        validators=[
+            DataRequired(message="Confirm your new password."),
+            EqualTo("new_password", message="Passwords must match."),
+        ],
+    )
+    submit = SubmitField("Change Password")
+
+
+class DeleteAccountForm(FlaskForm):
+    """Require the current password before account deletion."""
+
+    current_password = PasswordField(
+        "Current password",
+        validators=[DataRequired(message="Current password is required.")],
+    )
+    submit = SubmitField("Delete Account")
+
+
+# ---------------------------------------------------------------------------
+# Auth Service
+# ---------------------------------------------------------------------------
+
+
+class AuthServiceError(RuntimeError):
+    """Raised when Supabase Auth is unavailable or rejects an operation."""
+
+
+def _create_auth_client():
+    """Create a fresh publishable-key Supabase client for one auth operation."""
+    supabase_url = os.environ.get("SUPABASE_URL", "").strip()
+    publishable_key = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "").strip()
+    if not supabase_url or not publishable_key:
+        raise AuthServiceError(
+            "Supabase authentication is not configured on this server."
+        )
+    if not supabase_url.startswith(("https://", "http://")):
+        raise AuthServiceError("SUPABASE_URL must be a complete HTTP(S) URL.")
+    if publishable_key.startswith(("sb_secret_", "eyJ")):
+        raise AuthServiceError(
+            "SUPABASE_PUBLISHABLE_KEY must be a publishable key."
+        )
+    try:
+        return create_client(supabase_url, publishable_key)
+    except Exception as exc:
+        raise AuthServiceError("Could not connect to Supabase Auth.") from exc
+
+
+def _create_admin_auth_client():
+    """Create a backend-only client for account deletion."""
+    supabase_url = os.environ.get("SUPABASE_URL", "").strip()
+    secret_key = os.environ.get("SUPABASE_SECRET_KEY", "").strip()
+    if not supabase_url or not secret_key:
+        raise AuthServiceError(
+            "Supabase administrator access is not configured on this server."
+        )
+    if secret_key.startswith("sb_publishable_"):
+        raise AuthServiceError(
+            "SUPABASE_SECRET_KEY must be a backend-only secret key."
+        )
+    try:
+        return create_client(supabase_url, secret_key)
+    except Exception as exc:
+        raise AuthServiceError("Could not connect to Supabase Auth.") from exc
+
+
+def sign_up_user(email, password, display_name, email_redirect_to=None):
+    """Create an account and ask Supabase to send its confirmation email."""
+    options: dict[str, Any] = {"data": {"display_name": display_name}}
+    if email_redirect_to:
+        options["email_redirect_to"] = email_redirect_to
+    try:
+        return _create_auth_client().auth.sign_up({
+            "email": email,
+            "password": password,
+            "options": options,
+        })
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def sign_in_user(email, password):
+    """Authenticate an email/password account."""
+    try:
+        return _create_auth_client().auth.sign_in_with_password({
+            "email": email,
+            "password": password,
+        })
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def verify_access_token(access_token):
+    """Validate an access token and return its Supabase user."""
+    try:
+        response = _create_auth_client().auth.get_user(access_token)
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+    user = getattr(response, "user", None)
+    if user is None:
+        raise AuthServiceError("The authentication session is invalid.")
+    return user
+
+
+def refresh_user_session(access_token, refresh_token):
+    """Refresh an expired Supabase session."""
+    try:
+        return _create_auth_client().auth.set_session(
+            access_token,
+            refresh_token,
+        )
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def sign_out_user(access_token, refresh_token):
+    """Revoke the Supabase session when tokens are available."""
+    if not access_token or not refresh_token:
+        return
+    try:
+        client = _create_auth_client()
+        client.auth.set_session(access_token, refresh_token)
+        client.auth.sign_out()
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def update_display_name(access_token, refresh_token, display_name):
+    """Update the signed-in user's public display-name metadata."""
+    try:
+        client = _create_auth_client()
+        client.auth.set_session(access_token, refresh_token)
+        return client.auth.update_user({
+            "data": {"display_name": display_name},
+        })
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def change_user_password(email, current_password, new_password):
+    """Verify the current password before replacing it."""
+    try:
+        client = _create_auth_client()
+        client.auth.sign_in_with_password({
+            "email": email,
+            "password": current_password,
+        })
+        client.auth.update_user({"password": new_password})
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def verify_user_password(user_id, email, current_password):
+    """Confirm that a password belongs to the current signed-in account."""
+    try:
+        client = _create_auth_client()
+        response = client.auth.sign_in_with_password({
+            "email": email,
+            "password": current_password,
+        })
+        verified_user = user_to_dict(getattr(response, "user", None))
+        if verified_user["id"] != user_id:
+            raise AuthServiceError("The authenticated account does not match.")
+        return verified_user
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def delete_user_account(user_id):
+    """Permanently delete an account after route-level password verification."""
+    try:
+        _create_admin_auth_client().auth.admin.delete_user(user_id)
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        raise AuthServiceError(str(exc)) from exc
+
+
+def user_to_dict(user):
+    """Return only safe user fields used by templates and APIs."""
+    if isinstance(user, dict):
+        user_id = user.get("id")
+        email = user.get("email")
+        metadata = user.get("user_metadata") or {}
+    else:
+        user_id = getattr(user, "id", None)
+        email = getattr(user, "email", None)
+        metadata = getattr(user, "user_metadata", None) or {}
+    safe_email = str(email or "")
+    display_name = str(metadata.get("display_name") or "").strip()
+    if not display_name:
+        display_name = safe_email.split("@", maxsplit=1)[0] or "Student"
+    return {
+        "id": str(user_id or ""),
+        "email": safe_email,
+        "display_name": display_name[:50],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Blueprint + constants
+# ---------------------------------------------------------------------------
 
 auth_bp = Blueprint("auth", __name__)
 ACCESS_TOKEN_KEY = "auth_access_token"
@@ -47,6 +361,11 @@ USER_KEY = "auth_user"
 EXPIRES_AT_KEY = "auth_expires_at"
 DELETE_ACCOUNT_TOKEN_KEY = "delete_account_confirmation"
 DELETE_ACCOUNT_TOKEN_SECONDS = 120
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 
 def _access_token_claims(access_token):
@@ -164,26 +483,42 @@ def _confirmation_redirect_url():
     return url_for("auth.login", confirmed="1", _external=True, _scheme=scheme)
 
 
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
+
 @auth_bp.before_app_request
 def load_current_user():
-    """Use the fresh login snapshot, then verify or refresh expired tokens."""
+    """Load user from cached session data only — no network calls."""
     g.current_user = None
+    cached_user = session.get(USER_KEY)
+    if cached_user:
+        g.current_user = cached_user
+
+
+def verify_auth():
+    """Verify or refresh the access token. Call from protected endpoints only."""
+    if g.current_user:
+        return None
     access_token = session.get(ACCESS_TOKEN_KEY)
     refresh_token = session.get(REFRESH_TOKEN_KEY)
     if not access_token:
-        return
+        flash("Log in to manage your profile.", "error")
+        return redirect(url_for("auth.login"))
     if _cached_user_is_current():
         g.current_user = session[USER_KEY]
-        return
+        return None
     try:
         verified_user = verify_access_token(access_token)
         g.current_user = user_to_dict(verified_user)
         session[USER_KEY] = g.current_user
-        return
+        return None
     except AuthServiceError:
         if not refresh_token:
             _clear_auth_session()
-            return
+            flash("Log in to manage your profile.", "error")
+            return redirect(url_for("auth.login"))
     try:
         response = refresh_user_session(access_token, refresh_token)
         refreshed_session = getattr(response, "session", None)
@@ -192,9 +527,12 @@ def load_current_user():
             raise AuthServiceError("Supabase could not refresh the session.")
         _store_auth_session(refreshed_session, refreshed_user)
         g.current_user = user_to_dict(refreshed_user)
+        return None
     except AuthServiceError as error:
         current_app.logger.warning("Supabase session refresh failed: %s", error)
         _clear_auth_session()
+        flash("Log in to manage your profile.", "error")
+        return redirect(url_for("auth.login"))
 
 
 @auth_bp.app_context_processor
@@ -270,23 +608,32 @@ def logout():
 @auth_bp.route("/profile", methods=["GET"])
 def profile():
     """Display account settings for the signed-in user."""
-    redirect_response = _login_required()
+    redirect_response = verify_auth()
     if redirect_response:
         return redirect_response
     profile_form, password_form, delete_form = _profile_forms()
     profile_form.display_name.data = g.current_user["display_name"]
+
+    from app import BookmarkRepository, ReviewRepository
+
+    user_id = g.current_user["id"]
+    review_count = ReviewRepository.count_by_user(user_id)
+    bookmark_count = len(BookmarkRepository.list_for_user(user_id))
+
     return render_template(
         "auth/profile.html",
         profile_form=profile_form,
         password_form=password_form,
         delete_form=delete_form,
+        review_count=review_count,
+        bookmark_count=bookmark_count,
     )
 
 
 @auth_bp.route("/profile", methods=["POST"])
 def update_profile():
     """Update the current account's display name."""
-    redirect_response = _login_required()
+    redirect_response = verify_auth()
     if redirect_response:
         return redirect_response
     profile_form, password_form, delete_form = _profile_forms()
@@ -343,7 +690,7 @@ def update_profile():
 @auth_bp.route("/profile/password", methods=["POST"])
 def change_password():
     """Verify the current password and save a replacement."""
-    redirect_response = _login_required()
+    redirect_response = verify_auth()
     if redirect_response:
         return redirect_response
     profile_form, password_form, delete_form = _profile_forms()
@@ -371,7 +718,7 @@ def change_password():
 @auth_bp.route("/profile/delete/verify", methods=["POST"])
 def verify_account_deletion():
     """Verify the password and issue a short-lived deletion confirmation."""
-    redirect_response = _login_required()
+    redirect_response = verify_auth()
     if redirect_response:
         return redirect_response
     delete_form = DeleteAccountForm()
@@ -411,7 +758,7 @@ def verify_account_deletion():
 @auth_bp.route("/profile/delete", methods=["POST"])
 def delete_account():
     """Delete an account only after password verification and confirmation."""
-    redirect_response = _login_required()
+    redirect_response = verify_auth()
     if redirect_response:
         return redirect_response
     provided_token = request.form.get("delete_token", "")
@@ -440,6 +787,9 @@ def delete_account():
 @auth_bp.route("/api/auth/me", methods=["GET"])
 def current_user():
     """Return only safe verified account information."""
+    redirect_response = verify_auth()
+    if redirect_response:
+        return jsonify({"authenticated": False, "user": None}), 200
     if not g.current_user:
         return jsonify({"authenticated": False, "user": None}), 200
     return jsonify({"authenticated": True, "user": g.current_user}), 200

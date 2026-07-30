@@ -7,24 +7,13 @@
 
     const promptKey = 'modulego_claim_prompted';
 
-    /** Read only the guest bookmark codes used by the existing feature. */
-    function getLocalBookmarkCodes() {
-        try {
-            const parsed = JSON.parse(
-                localStorage.getItem('moduleGoBookmarks') || '[]'
-            );
-            return Array.isArray(parsed)
-                ? [...new Set(parsed.map(code => String(code).trim().toUpperCase()).filter(Boolean))]
-                : [];
-        } catch {
-            return [];
-        }
-    }
-
     /** Ask before transferring any guest rows or local bookmarks. */
     async function offerClaim() {
         if (sessionStorage.getItem(promptKey) === '1') return;
-        const bookmarks = getLocalBookmarkCodes();
+        if (typeof BookmarkManager !== 'undefined') await BookmarkManager.init();
+        const bookmarks = typeof BookmarkManager !== 'undefined'
+            ? BookmarkManager.getCodes()
+            : [];
         const response = await fetch('/api/ownership/pending');
         if (!response.ok) return;
         const pending = await response.json();
