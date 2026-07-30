@@ -9,8 +9,8 @@ JSON data into the local PostgreSQL tables.
 
 import json
 import os
-import sys
 import subprocess
+import sys
 
 import psycopg2
 import psycopg2.extras
@@ -243,7 +243,7 @@ def main():
         if result.returncode != 0:
             sys.exit(f"Scraper failed with exit code {result.returncode}")
 
-    print(f"Connecting to PostgreSQL...")
+    print("Connecting to PostgreSQL...")
     conn = psycopg2.connect(db_url)
 
     print("Creating tables...")
