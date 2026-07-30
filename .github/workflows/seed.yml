@@ -58,10 +58,13 @@ jobs:
             app/static/local-data/data/*.json seed_db.py \
             ubuntu@${{ vars.EC2_IP }}:/tmp/
 
-      - name: Run seed on EC2
+      - name: Seed database on EC2
+        env:
+          EC2_HOST: ${{ vars.EC2_IP }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          ENV: ${{ inputs.environment || 'dev' }}
         run: |
-          SSH="ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }}"
-          ENV="${{ inputs.environment || 'dev' }}"
           if [ "$ENV" = "dev" ]; then
             DB_NAME="modulego_dev"
             PROJECT_DIR="modulego-dev"
@@ -70,18 +73,26 @@ jobs:
             PROJECT_DIR="modulego-prod"
           fi
 
-          CONTAINER=$($SSH "docker compose -f /home/ubuntu/${PROJECT_DIR}/docker-compose.yml ps -q app" | tr -d '\n')
-          echo "Container: ${CONTAINER}"
+          ssh -i ~/.ssh/id.pem ubuntu@${EC2_HOST} bash -s -- "$DB_NAME" "$PROJECT_DIR" "$POSTGRES_USER" "$POSTGRES_PASSWORD" << 'SCRIPT'
+            set -e
+            DB_NAME="$1"
+            PROJECT_DIR="$2"
+            PG_USER="$3"
+            PG_PASS="$4"
 
-          if [ -z "$CONTAINER" ]; then
-            echo "ERROR: App container not found"
-            exit 1
-          fi
+            CONTAINER=$(docker compose -f /home/ubuntu/${PROJECT_DIR}/docker-compose.yml ps -q app)
+            echo "Container: ${CONTAINER}"
 
-          $SSH "docker cp /tmp/seed_db.py ${CONTAINER}:/app/seed_db.py"
-          $SSH "docker cp /tmp/*.json ${CONTAINER}:/app/"
-          $SSH "docker exec ${CONTAINER} sh -c 'DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/${DB_NAME} python seed_db.py'"
-          $SSH "docker exec ${CONTAINER} rm -f /app/seed_db.py /app/*.json"
+            if [ -z "$CONTAINER" ]; then
+              echo "ERROR: App container not found"
+              exit 1
+            fi
+
+            docker cp /tmp/seed_db.py ${CONTAINER}:/app/seed_db.py
+            docker cp /tmp/*.json ${CONTAINER}:/app/
+            docker exec ${CONTAINER} sh -c "DATABASE_URL=postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME} python seed_db.py"
+            docker exec ${CONTAINER} rm -f /app/seed_db.py /app/*.json
+          SCRIPT
 
       - name: Cleanup
         if: always()
