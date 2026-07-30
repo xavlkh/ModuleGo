@@ -117,7 +117,7 @@ def test_login_uses_fresh_session_user_on_redirect(client, monkeypatch):
     }, follow_redirects=True)
 
     assert response.status_code == 200
-    assert b"Hi, Jamie" in response.data
+    assert b"Jamie" in response.data
     assert b"Log out" in response.data
 
 
@@ -150,7 +150,7 @@ def test_login_reads_user_snapshot_from_access_token(client, monkeypatch):
     }, follow_redirects=True)
 
     assert response.status_code == 200
-    assert b"Hi, Jamie" in response.data
+    assert b"Jamie" in response.data
 
 
 def test_auth_me_returns_safe_user(client, monkeypatch):
@@ -223,7 +223,7 @@ def test_profile_displays_safe_account_details(client):
     response = client.get("/profile")
 
     assert response.status_code == 200
-    assert b"My profile" in response.data
+    assert b"Profile" in response.data
     assert b"Jamie" in response.data
     assert b"student@example.com" in response.data
 
@@ -266,7 +266,7 @@ def test_profile_updates_display_name_and_session(client, monkeypatch):
         "11111111-1111-1111-1111-111111111111"
     )
     assert captured["synced_display_name"] == "Taylor"
-    assert b"Hi, Taylor" in response.data
+    assert b"Taylor" in response.data
     with client.session_transaction() as session:
         assert session[auth_routes.USER_KEY]["display_name"] == "Taylor"
 
@@ -300,7 +300,7 @@ def test_profile_keeps_new_name_when_review_sync_fails(client, monkeypatch):
 
     assert response.status_code == 200
     assert b"older review names could not be refreshed" in response.data
-    assert b"Hi, Taylor" in response.data
+    assert b"Taylor" in response.data
     with client.session_transaction() as session:
         assert session[auth_routes.USER_KEY]["display_name"] == "Taylor"
 

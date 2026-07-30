@@ -1,6 +1,7 @@
 """Hybrid guest/account ownership and CSRF tests."""
 
 import re
+import time
 
 import pytest
 
@@ -42,6 +43,12 @@ def login_as(client, monkeypatch, user_id="user-1", name="A Student"):
     with client.session_transaction() as session:
         session[auth_routes.ACCESS_TOKEN_KEY] = f"access-{user_id}"
         session[auth_routes.REFRESH_TOKEN_KEY] = f"refresh-{user_id}"
+        session[auth_routes.EXPIRES_AT_KEY] = int(time.time()) + 3600
+        session[auth_routes.USER_KEY] = {
+            "id": user_id,
+            "email": f"{user_id}@example.test",
+            "display_name": name,
+        }
 
 
 def test_public_reviews_hide_private_ownership_fields(client):
