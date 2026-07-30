@@ -97,7 +97,7 @@ jobs:
           $SSH "docker exec ${CONTAINER} sh -c 'DATABASE_URL=postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME} python seed_db.py'"
 
           echo "=== Cleaning up container ==="
-          $SSH "docker exec ${CONTAINER} rm -f /app/seed_db.py /app/*.json"
+          $SSH "docker exec --user root ${CONTAINER} rm -f /app/seed_db.py /app/*.json" || true
 
       - name: Cleanup EC2 temp files
         if: always()
