@@ -80,12 +80,17 @@
       shell: echo "{{ ghcr_token }}" | docker login ghcr.io -u "{{ ghcr_username }}" --password-stdin
       become_user: ubuntu
       no_log: true
+      ignore_errors: yes
 
     - name: Pull latest image
       command: docker compose pull
       args:
         chdir: "/home/ubuntu/modulego-{{ env }}"
       become_user: ubuntu
+      register: pull_result
+      until: pull_result.rc == 0
+      retries: 3
+      delay: 10
 
     - name: Restart containers
       command: docker compose up -d
