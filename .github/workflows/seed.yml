@@ -43,30 +43,24 @@ jobs:
           chmod 600 ~/.ssh/id.pem
           ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Upload data to EC2
+      - name: Upload data and seed script to EC2
         run: |
           scp -i ~/.ssh/id.pem -o StrictHostKeyChecking=no \
-            app/static/local-data/data/*.json \
+            app/static/local-data/data/*.json seed_db.py \
             ubuntu@${{ vars.EC2_IP }}:/tmp/
 
-      - name: Run seed script on EC2
+      - name: Copy files into container and run seed
         run: |
+          DB_NAME="modulego${{ inputs.environment == 'dev' && '_dev' || '' }}"
+          CONTAINER=$(ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} \
+            "cd ~/modulego-${{ inputs.environment }} && docker compose ps -q app")
           ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} \
-            "cd ~/modulego-${{ inputs.environment }} && \
-             docker compose exec -T postgres psql -U modulego -d modulego${{ inputs.environment == 'dev' && '_dev' || '' }} -c 'SELECT 1'" && \
-          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} \
-            "cd ~/modulego-${{ inputs.environment }} && \
-             docker compose run --rm -e DATABASE_URL=postgresql://modulego:modulego@postgres:5432/modulego${{ inputs.environment == 'dev' && '_dev' || '' }} \
-             app python seed_db.py" || true
-
-      - name: Copy seed script and run
-        run: |
-          scp -i ~/.ssh/id.pem -o StrictHostKeyChecking=no \
-            seed_db.py \
-            ubuntu@${{ vars.EC2_IP }}:/tmp/seed_db.py
-          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} \
-            "DATABASE_URL=postgresql://modulego:modulego@postgres:5432/modulego${{ inputs.environment == 'dev' && '_dev' || '' }} \
-             python3 /tmp/seed_db.py"
+            "docker cp /tmp/seed_db.py ${CONTAINER}:/app/seed_db.py && \
+             docker cp /tmp/*.json ${CONTAINER}:/app/ && \
+             docker exec ${CONTAINER} sh -c \
+               'DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/${DB_NAME} \
+                python seed_db.py' && \
+             docker exec ${CONTAINER} rm -f /app/seed_db.py /app/*.json"
 
       - name: Cleanup
         if: always()
