@@ -39,7 +39,7 @@ COPY requirements-runtime.txt .
 RUN pip install --no-cache-dir -r requirements-runtime.txt
 
 COPY app/ app/
-COPY app.py .
+COPY app.py auth_routes.py db.py .
 
 # Pull the generated JSON/CSV data from the scraper stage — the runtime
 # image never needs Playwright, crawl4ai, or the scraping scripts.
