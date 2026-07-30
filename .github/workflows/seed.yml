@@ -63,7 +63,7 @@ jobs:
             PROJECT_DIR="modulego-prod"
           fi
 
-          CONTAINER=$($SSH "docker compose -f /home/ubuntu/${PROJECT_DIR}/docker-compose.yml ps -q app")
+          CONTAINER=$($SSH "docker compose -f /home/ubuntu/${PROJECT_DIR}/docker-compose.yml ps -q app" | tr -d '\n')
           echo "Container: ${CONTAINER}"
 
           if [ -z "$CONTAINER" ]; then
