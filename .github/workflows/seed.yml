@@ -36,7 +36,10 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Run scraper
-        run: python app/static/local-data/run_all.py
+        run: |
+          python app/static/local-data/run_all.py
+          echo "Scraped files:"
+          ls -la app/static/local-data/data/*.json 2>&1 || echo "No JSON files found"
 
       - name: Configure SSH
         run: |
@@ -47,6 +50,10 @@ jobs:
 
       - name: Upload files to EC2
         run: |
+          if ! ls app/static/local-data/data/*.json 1>/dev/null 2>&1; then
+            echo "ERROR: No JSON files found. Scraper may have failed."
+            exit 1
+          fi
           scp -i ~/.ssh/id.pem \
             app/static/local-data/data/*.json seed_db.py \
             ubuntu@${{ vars.EC2_IP }}:/tmp/
