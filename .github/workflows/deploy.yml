@@ -87,7 +87,7 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ansible-playbook -i ansible/inventory/prod.ini ansible/playbook.yml --tags deploy -e ghcr_token=${{ secrets.GITHUB_TOKEN }}
+          ansible-playbook -i ansible/inventory/prod.ini ansible/playbook.yml --tags deploy -e "ghcr_token=${{ secrets.GITHUB_TOKEN }} ec2_ip=${{ vars.EC2_IP }}"
 
       - name: Verify deployment
         run: |
@@ -126,7 +126,7 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ansible-playbook -i ansible/inventory/dev.ini ansible/playbook.yml --tags deploy -e ghcr_token=${{ secrets.GITHUB_TOKEN }}
+          ansible-playbook -i ansible/inventory/dev.ini ansible/playbook.yml --tags deploy -e "ghcr_token=${{ secrets.GITHUB_TOKEN }} ec2_ip=${{ vars.EC2_IP }}"
 
       - name: Verify deployment
         run: |
