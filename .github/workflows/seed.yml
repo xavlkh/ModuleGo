@@ -38,8 +38,9 @@ jobs:
       - name: Run scraper
         run: |
           python app/static/local-data/run_all.py
-          echo "Scraped files:"
-          ls -la app/static/local-data/data/*.json 2>&1 || echo "No JSON files found"
+          echo "=== Scraper output ==="
+          ls -la app/static/local-data/data/ || echo "No data directory"
+          ls -la app/static/local-data/data/*.json 2>/dev/null || echo "No JSON files produced"
 
       - name: Configure SSH
         run: |
@@ -48,46 +49,57 @@ jobs:
           chmod 600 ~/.ssh/id.pem
           ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Upload files to EC2
+      - name: Upload to EC2 and seed
+        env:
+          EC2_IP: ${{ vars.EC2_IP }}
+          PG_USER: ${{ secrets.POSTGRES_USER }}
+          PG_PASS: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
-          if ! ls app/static/local-data/data/*.json 1>/dev/null 2>&1; then
-            echo "ERROR: No JSON files found. Scraper may have failed."
-            exit 1
-          fi
-          scp -i ~/.ssh/id.pem \
-            app/static/local-data/data/*.json seed_db.py \
-            ubuntu@${{ vars.EC2_IP }}:/tmp/
-          echo "Verifying upload..."
-          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "ls -la /tmp/seed_db.py /tmp/*.json"
+          SSH="ssh -i /home/runner/.ssh/id.pem ubuntu@${EC2_IP}"
+          SCP="scp -i /home/runner/.ssh/id.pem"
 
-      - name: Get container ID
-        id: container
-        run: |
-          if [ "${{ inputs.environment || 'dev' }}" = "dev" ]; then
-            COMPOSE_FILE="/home/ubuntu/modulego-dev/docker-compose.yml"
-          else
-            COMPOSE_FILE="/home/ubuntu/modulego-prod/docker-compose.yml"
-          fi
-          CONTAINER_ID=$(ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "docker compose -f ${COMPOSE_FILE} ps -q app" | tr -d '\r\n')
-          echo "id=${CONTAINER_ID}" >> "$GITHUB_OUTPUT"
-          echo "Container ID: ${CONTAINER_ID}"
-
-      - name: Copy files into container
-        run: |
-          CONTAINER="${{ steps.container.outputs.id }}"
-          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "docker cp /tmp/seed_db.py ${CONTAINER}:/app/seed_db.py"
-          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "docker cp /tmp/*.json ${CONTAINER}:/app/"
-
-      - name: Run seed script
-        run: |
-          CONTAINER="${{ steps.container.outputs.id }}"
-          DB_NAME="modulego"
           if [ "${{ inputs.environment || 'dev' }}" = "dev" ]; then
             DB_NAME="modulego_dev"
+            COMPOSE_FILE="/home/ubuntu/modulego-dev/docker-compose.yml"
+          else
+            DB_NAME="modulego"
+            COMPOSE_FILE="/home/ubuntu/modulego-prod/docker-compose.yml"
           fi
-          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "docker exec ${CONTAINER} sh -c 'DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/${DB_NAME} python seed_db.py'"
 
-      - name: Cleanup remote files
+          echo "=== Checking local files ==="
+          ls -la app/static/local-data/data/*.json seed_db.py 2>&1
+          if ! ls app/static/local-data/data/*.json 1>/dev/null 2>&1; then
+            echo "ERROR: No JSON files from scraper"
+            exit 1
+          fi
+
+          echo "=== Uploading to EC2 ==="
+          $SCP app/static/local-data/data/*.json seed_db.py ubuntu@${EC2_IP}:/tmp/
+          echo "=== Verifying upload ==="
+          $SSH "ls -la /tmp/seed_db.py /tmp/*.json"
+
+          echo "=== Getting container ID ==="
+          CONTAINER=$($SSH "docker compose -f ${COMPOSE_FILE} ps -q app" | tr -d '\r\n')
+          echo "Container: [${CONTAINER}]"
+          if [ -z "$CONTAINER" ]; then
+            echo "ERROR: Container not found"
+            exit 1
+          fi
+
+          echo "=== Copying seed_db.py into container ==="
+          $SSH "docker cp /tmp/seed_db.py ${CONTAINER}:/app/seed_db.py"
+          echo "=== Copying JSON files into container ==="
+          for f in $($SSH "ls /tmp/*.json"); do
+            $SSH "docker cp ${f} ${CONTAINER}:/app/"
+          done
+
+          echo "=== Running seed ==="
+          $SSH "docker exec ${CONTAINER} sh -c 'DATABASE_URL=postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME} python seed_db.py'"
+
+          echo "=== Cleaning up container ==="
+          $SSH "docker exec ${CONTAINER} rm -f /app/seed_db.py /app/*.json"
+
+      - name: Cleanup EC2 temp files
         if: always()
         run: |
           ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "rm -f /tmp/*.json /tmp/seed_db.py" || true
