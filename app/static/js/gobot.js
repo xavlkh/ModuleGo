@@ -95,11 +95,6 @@ const GoBot = {
     } catch { return []; }
   },
 
-  saveHistory() {
-    const msgs = this.getHistory().slice(-this.MAX_HISTORY);
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(msgs));
-  },
-
   pushHistory(role, text, links, suggestions) {
     const msgs = this.getHistory();
     msgs.push({ role, text, links: links || [], suggestions: suggestions || [], ts: Date.now() });

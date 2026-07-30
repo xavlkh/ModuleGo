@@ -1,11 +1,11 @@
 ---
 goal: ModuleGo - Republic Polytechnic Module Viewer Implementation
-version: 11.0
+version: 12.0
 date_created: 2026-06-29
 last_updated: 2026-07-29
 owner: Developer
 status: 'In Progress'
-tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'dark-mode', 'ui-redesign', 'saas-patterns', 'security', 'csrf', 'rate-limiting', 'scraping', 'automation', 'gobot', 'chatbot', 'minors', 'career-paths', 'bookmarks', 'share']
+tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'dark-mode', 'ui-redesign', 'saas-patterns', 'security', 'csrf', 'rate-limiting', 'scraping', 'automation', 'gobot', 'chatbot', 'minors', 'career-paths', 'bookmarks', 'share', 'theme-refresh']
 ---
 
 # Introduction
@@ -83,6 +83,15 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **REQ-V02**: `/api/reviews/<id>/vote` POST adds or updates a vote
 - **REQ-V03**: `/api/reviews/<id>/vote` DELETE removes a vote
 - **REQ-V04**: `/api/reviews/votes` POST returns bulk vote scores for multiple reviews
+- **REQ-TR01**: Theme choice must persist across page loads (cookie for SSR, localStorage for client)
+- **REQ-TR02**: No flash of unstyled content (FOUC) on page load
+- **REQ-TR03**: Toggle must work without JavaScript errors on any page
+- **REQ-TR04**: Must support three modes: light, dark, system
+- **CON-TR01**: Tailwind `darkMode: 'class'` must remain the dark mode strategy
+- **CON-TR02**: Server-side Jinja reads `request.cookies.get('theme')` to set initial `dark` class on `<html>`
+- **CON-TR03**: All dynamic HTML (JS-injected) must include `dark:` Tailwind variants — unaffected
+- **GUD-TR01**: Follow the "lean code" principle — remove unnecessary abstractions
+- **PAT-TR01**: YouTube pattern: toggle -> persist -> reload. No live DOM updates for theme changes.
 
 ## 2. Implementation Steps
 
@@ -151,6 +160,32 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 | TASK-029 | Update `js/detail.js` to use fetch API for review operations | ✅ | 2026-07-04 |
 | TASK-030 | Create review submission form with rating dropdown and comment textarea | ✅ | 2026-07-04 |
 | TASK-031 | Implement review display with rating stars and timestamp | ✅ | 2026-07-04 |
+
+### Implementation Phase 5B: Hybrid Account Ownership
+
+- GOAL-005B: Keep guest participation while adding optional cross-device
+  Supabase accounts.
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-A01 | Add request-scoped Supabase registration, confirmation, login, refresh and logout | Done | 2026-07-29 |
+| TASK-A02 | Replace browser owner tokens with signed HTTP-only guest cookies | Done | 2026-07-29 |
+| TASK-A03 | Add account/guest review and vote ownership with self-vote protection | Done | 2026-07-29 |
+| TASK-A04 | Add anonymous-by-default account reviews with editable visibility | Done | 2026-07-29 |
+| TASK-A05 | Keep guest bookmarks local and add account bookmark APIs | Done | 2026-07-29 |
+| TASK-A06 | Add explicit transactional guest-activity claim flow | Done | 2026-07-29 |
+| TASK-A07 | Protect state-changing APIs with Flask-WTF CSRF tokens | Done | 2026-07-29 |
+| TASK-A08 | Supply idempotent manual Supabase migration and verification guide | Done | 2026-07-29 |
+
+Acceptance checks:
+
+- Guest review/vote ownership survives refresh and is valid for 30 days.
+- Public JSON never includes user IDs, guest hashes, legacy owner tokens or
+  hidden account names.
+- One review per identity per module returns `409` for duplicates.
+- Account content wins claim conflicts; conflicting guest reviews remain
+  read-only and conflicting or self-votes are removed.
+- Local bookmarks are cleared only after a successful claim.
 
 ### Implementation Phase 6: Module Comparison
 
@@ -553,6 +588,11 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 
 #### Phase 25.2: Owner Token Database Schema
 
+> **Superseded on 2026-07-29:** Phases 25.2–25.5 describe the original
+> prototype. Hybrid ownership replaces raw browser `owner_token` headers with
+> verified account IDs or signed HTTP-only guest cookies. `owner_token`
+> remains only for readable legacy rows.
+
 - GOAL-25.2: Add owner_token column to reviews table for anonymous ownership
 
 | Task | Description | Completed | Date |
@@ -761,6 +801,38 @@ The handler pipeline must run in this exact order, each returning early:
 | TASK-264 | Add py_compile check step to CI workflow | ✅ | 2026-07-19 |
 | TASK-265 | Add pytest step to CI workflow | ✅ | 2026-07-19 |
 
+### Implementation Phase 33: Dark Mode Theme Refresh
+
+- GOAL-33: Simplify dark/light mode toggle to use YouTube's themeRefresh pattern — persist choice, full page reload, eliminate redundant client-side DOM manipulation
+
+#### Phase 33.1: Remove redundant client-side theme application
+
+- GOAL-33.1: Strip all redundant theme application logic from base.html, keeping only the FOUC prevention script and the inline header paint script
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-266 | Remove the `applyTheme(getTheme())` call and entire theme IIFE from base.html (lines 278-313). The onclick handlers on theme buttons already do `localStorage.setItem + document.cookie + location.reload()`, so this JS block is dead code on load and redundant on toggle. | ✅ | 2026-07-29 |
+| TASK-267 | Remove the inline header `<script>` at base.html line 67. The CSS class-based approach (`dark:border-zinc-800`) already handles header styling after reload. The inline script only mattered for the split-second before the class was applied, which the FOUC script already covers. | ✅ | 2026-07-29 |
+| TASK-268 | Add a CSS transition rule in app.css for `html.dark` class changes so the transition from light to dark (on reload) feels smooth rather than instant. Use `transition: background-color 0.2s, color 0.2s` on `html` and `body`. | ✅ | 2026-07-29 |
+
+#### Phase 33.2: Clean up the themeToggle macro
+
+- GOAL-33.2: Simplify themeToggle macro to only handle persistence + reload, removing dead onclick attributes since the JS IIFE is gone
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-269 | Simplify themeToggle macro in `_macros.html`. Remove inline `onclick` handlers from buttons. Add a single delegated event listener at the bottom of the macro that reads `data-theme` from the clicked button, sets cookie + localStorage, and calls `location.reload()`. | ✅ | 2026-07-29 |
+| TASK-270 | Remove the `theme-btn` class from buttons (no longer needed since the JS IIFE that queried `.theme-btn` is gone). Use `data-theme` attribute as the sole selector. | ✅ | 2026-07-29 |
+
+#### Phase 33.3: Verify and test
+
+- GOAL-33.3: Ensure all pages work correctly with the simplified theme system
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-271 | Run existing test suite (`pytest tests/ -v`) to verify no regressions. | ✅ | 2026-07-29 |
+| TASK-272 | Manually verify: (1) Toggle light->dark->system on home page, (2) Toggle on comparison page, (3) Toggle on reviews page, (4) Verify no FOUC on any page, (5) Verify header styling is correct in all modes, (6) Verify mobile menu theme toggle works. | ✅ | 2026-07-29 |
+
 ## 3. Alternatives
 
 - **ALT-001**: React/Vue framework - Rejected due to constraint CON-001 (Vanilla JS only)
@@ -818,7 +890,7 @@ The handler pipeline must run in this exact order, each returning early:
 | `app/templates/base.html` | Layout template with glass navbar/footer (Tailwind) |
 | `app/templates/_macros.html` | Shared Jinja macros (hero, navLinks, themeToggle, selectField, glassCard, statCard, modalOverlay, etc.) |
 | `app/static/css/app.css` | Tailwind CSS with `:root` custom properties and glassmorphism tokens |
-| `app/static/js/utils.js` | Shared utilities (escapeHtml, createStars, parseTimestamp, showMessage, createReviewActionsHTML, createModalController, getOwnerToken, formatReviewDate) |
+| `app/static/js/utils.js` | Shared utilities (`apiFetch`, escaping, stars, timestamps, messages, review actions, modal controller) |
 | `app/static/js/data.js` | Data loading from `/api/modules` + `/api/courses` + `/api/minors` with diploma/minor/rating/active filtering |
 | `app/static/js/ui.js` | UI rendering, search, pagination, filter panel + app initialization (merged from search.js + app.js) |
 | `app/static/js/comparison.js` | Module comparison logic (Tailwind markup) |
@@ -847,6 +919,9 @@ The handler pipeline must run in this exact order, each returning early:
 | `.env.example` | Supabase + Gemini credential template |
 | `vercel.json` | Vercel serverless function configuration |
 | `app.py` lines 1591-1711 | GoBot chatbot `gobot_chat` function + `_load_career_paths` helper + Gemini integration |
+| `app/templates/base.html` | Removed `applyTheme` IIFE and inline header script (Phase 33) |
+| `app/templates/_macros.html` | Simplified themeToggle macro — delegated event listener, `data-theme` selectors (Phase 33) |
+| `app/static/css/app.css` | Added CSS transition rules for smooth theme switching on reload (Phase 33) |
 
 ## 6. Testing
 
@@ -916,8 +991,8 @@ The handler pipeline must run in this exact order, each returning early:
 - **RISK-010**: Merging detail.js into reviews.js may cause regression in detail modal - Mitigation: Test coverage of review CRUD
 - **RISK-011**: Changing CSS class names on cards may break JS that targets `.glass-card` — verify `ui.js` and `detail.js` selectors
 - **RISK-012**: Dark mode custom oklch vars may produce unexpected contrast on some monitors — test on multiple screens
-- **RISK-013**: Existing reviews in Supabase have no `owner_token` — they become "orphaned" (read-only). Mitigation: Acceptable for existing data; new reviews will have ownership
-- **RISK-014**: Users clearing localStorage lose ownership of their reviews. Mitigation: Acceptable for anonymous system; reviews remain readable
+- **RISK-013**: Existing `owner_token` reviews cannot be safely assigned to an account. Mitigation: preserve them as readable legacy content.
+- **RISK-014**: Clearing the signed guest cookie removes guest mutation access. Mitigation: the cookie is HTTP-only, lasts 30 days, and users can explicitly claim activity after login.
 - **RISK-015**: Flask-Limiter in-memory storage is per-invocation on Vercel serverless — not global rate limiting. Mitigation: Acceptable for student project scale
 - **RISK-016**: Scraping scripts depend on RP website structure — changes may break scraping. Mitigation: Monitor scraping workflow, fix as needed
 - **RISK-017**: Playwright browser automation is required for CSRF token extraction in step 1. Mitigation: use installed Chrome locally and install Playwright Chromium in GitHub Actions

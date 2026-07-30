@@ -3,14 +3,9 @@
 {# All components support native light/dark mode via CSS custom props    #}
 {#                                                                       #}
 {# ACTIVE MACROS (currently used in templates):                          #}
-{#   navLinks, themeToggle, hero, selectField, inputSearch,             #}
+{#   navLinks, accountLinks, themeToggle, hero, selectField, inputSearch,#}
 {#   sectionHeader, loadingSpinner, emptyState, alert, glassCard,       #}
-{#   statCard                                                            #}
-{#                                                                       #}
-{# UTILITY MACROS (available for future use):                            #}
-{#   btnPrimary, btnSearch, btnOutline, btnGhost, inputText, textarea,  #}
-{#   label, helperText, badge, badgePrimary, sectionHeading,            #}
-{#   modalOverlay, modalPanel, modalHeader, modalSection, modalFooter   #}
+{#   statCard, logoSvg                                                   #}
 {# ===================================================================== #}
 
 {# --------------------------------------------------------------------- #}
@@ -18,15 +13,53 @@
 {# --------------------------------------------------------------------- #}
 
 {% macro navLinks(active='serve_index') %}
-<a href="{{ url_for('serve_index') }}" class="font-display font-semibold text-[15px] {% if active == 'serve_index' %}text-zinc-900 dark:text-white underline underline-offset-4{% else %}text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white{% endif %} px-4 py-2 rounded-lg transition-all">
+<a href="{{ url_for('serve_index') }}" class="font-medium text-sm {% if active == 'serve_index' %}text-zinc-900 dark:text-white bg-zinc-100 dark:bg-zinc-800{% else %}text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800/50{% endif %} px-3 py-1.5 rounded-md transition-colors">
     Home
 </a>
-<a href="{{ url_for('serve_comparison') }}" class="font-display font-semibold text-[15px] {% if active == 'serve_comparison' %}text-zinc-900 dark:text-white underline underline-offset-4{% else %}text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white{% endif %} px-4 py-2 rounded-lg transition-all">
+<a href="{{ url_for('serve_comparison') }}" class="font-medium text-sm {% if active == 'serve_comparison' %}text-zinc-900 dark:text-white bg-zinc-100 dark:bg-zinc-800{% else %}text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800/50{% endif %} px-3 py-1.5 rounded-md transition-colors">
     Comparison
 </a>
-<a href="{{ url_for('serve_reviews') }}" class="font-display font-semibold text-[15px] {% if active == 'serve_reviews' %}text-zinc-900 dark:text-white underline underline-offset-4{% else %}text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white{% endif %} px-4 py-2 rounded-lg transition-all">
+<a href="{{ url_for('serve_reviews') }}" class="font-medium text-sm {% if active == 'serve_reviews' %}text-zinc-900 dark:text-white bg-zinc-100 dark:bg-zinc-800{% else %}text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800/50{% endif %} px-3 py-1.5 rounded-md transition-colors">
     Reviews
 </a>
+{% endmacro %}
+
+{% macro accountLinks() %}
+{% if current_user %}
+<div class="relative" id="user-dropdown">
+    <button onclick="document.getElementById('user-menu').classList.toggle('hidden')" class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800/50">
+        <i data-lucide="user" class="w-4 h-4"></i>
+        <span class="max-w-20 truncate">{{ current_user.display_name }}</span>
+        <i data-lucide="chevron-down" class="w-3 h-3"></i>
+    </button>
+    <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 py-1 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-50">
+        <a href="{{ url_for('auth.profile') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors">
+            <i data-lucide="user" class="w-4 h-4"></i>Profile
+        </a>
+        <a href="{{ url_for('serve_bookmarks') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors">
+            <i data-lucide="bookmark" class="w-4 h-4"></i>Bookmarks
+        </a>
+        <div class="border-t border-zinc-200 dark:border-zinc-700 my-1"></div>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors">
+                <i data-lucide="log-out" class="w-4 h-4"></i>Log out
+            </button>
+        </form>
+    </div>
+</div>
+<script>
+document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('user-dropdown');
+    const menu = document.getElementById('user-menu');
+    if (dropdown && menu && !dropdown.contains(e.target)) {
+        menu.classList.add('hidden');
+    }
+});
+</script>
+{% else %}
+<a href="{{ url_for('auth.login') }}" class="rounded-md bg-primary-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-600">Log in</a>
+{% endif %}
 {% endmacro %}
 
 {# --------------------------------------------------------------------- #}
@@ -34,15 +67,15 @@
 {# --------------------------------------------------------------------- #}
 
 {% macro themeToggle() %}
-<div class="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-0.5">
-    <button data-theme="light" class="theme-btn p-1.5 rounded-md transition-all" aria-label="Light mode">
-        <i data-lucide="sun" class="w-4 h-4"></i>
+<div class="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-md p-0.5">
+    <button data-theme="light" class="theme-btn p-1 rounded transition-colors" aria-label="Light mode" onclick="setTheme('light')">
+        <i data-lucide="sun" class="w-3.5 h-3.5"></i>
     </button>
-    <button data-theme="dark" class="theme-btn p-1.5 rounded-md transition-all" aria-label="Dark mode">
-        <i data-lucide="moon" class="w-4 h-4"></i>
+    <button data-theme="dark" class="theme-btn p-1 rounded transition-colors" aria-label="Dark mode" onclick="setTheme('dark')">
+        <i data-lucide="moon" class="w-3.5 h-3.5"></i>
     </button>
-    <button data-theme="system" class="theme-btn p-1.5 rounded-md transition-all" aria-label="System theme">
-        <i data-lucide="monitor" class="w-4 h-4"></i>
+    <button data-theme="system" class="theme-btn p-1 rounded transition-colors" aria-label="System theme" onclick="setTheme('system')">
+        <i data-lucide="monitor" class="w-3.5 h-3.5"></i>
     </button>
 </div>
 {% endmacro %}
@@ -64,51 +97,8 @@
 {% endmacro %}
 
 {# --------------------------------------------------------------------- #}
-{# Buttons                                                                #}
-{# --------------------------------------------------------------------- #}
-
-{% macro btnPrimary(text, icon=None, type='button', id=None, attrs='') %}
-<button type="{{ type }}"{% if id %} id="{{ id }}"{% endif %} class="btn-primary rounded-xl text-base shrink-0 truncate {{ attrs }}">
-    {% if icon %}<i data-lucide="{{ icon }}" class="w-4 h-4 mr-2 inline-block"></i>{% endif %}{{ text }}
-</button>
-{% endmacro %}
-
-{% macro btnSearch(text, icon=None, type='button', id=None, attrs='') %}
-<button type="{{ type }}"{% if id %} id="{{ id }}"{% endif %} class="rounded-xl bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 shadow-sm px-5 py-3.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 transition-all duration-200 shrink-0 truncate {{ attrs }}">
-    {% if icon %}<i data-lucide="{{ icon }}" class="w-4 h-4 mr-2 inline-block"></i>{% endif %}{{ text }}
-</button>
-{% endmacro %}
-
-{% macro btnOutline(text, icon=None, type='button', attrs='') %}
-<button type="{{ type }}" class="btn-outline rounded-xl shrink-0 truncate {{ attrs }}">
-    {% if icon %}<i data-lucide="{{ icon }}" class="w-4 h-4 mr-2 inline-block"></i>{% endif %}{{ text }}
-</button>
-{% endmacro %}
-
-{% macro btnGhost(text, icon=None, type='button', id=None, attrs='') %}
-<button type="{{ type }}"{% if id %} id="{{ id }}"{% endif %} class="rounded-xl border border-primary-200 dark:border-primary-700 bg-primary-50/80 dark:bg-primary-900/30 backdrop-blur px-5 py-2.5 text-sm font-semibold text-primary-700 dark:text-primary-300 shadow-sm transition-all duration-300 hover:bg-primary-100 dark:hover:bg-primary-900/40 hover:border-primary-300 dark:hover:border-primary-600 active:translate-y-0 {{ attrs }}">
-    {% if icon %}<i data-lucide="{{ icon }}" class="w-4 h-4 mr-2 inline-block"></i>{% endif %}{{ text }}
-</button>
-{% endmacro %}
-
-{# --------------------------------------------------------------------- #}
 {# Form Inputs                                                            #}
 {# --------------------------------------------------------------------- #}
-
-{% macro inputText(id, placeholder='', icon=None, attrs='') %}
-<div class="relative">
-    {% if icon %}
-    <i data-lucide="{{ icon }}" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-400"></i>
-    {% endif %}
-    <input
-        id="{{ id }}"
-        type="text"
-        class="input-field {% if icon %}pl-10{% else %}pl-4{% endif %} pr-4 py-3 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-400 truncate {{ attrs }}"
-        placeholder="{{ placeholder }}"
-        autocomplete="off"
-    >
-</div>
-{% endmacro %}
 
 {% macro inputSearch(id, placeholder='Search...', attrs='') %}
 <div class="relative flex-1">
@@ -133,26 +123,8 @@
 </select>
 {% endmacro %}
 
-{% macro textarea(id, placeholder='', rows=4, maxlength=500, attrs='') %}
-<textarea
-    id="{{ id }}"
-    class="input-field px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-400 {{ attrs }}"
-    rows="{{ rows }}"
-    maxlength="{{ maxlength }}"
-    placeholder="{{ placeholder }}"
-></textarea>
-{% endmacro %}
-
-{% macro label(text, for_id=None, required=false) %}
-<label {% if for_id %}for="{{ for_id }}"{% endif %} class="mb-1.5 block text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-    {{ text }}{% if required %} <span class="text-red-500">*</span>{% endif %}
-</label>
-{% endmacro %}
-
-{% macro helperText(text) %}
-<p class="mt-1 text-xs text-zinc-400 dark:text-zinc-400">{{ text }}</p>
-{% endmacro %}
-
+{# --------------------------------------------------------------------- #}
+{# Cards                                                                  #}
 {# --------------------------------------------------------------------- #}
 {# Badges & Tags                                                          #}
 {# --------------------------------------------------------------------- #}
@@ -179,43 +151,6 @@
 <div class="stat-card" {{ attrs }}>
     <span{% if id %} id="{{ id }}"{% endif %} class="block text-2xl sm:text-3xl font-bold text-primary-600 dark:text-primary-300 leading-tight">{{ value }}</span>
     <span class="mt-1 block text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ label }}</span>
-</div>
-{% endmacro %}
-
-{# --------------------------------------------------------------------- #}
-{# Modal                                                                  #}
-{# --------------------------------------------------------------------- #}
-
-{% macro modalOverlay(id) %}
-<div id="{{ id }}" class="hidden modal-overlay">
-    {{ caller() }}
-</div>
-{% endmacro %}
-
-{% macro modalPanel(maxWidth='56rem') %}
-<div class="modal-panel" style="max-width: {{ maxWidth }};">
-    {{ caller() }}
-</div>
-{% endmacro %}
-
-{% macro modalHeader(title, close_id, close_label='Close') %}
-<div class="modal-header">
-    <h2 class="text-lg font-bold text-zinc-900 dark:text-white">{{ title }}</h2>
-    <button id="{{ close_id }}" class="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 dark:text-zinc-400 hover:bg-white/60 dark:hover:bg-zinc-700 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors" aria-label="{{ close_label }}">
-        <i data-lucide="x" class="w-5 h-5"></i>
-    </button>
-</div>
-{% endmacro %}
-
-{% macro modalSection(attrs='') %}
-<div class="modal-section {{ attrs }}">
-    {{ caller() }}
-</div>
-{% endmacro %}
-
-{% macro modalFooter(attrs='') %}
-<div class="flex items-center justify-end gap-3 border-t border-zinc-200/60 dark:border-zinc-700 px-6 py-4 {{ attrs }}">
-    {{ caller() }}
 </div>
 {% endmacro %}
 
@@ -306,13 +241,4 @@
         <path fill="#16a34a" stroke="#16a34a" stroke-width="5.82" stroke-miterlimit="10" d="M756.36,109.94h-83.03c.68,8.48,3.55,15.12,8.61,19.92,5.06,4.81,11.28,7.21,18.66,7.21,10.66,0,18.25-4.73,22.76-14.2h30.96c-3.28,11.31-9.57,20.59-18.86,27.87-9.3,7.28-20.71,10.92-34.24,10.92-10.94,0-20.74-2.51-29.42-7.52-8.68-5.02-15.45-12.12-20.3-21.3-4.86-9.18-7.28-19.78-7.28-31.79s2.39-22.82,7.18-32c4.78-9.18,11.48-16.25,20.09-21.19,8.61-4.94,18.52-7.42,29.72-7.42s20.47,2.41,29.01,7.21c8.54,4.81,15.17,11.62,19.89,20.45,4.71,8.83,7.07,18.97,7.07,30.41,0,4.24-.28,8.05-.82,11.44ZM727.46,90.02c-.14-7.63-2.8-13.74-8-18.33-5.2-4.59-11.55-6.89-19.07-6.89-7.11,0-13.09,2.23-17.94,6.68-4.85,4.45-7.82,10.63-8.92,18.54h53.92Z"/>
     </g>
 </svg>
-{% endmacro %}
-
-{% macro sectionHeading(title, description=None) %}
-<div>
-    <h2 class="text-xl font-bold text-zinc-900 dark:text-white mb-0.5">{{ title }}</h2>
-    {% if description %}
-    <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ description }}</p>
-    {% endif %}
-</div>
 {% endmacro %}

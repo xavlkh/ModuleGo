@@ -27,6 +27,9 @@ const BOOKMARK_TOGGLE_STATES = {
     active: `${BOOKMARK_TOGGLE_BASE} bg-emerald-500/10 border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20`,
 };
 
+/** Active state class for select filter dropdowns. */
+const SELECT_ACTIVE = '!bg-emerald-500/10 !border-emerald-400 dark:!border-emerald-600 !text-emerald-600 dark:!text-emerald-400';
+
 const UIRenderer = {
     resultsContainer: null,
     loadingSpinner: null,
@@ -84,6 +87,22 @@ const UIRenderer = {
             if (e.key === 'Enter') this.handleSearch(e.target.value);
         });
 
+        const clearSearchBtn = document.getElementById('clearSearch');
+        if (clearSearchBtn) {
+            const toggleClearBtn = () => {
+                clearSearchBtn.classList.toggle('hidden', !this.searchInput.value);
+                clearSearchBtn.classList.toggle('flex', !!this.searchInput.value);
+            };
+            toggleClearBtn();
+            this.searchInput.addEventListener('input', toggleClearBtn);
+            clearSearchBtn.addEventListener('click', () => {
+                this.searchInput.value = '';
+                toggleClearBtn();
+                this.handleInput('');
+                this.searchInput.focus();
+            });
+        }
+
         if (this.filterToggle && this.filterPanel) {
             this.filterToggle.addEventListener('click', () => {
                 const isClosed = this.filterPanel.style.gridTemplateRows === '0fr';
@@ -95,11 +114,12 @@ const UIRenderer = {
         }
 
         const triggerSearch = () => this.handleSearch(this.searchInput.value);
-        if (this.schoolFilter) this.schoolFilter.addEventListener('change', triggerSearch);
-        if (this.diplomaFilter) this.diplomaFilter.addEventListener('change', triggerSearch);
-        if (this.minorFilter) this.minorFilter.addEventListener('change', triggerSearch);
-        if (this.ratingFilter) this.ratingFilter.addEventListener('change', triggerSearch);
-        if (this.moduleTypeFilter) this.moduleTypeFilter.addEventListener('change', triggerSearch);
+        const onFilterChange = () => { this.updateSelectActiveStates(); triggerSearch(); };
+        if (this.schoolFilter) this.schoolFilter.addEventListener('change', onFilterChange);
+        if (this.diplomaFilter) this.diplomaFilter.addEventListener('change', onFilterChange);
+        if (this.minorFilter) this.minorFilter.addEventListener('change', onFilterChange);
+        if (this.ratingFilter) this.ratingFilter.addEventListener('change', onFilterChange);
+        if (this.moduleTypeFilter) this.moduleTypeFilter.addEventListener('change', onFilterChange);
 
         const TOGGLE_ACTIVE = 'w-full sm:w-28 bg-emerald-500/10 border border-emerald-300 dark:border-emerald-700 rounded-xl py-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-all duration-200 shrink-0 flex items-center justify-center gap-1.5';
         const TOGGLE_INACTIVE = 'w-full sm:w-28 bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all duration-200 shrink-0 flex items-center justify-center gap-1.5';
@@ -150,7 +170,7 @@ const UIRenderer = {
                     const label = this.activeFilter.querySelector('span');
                     if (label) label.textContent = 'All';
                 }
-                this.searchInput.value = '';
+                this.updateSelectActiveStates();
                 this.updateFilterToggleState();
                 triggerSearch();
             });
@@ -158,9 +178,9 @@ const UIRenderer = {
 
         const clearBookmarks = document.getElementById('clearBookmarksBtn');
         if (clearBookmarks) {
-            clearBookmarks.addEventListener('click', () => {
+            clearBookmarks.addEventListener('click', async () => {
                 if (confirm('Remove all bookmarks?')) {
-                    BookmarkManager.clear();
+                    await BookmarkManager.clear();
                     if (this.isBookmarksView) {
                         this.handleSearch(this.searchInput.value);
                     }
@@ -305,6 +325,14 @@ const UIRenderer = {
         if (this.moduleTypeFilter && this.moduleTypeFilter.value !== 'all') count++;
         if (this.activeFilter && this.activeFilter.dataset.active === 'true') count++;
         return count;
+    },
+
+    updateSelectActiveStates() {
+        [this.schoolFilter, this.diplomaFilter, this.minorFilter, this.ratingFilter, this.moduleTypeFilter].forEach(el => {
+            if (!el) return;
+            const isActive = el.value !== 'all';
+            SELECT_ACTIVE.split(' ').forEach(cls => el.classList.toggle(cls, isActive));
+        });
     },
 
     updateFilterToggleState() {
@@ -507,9 +535,9 @@ const UIRenderer = {
         });
         const bookmarkBtn = col.querySelector('.bookmark-card-btn');
         if (bookmarkBtn) {
-            bookmarkBtn.addEventListener('click', (e) => {
+            bookmarkBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const bookmarked = BookmarkManager.toggle(module.code);
+                const bookmarked = await BookmarkManager.toggle(module.code);
                 bookmarkBtn.className = `bookmark-card-btn flex-shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white/70 dark:bg-zinc-800/70 transition-all hover:border-primary-300 dark:hover:border-primary-600`;
                 bookmarkBtn.innerHTML = `<i data-lucide="bookmark" class="w-4 h-4 ${bookmarked ? 'fill-primary-500 text-primary-500' : 'text-zinc-400 dark:text-zinc-500'}"></i>`;
                 bookmarkBtn.setAttribute('aria-label', bookmarked ? 'Remove bookmark' : 'Add bookmark');
@@ -563,7 +591,7 @@ async function initHomePage() {
         await DataManager.loadData();
         UIRenderer.populateDiplomaFilter();
         UIRenderer.populateMinorFilter();
-        BookmarkManager.init();
+        await BookmarkManager.init();
 
         const urlParams = new URL(window.location);
         const initialQuery = urlParams.searchParams.get('q') || (typeof INITIAL_QUERY !== 'undefined' ? INITIAL_QUERY : '');
@@ -590,6 +618,7 @@ async function initHomePage() {
             const label = UIRenderer.activeFilter.querySelector('span');
             if (label) label.textContent = 'Active';
         }
+        UIRenderer.updateSelectActiveStates();
 
         if (showBookmarks) {
             UIRenderer.isBookmarksView = true;
@@ -604,7 +633,11 @@ async function initHomePage() {
             if (clearBtn) clearBtn.classList.remove('hidden');
             UIRenderer.handleSearch(initialQuery, initialPage);
         } else if (initialQuery || hasFilters) {
-            if (initialQuery) UIRenderer.searchInput.value = initialQuery;
+            if (initialQuery) {
+                UIRenderer.searchInput.value = initialQuery;
+                const csb = document.getElementById('clearSearch');
+                if (csb) { csb.classList.remove('hidden'); csb.classList.add('flex'); }
+            }
             UIRenderer.handleSearch(initialQuery, initialPage);
         } else {
             UIRenderer.filteredModules = DataManager.modules;
