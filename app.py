@@ -48,7 +48,7 @@ app.config.update(
     ),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    SESSION_COOKIE_SECURE=os.environ.get('VERCEL') == '1',
+    SESSION_COOKIE_SECURE=False,
     PERMANENT_SESSION_LIFETIME=30 * 24 * 60 * 60,
 )
 app.register_blueprint(auth_bp)
@@ -132,10 +132,6 @@ def inject_globals():
         'commit_hash': _get_commit_hash(),
     }
 
-
-# ---------------------------------------------------------------------------
-# Database helpers
-# ---------------------------------------------------------------------------
 
 def get_db() -> sqlite3.Connection:
     """Open a local review database connection with dictionary-like rows."""
@@ -440,7 +436,41 @@ def init_pg_db() -> None:
                 LABEL TEXT NOT NULL,
                 KEYWORDS TEXT NOT NULL DEFAULT '[]')'''
         )
+        cur.execute(
+            '''CREATE TABLE IF NOT EXISTS RP_MODULES
+               (MODULE_CODE TEXT PRIMARY KEY,
+                MODULE_NAME TEXT DEFAULT '',
+                SYNOPSIS TEXT DEFAULT '',
+                SCHOOL_NAME TEXT DEFAULT '',
+                SCHOOL_ABBR TEXT DEFAULT '',
+                URL TEXT DEFAULT '')'''
+        )
+        cur.execute(
+            '''CREATE TABLE IF NOT EXISTS RP_COURSES
+               (COURSE_CODE TEXT PRIMARY KEY,
+                COURSE_NAME TEXT DEFAULT '',
+                SCHOOL_NAME TEXT DEFAULT '',
+                SCHOOL_ABBR TEXT DEFAULT '',
+                URL TEXT DEFAULT '',
+                GENERAL_MODULES JSONB DEFAULT '[]',
+                MAJOR_MODULES JSONB DEFAULT '[]',
+                DISCIPLINE_MODULES JSONB DEFAULT '[]',
+                ELECTIVE_MODULES JSONB DEFAULT '[]',
+                INDUSTRY_MODULES JSONB DEFAULT '[]',
+                MAJOR_GROUPS JSONB DEFAULT '[]')'''
+        )
+        cur.execute(
+            '''CREATE TABLE IF NOT EXISTS RP_MINORS
+               (MINOR_NAME TEXT PRIMARY KEY,
+                MINOR_TYPE TEXT DEFAULT '',
+                URL TEXT DEFAULT '',
+                MODULES JSONB DEFAULT '[]',
+                ELIGIBILITY TEXT DEFAULT '')'''
+        )
     _seed_pg_career_paths()
+    _seed_pg_modules()
+    _seed_pg_courses()
+    _seed_pg_minors()
 
 
 def _seed_pg_career_paths() -> None:
@@ -464,15 +494,100 @@ def _seed_pg_career_paths() -> None:
                 continue
 
 
+def _seed_pg_modules() -> None:
+    """Seed modules from local JSON into PostgreSQL if table is empty."""
+    with pg_connection() as conn, conn.cursor() as cur:
+        cur.execute('SELECT COUNT(*) FROM RP_MODULES')
+        if cur.fetchone()[0] > 0:
+            return
+    path = os.path.join(_LOCAL_DATA_DIR, 'rp_modules_synopsis.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            modules = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return
+    with pg_connection() as conn, conn.cursor() as cur:
+        for m in modules:
+            try:
+                cur.execute(
+                    'INSERT INTO RP_MODULES (MODULE_CODE, MODULE_NAME, SYNOPSIS, SCHOOL_NAME, SCHOOL_ABBR, URL) '
+                    'VALUES (%s, %s, %s, %s, %s, %s)',
+                    (m['module_code'], m.get('module_name', ''), m.get('synopsis', ''),
+                     m.get('school_name', ''), m.get('school_abbr', ''), m.get('url', ''))
+                )
+            except psycopg2.Error:
+                continue
+
+
+def _seed_pg_courses() -> None:
+    """Seed courses from local JSON into PostgreSQL if table is empty."""
+    with pg_connection() as conn, conn.cursor() as cur:
+        cur.execute('SELECT COUNT(*) FROM RP_COURSES')
+        if cur.fetchone()[0] > 0:
+            return
+    path = os.path.join(_LOCAL_DATA_DIR, 'rp_courses.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            courses = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return
+    module_keys = ['general_modules', 'major_modules', 'discipline_modules', 'elective_modules', 'industry_modules']
+    with pg_connection() as conn, conn.cursor() as cur:
+        for d in courses:
+            try:
+                row = {
+                    'course_code': d.get('course_code', ''),
+                    'course_name': d.get('course_name', ''),
+                    'school_name': d.get('school_name', ''),
+                    'school_abbr': d.get('school_abbr', ''),
+                    'url': d.get('url', ''),
+                }
+                for key in module_keys:
+                    row[key] = json.dumps([m['code'] for m in d.get(key, []) if 'code' in m])
+                row['major_groups'] = json.dumps(d.get('major_groups', []))
+                cur.execute(
+                    'INSERT INTO RP_COURSES (COURSE_CODE, COURSE_NAME, SCHOOL_NAME, SCHOOL_ABBR, URL, '
+                    'GENERAL_MODULES, MAJOR_MODULES, DISCIPLINE_MODULES, ELECTIVE_MODULES, INDUSTRY_MODULES, MAJOR_GROUPS) '
+                    'VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                    (row['course_code'], row['course_name'], row['school_name'],
+                     row['school_abbr'], row['url'], row['general_modules'],
+                     row['major_modules'], row['discipline_modules'],
+                     row['elective_modules'], row['industry_modules'], row['major_groups'])
+                )
+            except psycopg2.Error:
+                continue
+
+
+def _seed_pg_minors() -> None:
+    """Seed minor programmes from local JSON into PostgreSQL if table is empty."""
+    with pg_connection() as conn, conn.cursor() as cur:
+        cur.execute('SELECT COUNT(*) FROM RP_MINORS')
+        if cur.fetchone()[0] > 0:
+            return
+    path = os.path.join(_LOCAL_DATA_DIR, 'rp_minors.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            minors = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return
+    with pg_connection() as conn, conn.cursor() as cur:
+        for m in minors:
+            try:
+                cur.execute(
+                    'INSERT INTO RP_MINORS (MINOR_NAME, MINOR_TYPE, URL, MODULES, ELIGIBILITY) '
+                    'VALUES (%s, %s, %s, %s, %s)',
+                    (m['minor_name'], m.get('minor_type', ''), m.get('url', ''),
+                     json.dumps([{'code': mod['code'], 'name': mod['name']} for mod in m.get('modules', [])]),
+                     m.get('eligibility', ''))
+                )
+            except psycopg2.Error:
+                continue
+
+
 if use_sqlite_reviews():
     init_db()
 elif use_postgres():
     init_pg_db()
-
-
-# ---------------------------------------------------------------------------
-# Review repository - encapsulates dual-database branching
-# ---------------------------------------------------------------------------
 
 
 class ReviewRepository:
@@ -612,6 +727,16 @@ class ReviewRepository:
                         review_to_dict(existing)['is_anonymous'],
                     ))
                 )
+                if (identity['kind'] == 'account'
+                        and not existing['USER_ID']
+                        and existing['GUEST_OWNER_HASH']):
+                    conn.execute(
+                        '''UPDATE REVIEWS
+                           SET USER_ID = ?, GUEST_OWNER_HASH = NULL,
+                               AUTHOR_DISPLAY_NAME = ?
+                           WHERE ID = ?''',
+                        (identity['user_id'], identity.get('display_name'), review_id),
+                    )
                 conn.execute(
                     '''UPDATE REVIEWS
                        SET RATING = ?, COMMENT = ?, IS_ANONYMOUS = ?,
@@ -639,6 +764,16 @@ class ReviewRepository:
                     review_to_dict(existing)['is_anonymous'],
                 ))
             )
+            if (identity['kind'] == 'account'
+                    and not existing['user_id']
+                    and existing['guest_owner_hash']):
+                cur.execute(
+                    '''UPDATE REVIEWS
+                       SET user_id = %s, guest_owner_hash = NULL,
+                           author_display_name = %s
+                       WHERE id = %s''',
+                    (identity['user_id'], identity.get('display_name'), review_id),
+                )
             cur.execute(
                 '''UPDATE REVIEWS
                    SET RATING = %s, COMMENT = %s, IS_ANONYMOUS = %s,
@@ -780,8 +915,6 @@ class ReviewRepository:
 
 app.extensions['review_repository'] = ReviewRepository
 
-
-# ---------------------------------------------------------------------------
 
 class VoteRepository:
     """Handles vote persistence for SQLite and PostgreSQL."""
@@ -1211,10 +1344,6 @@ class OwnershipRepository:
             return cur.fetchone()[0]
 
 
-# ---------------------------------------------------------------------------
-# Payload validation
-# ---------------------------------------------------------------------------
-
 def validate_review_payload(data: dict | None, require_module_code: bool = False) -> tuple:
     """Validate and sanitize review payload data.
 
@@ -1283,13 +1412,9 @@ def validate_comparison_payload(data: dict | None) -> tuple:
     return normalized_codes, None
 
 
-# ---------------------------------------------------------------------------
-# Module data caching
-# ---------------------------------------------------------------------------
-
 # Manual TTL cache — avoids re-fetching on every keystroke.
 _modules_cache = {'data': None, 'timestamp': 0}
-MODULE_CACHE_TTL = 300  # 5 minutes
+MODULE_CACHE_TTL = 300
 
 
 _CAREER_PATHS_TABLE = 'rp_career_paths'
@@ -1337,7 +1462,6 @@ def _load_local_minors() -> list[dict] | None:
 
 def _build_modules_list() -> list | None:
     """Fetch modules from PostgreSQL, falling back to local JSON files."""
-    # PostgreSQL path
     if use_postgres():
         try:
             with pg_connection() as conn, conn.cursor() as cur:
@@ -1425,10 +1549,6 @@ def generate_gemini_comparison(modules: list[dict]) -> list[dict]:
     return rows
 
 
-# ---------------------------------------------------------------------------
-# Routes - Page serving
-# ---------------------------------------------------------------------------
-
 @app.route('/')
 def serve_index():
     """Render the home page with module search functionality."""
@@ -1453,10 +1573,6 @@ def serve_reviews():
     """Render the review dashboard page."""
     return render_template('modules/reviews.html')
 
-
-# ---------------------------------------------------------------------------
-# Routes - API endpoints
-# ---------------------------------------------------------------------------
 
 @app.route('/api/modules', methods=['GET'])
 def get_modules():
@@ -1491,7 +1607,6 @@ def get_courses():
 
     courses = None
 
-    # PostgreSQL path
     if use_postgres():
         try:
             with pg_connection() as conn, conn.cursor() as cur:
@@ -1535,7 +1650,6 @@ def get_minors():
 
     minors = None
 
-    # PostgreSQL path
     if use_postgres():
         try:
             with pg_connection() as conn, conn.cursor() as cur:
@@ -1838,7 +1952,6 @@ def _get_active_module_codes() -> frozenset:
     """Return frozenset of module codes linked to active courses/diplomas."""
     courses = None
 
-    # PostgreSQL path
     if use_postgres():
         try:
             with pg_connection() as conn, conn.cursor() as cur:
@@ -2051,7 +2164,6 @@ def gobot_chat():
 
     # --- Fast paths (no Gemini) ---
 
-    # 1. Exact module code match
     for t in user_msg.split():
         clean = re.sub(r'[^a-z0-9]', '', t.lower())
         if clean in module_map:
@@ -2063,9 +2175,8 @@ def gobot_chat():
                     {"text": "Compare", "url": f"/comparison?id={m['code']}"},
                 ],
                 "suggestions": [f"Reviews for {m['code']}", f"Compare {m['code']}"],
-            })
+                })
 
-    # 2. Greeting
     if re.match(r'^(hi|hello|hey|howdy|yo|sup)\b', msg_lower):
         return jsonify({
             "reply": "Hi! Tell me what career or interests you're exploring, and I'll recommend modules for you!",
@@ -2073,7 +2184,6 @@ def gobot_chat():
             "suggestions": ["I like designing websites", "I want to build software", "Tell me about careers"],
         })
 
-    # 3. Reviews lookup
     m = re.search(r'(?:reviews?|rating|feedback)\s+(?:for|of|about|on)?\s*([a-z]\d{3})', msg_lower)
     if m:
         code = m.group(1).lower()
@@ -2096,7 +2206,6 @@ def gobot_chat():
             return jsonify({"reply": reply, "links": links, "suggestions": []})
         return jsonify({"reply": f"Couldn't find module '{code}'.", "links": [], "suggestions": []})
 
-    # 4. Navigation / help
     if re.search(r'(where|navigate|how to|how do i|guide|help|what can|what does)', msg_lower):
         return jsonify({
             "reply": "Here's how to get around:",
@@ -2108,7 +2217,6 @@ def gobot_chat():
             "suggestions": ["What modules for Data Analyst?", "Tell me about C270"],
         })
 
-    # 5. About ModuleGo
     if 'modulego' in msg_lower or 'module go' in msg_lower:
         return jsonify({
             "reply": "ModuleGo helps Republic Polytechnic students discover and compare modules. Tell me your career goals and I'll recommend the right modules for you!",
@@ -2153,7 +2261,6 @@ def gobot_chat():
 
 def _load_career_paths() -> list:
     """Load career paths from DB (SQLite/PostgreSQL), with file + hardcoded fallback."""
-    # SQLite path (dev/test)
     if use_sqlite_reviews():
         try:
             with database_connection() as conn:
@@ -2169,7 +2276,6 @@ def _load_career_paths() -> list:
             return paths
         return _CAREER_FALLBACK
 
-    # PostgreSQL path
     if use_postgres():
         try:
             with pg_connection() as conn, conn.cursor() as cur:

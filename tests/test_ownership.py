@@ -1,12 +1,10 @@
 """Hybrid guest/account ownership and CSRF tests."""
 
 import re
-import time
 
 import pytest
 
 import app as app_module
-import auth_routes
 
 
 @pytest.fixture()
@@ -29,26 +27,23 @@ def create_review(client, module_code="C270", rating=5, **extra):
     return client.post("/api/reviews", json=payload)
 
 
-def login_as(client, monkeypatch, user_id="user-1", name="A Student"):
-    """Install a verified test account in the Flask session."""
-    monkeypatch.setattr(
-        auth_routes,
-        "verify_access_token",
-        lambda _token: {
-            "id": user_id,
-            "email": f"{user_id}@example.test",
-            "user_metadata": {"display_name": name},
-        },
-    )
-    with client.session_transaction() as session:
-        session[auth_routes.ACCESS_TOKEN_KEY] = f"access-{user_id}"
-        session[auth_routes.REFRESH_TOKEN_KEY] = f"refresh-{user_id}"
-        session[auth_routes.EXPIRES_AT_KEY] = int(time.time()) + 3600
-        session[auth_routes.USER_KEY] = {
-            "id": user_id,
-            "email": f"{user_id}@example.test",
-            "display_name": name,
-        }
+def login_as(client, user_id="user-1", name="A Student",
+             email=None, password="testpass1"):
+    """Register and log in as a test user via Flask-Login."""
+    if email is None:
+        email = f"{user_id}@example.com"
+    # Register (ignore if already exists)
+    client.post("/register", data={
+        "display_name": name,
+        "email": email,
+        "password": password,
+        "confirm_password": password,
+    })
+    # Login
+    client.post("/login", data={
+        "email": email,
+        "password": password,
+    })
 
 
 def test_public_reviews_hide_private_ownership_fields(client):
@@ -87,8 +82,8 @@ def test_backend_rejects_self_vote(client):
     assert "own review" in response.get_json()["error"]
 
 
-def test_account_review_visibility_and_bookmarks(client, monkeypatch):
-    login_as(client, monkeypatch, name="Jamie Tan")
+def test_account_review_visibility_and_bookmarks(client):
+    login_as(client, name="Jamie Tan")
 
     anonymous = create_review(client, is_anonymous=True).get_json()
     assert anonymous["author"]["label"] == "Anonymous student"
@@ -116,6 +111,8 @@ def test_account_review_visibility_and_bookmarks(client, monkeypatch):
 
 def test_profile_name_sync_updates_only_owned_review_snapshots(client):
     """Renaming an account preserves visibility, content, and timestamps."""
+    login_as(client, user_id="user-1", name="Old Name")
+
     with app_module.database_connection() as conn:
         conn.executemany(
             '''INSERT INTO REVIEWS
@@ -195,7 +192,7 @@ def test_profile_name_sync_updates_only_owned_review_snapshots(client):
         }
 
 
-def test_guest_claim_keeps_account_review_on_conflict(client, monkeypatch):
+def test_guest_claim_keeps_account_review_on_conflict(client):
     guest_review = create_review(client, rating=2).get_json()
     other_guest = app_module.app.test_client()
     other_review = create_review(other_guest, "C110", rating=4).get_json()
@@ -204,7 +201,7 @@ def test_guest_claim_keeps_account_review_on_conflict(client, monkeypatch):
         json={"vote_type": 1},
     ).status_code == 200
 
-    login_as(client, monkeypatch, name="Account Owner")
+    login_as(client, name="Account Owner")
     account_review = create_review(client, rating=5).get_json()
     response = client.post(
         "/api/ownership/claim",

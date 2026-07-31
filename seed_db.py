@@ -95,7 +95,6 @@ def create_tables(conn):
                 ON reviews (module_code, guest_owner_hash)
                 WHERE guest_owner_hash IS NOT NULL
         """)
-        # Review votes table — matches spec schema
         cur.execute("""
             CREATE TABLE IF NOT EXISTS review_votes (
                 id BIGSERIAL PRIMARY KEY,
