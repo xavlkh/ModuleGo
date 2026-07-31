@@ -33,7 +33,7 @@
             </div>
             <div id="filterPanel" class="grid transition-[grid-template-rows] duration-300 ease-out" style="grid-template-rows: 0fr;">
                 <div class="overflow-hidden">
-                    <div class="pt-2 border-t border-zinc-200/50 dark:border-zinc-700/50">
+                    <div class="pt-2">
                         <div class="flex flex-col sm:flex-row gap-2 items-stretch">
                             {{ selectField('schoolFilter', [
                                 ('all', 'All Schools'),
@@ -146,7 +146,6 @@
 <script>
     const INITIAL_QUERY = {{ query | tojson }};
 
-    // #4 - Recently Viewed
     function renderRecent() {
       const box = document.getElementById('recent-viewed');
       if (!box) return;
@@ -160,7 +159,6 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         setTimeout(renderRecent, 800);
-        // #5 - Wire up Share / Export
         document.getElementById('shareBtn')?.addEventListener('click', function() { ShareManager.copyLink(this); });
         document.getElementById('exportBtn')?.addEventListener('click', () => ShareManager.exportCSV());
     });

@@ -230,9 +230,8 @@ const DataManager = {
 
     normalizeSearchText(value) {
         return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    }, 
+    },
 
-    // #4 - Recently Viewed
     getRecentlyViewed() {
         try {
             return JSON.parse(localStorage.getItem('recent_modules') || '[]');

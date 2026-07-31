@@ -37,22 +37,12 @@ function escapeHtml(value) {
     })[character]);
 }
 
-/**
- * Generate star rating HTML markup.
- * @param {number} rating - The rating value (1-5).
- * @returns {string} HTML string with filled and empty stars.
- */
 function createStars(rating) {
     const filled = '<i data-lucide="star" class="w-4 h-4 inline-block fill-amber-400 text-amber-400"></i>'.repeat(rating);
     const empty = '<i data-lucide="star" class="w-4 h-4 inline-block text-amber-400"></i>'.repeat(5 - rating);
     return filled + empty;
 }
 
-/**
- * Normalize a timestamp string to a Date object.
- * @param {string} value - ISO or space-separated timestamp.
- * @returns {Date|null} Parsed Date or null if invalid.
- */
 function parseTimestamp(value) {
     if (!value) return null;
     const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
@@ -60,12 +50,6 @@ function parseTimestamp(value) {
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/**
- * Display a status message in an element with appropriate styling.
- * @param {HTMLElement} element - The target element.
- * @param {string} message - The message text.
- * @param {'success'|'danger'} type - The message type.
- */
 function showMessage(element, message, type) {
     const colorMap = {
         success: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700',
@@ -75,12 +59,6 @@ function showMessage(element, message, type) {
     element.className = `mb-4 rounded-lg px-4 py-2.5 text-sm font-medium ${colorMap[type] || colorMap.danger}`;
 }
 
-/**
- * Generate HTML for review edit/delete action buttons.
- * @param {number} reviewId - The review ID.
- * @param {boolean} [isOwner=false] - Whether the current user owns this review.
- * @returns {string} HTML string for the action buttons.
- */
 function createReviewActionsHTML(reviewId, isOwner = false) {
     if (!isOwner) return '';
     return `
@@ -95,11 +73,6 @@ function createReviewActionsHTML(reviewId, isOwner = false) {
     `;
 }
 
-/**
- * Format a date as DD/MM/YY HH:MM.
- * @param {Date} date - The date to format.
- * @returns {string} Formatted date string.
- */
 function formatReviewDate(date) {
     const dd = String(date.getDate()).padStart(2, '0');
     const mm = String(date.getMonth() + 1).padStart(2, '0');
@@ -172,13 +145,6 @@ async function handleVote(reviewId, voteType, articleSelector) {
     }
 }
 
-/**
- * Generate vote button HTML for a review card.
- * @param {number} reviewId - The review ID.
- * @param {Object} votes - {score, user_vote} object.
- * @param {boolean} isOwnReview - Whether the current user wrote this review.
- * @returns {string} HTML string for the vote button group.
- */
 function createVoteButtonsHTML(reviewId, votes, isOwnReview) {
     const upActive = votes.user_vote === 1;
     const downActive = votes.user_vote === -1;
