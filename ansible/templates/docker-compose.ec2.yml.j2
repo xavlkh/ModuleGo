@@ -8,14 +8,17 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-modulego}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    expose:
-      - "5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-modulego}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-modulego} -d ${POSTGRES_DB:-modulego}"]
       interval: 5s
       timeout: 3s
       retries: 10
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   app:
     image: ${GHCR_IMAGE:-ghcr.io/xavlkh/modulego:dev}
@@ -26,6 +29,15 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   pgdata:
