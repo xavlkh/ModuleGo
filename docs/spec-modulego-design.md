@@ -1,11 +1,11 @@
 ---
 title: ModuleGo - Republic Polytechnic Module Viewer Design Specification
-version: 9.0
+version: 10.0
 date_created: 2026-06-29
-last_updated: 2026-07-29
+last_updated: 2026-07-31
 owner: Developer
 status: 'In Progress'
-tags: ['design', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'ui-redesign', 'reviews', 'voting', 'minors', 'career-paths', 'gobot', 'bookmarks', 'share']
+tags: ['design', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'postgresql', 'flask-login', 'bcrypt', 'ui-redesign', 'reviews', 'voting', 'minors', 'career-paths', 'gobot', 'bookmarks', 'share']
 ---
 
 # Introduction
@@ -20,20 +20,22 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 
 **Scope:** Full-stack web application with:
 - Frontend: Vanilla JS, Tailwind CSS (glassmorphism), and HTML
-- Backend: Python Flask server with Supabase PostgreSQL (modules, courses, minors, reviews, career paths)
+- Backend: Python Flask server with PostgreSQL (modules, courses, minors, reviews, career paths) via psycopg2, with SQLite fallback for tests
+- Authentication: Flask-Login with bcrypt password hashing, session-based
 - API endpoints for module data, review management, voting, career paths, GoBot chatbot, bookmarks, and sharing
 
 **Audience:** Republic Polytechnic students seeking to explore modules and their associated diplomas.
 
 **Assumptions:**
-- Module data is stored in Supabase `rp_modules` table and served via `/api/modules`
-- Course (diploma) data is served via `app/static/local-data/scripts/step3_scrape_diplomas.py` → Supabase `rp_courses` → `/api/courses`
-- Minor programme data is served via `app/static/local-data/scripts/step4_scrape_minors.py` → Supabase → `/api/minors`
-- Career path data is served via `app/static/local-data/scripts/step5_generate_career_paths.py` → Supabase → `/api/career-paths`
-- Review data (ratings and comments) is stored in Supabase `reviews` table
-- Review votes are stored in Supabase `review_votes` table
-- Backend server runs on Python Flask and proxies all Supabase calls
-- SQLite is used only for automated tests
+- Module data is stored in PostgreSQL `rp_modules` table and served via `/api/modules`
+- Course (diploma) data is served via `app/static/local-data/scripts/step3_scrape_diplomas.py` → PostgreSQL `rp_courses` → `/api/courses`
+- Minor programme data is served via `app/static/local-data/scripts/step4_scrape_minors.py` → PostgreSQL `rp_minors` → `/api/minors`
+- Career path data is served via `app/static/local-data/scripts/step5_generate_career_paths.py` → PostgreSQL `career_paths` → `/api/career-paths`
+- Review data (ratings and comments) is stored in PostgreSQL `reviews` table
+- Review votes are stored in PostgreSQL `review_votes` table
+- User accounts are stored in PostgreSQL `users` table with bcrypt password hashes
+- Backend server runs on Python Flask and proxies all PostgreSQL calls
+- SQLite is used only for automated tests and local development without PostgreSQL
 - GoBot chatbot uses Gemini API for AI-assisted module recommendations
 - Bookmarks and share functionality are client-side (localStorage)
 
@@ -47,6 +49,9 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 | Client-side filtering | Searching/filtering data in the browser without server requests |
 | Glassmorphism | A UI design trend using translucent backgrounds with blur and border effects |
 | Tailwind CSS | A utility-first CSS framework used for styling the application |
+| Flask-Login | Flask extension providing session-based user authentication |
+| bcrypt | Password hashing algorithm used for secure password storage |
+| Owner token | Legacy term for anonymous review ownership; replaced by signed guest cookies and Flask-Login sessions |
 
 ## 3. Requirements, Constraints & Guidelines
 
@@ -61,13 +66,26 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - **REQ-007**: User can filter modules by School using collapsible filter panel
 - **REQ-008**: User can compare two modules side-by-side
 - **REQ-009**: User can leave reviews with ratings (1-5) and comments on modules
-- **REQ-010**: Reviews are stored in Supabase `reviews` table
+- **REQ-010**: Reviews are stored in PostgreSQL `reviews` table
 - **REQ-011**: User can view existing reviews for each module
 - **REQ-012**: User can filter by diploma (populated from `/api/courses`)
 - **REQ-013**: User can filter by minimum average rating (5 Stars, 4 Stars & Up, etc.)
 - **REQ-014**: User can toggle "Active" filter (modules appearing in at least one diploma)
 - **REQ-015**: Filter state persisted in URL params (`q`, `school`, `diploma`, `rating`, `active`, `page`)
 - **REQ-016**: Module details show a five-to-one-star rating distribution calculated from backend review data
+
+### Authentication & Account Requirements
+
+- **REQ-A01**: User can register with display name, email, and password (min 8 chars)
+- **REQ-A02**: User can log in with email and password; session persists across browser restarts
+- **REQ-A03**: User can log out, clearing the server-side session
+- **REQ-A04**: Authenticated users see their display name in the navbar
+- **REQ-A05**: User can update display name on the profile page
+- **REQ-A06**: User can change password after verifying current password
+- **REQ-A07**: User can delete account after password verification and confirmation step
+- **REQ-A08**: Guest users (not logged in) can create reviews and votes via signed cookies
+- **REQ-A09**: Logged-in users can claim guest reviews/votes via cookie match in `identity_owns()`
+- **REQ-A10**: Registration does not require email confirmation; accounts are immediately active
 
 ### Bonus Requirements
 
@@ -82,7 +100,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - **REQ-V02**: Each user can only vote once per review (changing vote replaces previous)
 - **REQ-V03**: Vote buttons show current user's vote state (filled icon if voted)
 - **REQ-V04**: Vote score (net upvotes minus downvotes) displayed next to buttons
-- **REQ-V05**: Votes stored in Supabase (production) and SQLite (tests)
+- **REQ-V05**: Votes stored in PostgreSQL (production) and SQLite (tests)
 - **REQ-V06**: Review owner cannot vote on their own review
 
 ### GoBot Chatbot Requirements
@@ -118,11 +136,12 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - **CON-001**: Use only Vanilla JavaScript (no frameworks like React, Vue, Angular)
 - **CON-002**: Use Tailwind CSS for styling (via CDN) with glassmorphism design tokens
 - **CON-003**: Use HTML5 semantic elements
-- **CON-004**: Backend uses Python Flask with Supabase PostgreSQL
-- **CON-005**: Module data is stored in Supabase, diploma data is served via `/api/courses`
+- **CON-004**: Backend uses Python Flask with PostgreSQL (via psycopg2)
+- **CON-005**: Module data is stored in PostgreSQL, diploma data is served via `/api/courses`
 - **CON-006**: Project follows Flask app structure: `app/templates/` for HTML, `app/static/` for assets
-- **CON-007**: Frontend never calls Supabase directly; all requests go through Flask API
+- **CON-007**: Frontend never calls PostgreSQL directly; all requests go through Flask API
 - **CON-008**: Custom modal implementation replaces Bootstrap Modal (no Bootstrap JS dependency)
+- **CON-009**: SQLite used as fallback for local development and automated tests only
 
 ### Design Guidelines
 
@@ -140,19 +159,20 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 
 ## 4. Interfaces & Data Contracts
 
-### Module Data Schema (served via `/api/modules` from Supabase)
+### Module Data Schema (served via `/api/modules` from PostgreSQL)
 
 ```json
 {
   "code": "string (e.g., 'A001')",
   "name": "string (e.g., '3D Printing Hacks')",
-  "description": "string (module description text)",
+  "synopsis": "string (module description text)",
   "school": "string (e.g., 'School of Applied Science')",
+  "school_abbr": "string (e.g., 'SAS')",
   "url": "string (URL to RP module page)"
 }
 ```
 
-### Diploma Mapping Schema (Supabase `rp_courses` → `/api/courses`)
+### Diploma Mapping Schema (PostgreSQL `rp_courses` → `/api/courses`)
 
 ```json
 {
@@ -165,64 +185,85 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
   "major_modules": ["BMS2001", ...],
   "discipline_modules": ["BMS3001", ...],
   "elective_modules": ["C270", ...],
-  "industry_modules": ["BMS4001", ...]
+  "industry_modules": ["BMS4001", ...],
+  "major_groups": {}
 }
 ```
 
-Generated by `app/static/local-data/scripts/step3_scrape_diplomas.py` and imported into Supabase. Module comparison summaries are generated on-demand via Gemini (`/api/comparison/generate`).
+Generated by `app/static/local-data/scripts/step3_scrape_diplomas.py` and imported into PostgreSQL. Module comparison summaries are generated on-demand via Gemini (`/api/comparison/generate`).
 
-### Review Schema (Supabase)
+### User Schema
 
 ```sql
--- Stored in the shared Supabase PostgreSQL database.
--- The Flask backend proxies all reads/writes through API endpoints.
+-- PostgreSQL
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- SQLite (tests/local)
+CREATE TABLE USERS (
+    ID TEXT PRIMARY KEY,
+    EMAIL TEXT NOT NULL UNIQUE,
+    DISPLAY_NAME TEXT NOT NULL,
+    PASSWORD_HASH TEXT NOT NULL,
+    CREATED_AT DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**Authentication model:** Flask-Login manages server-side sessions. Passwords are hashed with bcrypt. No email confirmation is required; accounts are immediately active. Guest identity is tracked via signed HTTP-only cookies (HMAC hash stored in database). The `User` model (`user_model.py`) handles all CRUD operations for both SQLite and PostgreSQL backends.
+
+### Review Schema
+
+```sql
+-- PostgreSQL
 CREATE TABLE reviews (
-    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    module_code text NOT NULL,
-    rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
-    comment text NOT NULL DEFAULT '',
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz,
-    owner_token text, -- legacy rows only
-    user_id uuid references auth.users(id) on delete set null,
-    guest_owner_hash text,
-    is_anonymous boolean not null default true,
-    author_display_name text
+    id SERIAL PRIMARY KEY,
+    module_code TEXT NOT NULL,
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ,
+    user_id TEXT,  -- references users(id) for authenticated reviews
+    guest_owner_hash TEXT,  -- HMAC hash for guest-owned reviews
+    is_anonymous BOOLEAN NOT NULL DEFAULT TRUE,
+    author_display_name TEXT
 );
 
 -- Index for fast per-module lookups.
 CREATE INDEX idx_reviews_module_code ON reviews (module_code);
 
--- Foreign key to rp_modules (applied via migration).
-ALTER TABLE reviews
-    ADD CONSTRAINT fk_reviews_module
-    FOREIGN KEY (module_code) REFERENCES rp_modules(module_code);
+-- Unique constraint: one review per account per module.
+CREATE UNIQUE INDEX uq_reviews_account_module
+    ON reviews (module_code, user_id) WHERE user_id IS NOT NULL;
+
+-- Unique constraint: one review per guest per module.
+CREATE UNIQUE INDEX uq_reviews_guest_module
+    ON reviews (module_code, guest_owner_hash)
+    WHERE guest_owner_hash IS NOT NULL;
 ```
 
-**Ownership model:** Account ownership comes only from a verified Supabase
-user ID. Guest ownership comes only from a signed HTTP-only 30-day cookie;
-Flask stores an HMAC hash of the guest ID. The browser cannot submit ownership
-IDs. Public review responses expose only `is_owner` and
-`author.{anonymous,label}`. Existing `owner_token` rows remain readable legacy
-content.
+**Ownership model:** Account ownership comes from a verified Flask-Login session (`current_user.id`). Guest ownership comes from a signed HTTP-only 30-day cookie; Flask stores an HMAC hash of the guest ID. The browser cannot submit ownership IDs. Public review responses expose only `is_owner` and `author.{anonymous,label}`. When a logged-in user updates a guest review, ownership transfers automatically (`user_id` is set, `guest_owner_hash` cleared).
 
 ### Review Votes Schema
 
 ```sql
--- Supabase (PostgreSQL)
+-- PostgreSQL
 CREATE TABLE review_votes (
-    id BIGSERIAL PRIMARY KEY,
-    review_id BIGINT NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
-    owner_token TEXT, -- legacy rows only
-    user_id uuid references auth.users(id) on delete cascade,
-    guest_owner_hash text,
-    vote_type SMALLINT NOT NULL CHECK (vote_type IN (1, -1)),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    id SERIAL PRIMARY KEY,
+    review_id INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+    user_id TEXT,  -- references users(id) for authenticated votes
+    guest_owner_hash TEXT,  -- HMAC hash for guest votes
+    vote_type INTEGER NOT NULL CHECK (vote_type IN (1, -1)),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX review_votes_one_per_account
+CREATE UNIQUE INDEX uq_votes_account_review
     ON review_votes (review_id, user_id) WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX review_votes_one_per_guest
+CREATE UNIQUE INDEX uq_votes_guest_review
     ON review_votes (review_id, guest_owner_hash)
     WHERE guest_owner_hash IS NOT NULL;
 
@@ -230,7 +271,6 @@ CREATE UNIQUE INDEX review_votes_one_per_guest
 CREATE TABLE REVIEW_VOTES (
     ID INTEGER PRIMARY KEY AUTOINCREMENT,
     REVIEW_ID INTEGER NOT NULL,
-    OWNER_TOKEN TEXT,
     USER_ID TEXT,
     GUEST_OWNER_HASH TEXT,
     VOTE_TYPE INTEGER NOT NULL CHECK (VOTE_TYPE IN (1, -1)),
@@ -239,23 +279,25 @@ CREATE TABLE REVIEW_VOTES (
 );
 ```
 
-**Voting model:** One partial unique index enforces one vote per account and
-another enforces one vote per signed guest. Flask rejects self-votes using the
-private owner fields even when an account review is publicly anonymous.
-`VoteRepository` supports SQLite tests, direct PostgreSQL and Supabase.
+**Voting model:** One partial unique index enforces one vote per account and another enforces one vote per signed guest. Flask rejects self-votes using the private owner fields even when an account review is publicly anonymous. `VoteRepository` supports SQLite tests and direct PostgreSQL.
 
 ### Backend API Endpoints
 
 | Endpoint | Method | Description | Request Body | Response |
 |----------|--------|-------------|--------------|----------|
-| `/api/modules` | GET | List all modules from Supabase | - | Array of module objects |
-| `/api/courses` | GET | List all courses (diplomas) from Supabase | - | Array of course objects |
-| `/api/minors` | GET | List all minor programmes from Supabase | - | Array of minor objects |
+| `/api/modules` | GET | List all modules from PostgreSQL | - | Array of module objects |
+| `/api/courses` | GET | List all courses (diplomas) from PostgreSQL | - | Array of course objects |
+| `/api/minors` | GET | List all minor programmes from PostgreSQL | - | Array of minor objects |
 | `/api/career-paths` | GET | List all career paths | - | Array of career path objects |
 | `/api/reviews` | GET | List all reviews (dashboard) | - | Array of review objects |
-| `/register` | GET/POST | Register through Supabase Auth | Form fields | Confirmation message |
-| `/login` | GET/POST | Log in through Supabase Auth | Form fields | Secure Flask session |
-| `/logout` | POST | Revoke and clear session | CSRF form | Redirect |
+| `/register` | GET/POST | Register account (Flask-Login) | Form fields | Redirect to login |
+| `/login` | GET/POST | Log in (Flask-Login session) | Form fields | Secure Flask session |
+| `/logout` | POST | Clear session | CSRF form | Redirect |
+| `/profile` | GET | Account settings page | - | Profile template |
+| `/profile` | POST | Update display name | Form fields | Redirect |
+| `/profile/password` | POST | Change password | Form fields | Redirect |
+| `/profile/delete/verify` | POST | Verify password for deletion | Form data | `{ verified, confirmation_token }` |
+| `/profile/delete` | POST | Delete account (with token) | Form fields | Redirect |
 | `/api/auth/me` | GET | Safe current-user state | - | `{ authenticated, user }` |
 | `/api/reviews` | POST | Create a new review | `{ module_code, rating, comment, is_anonymous? }` | Public review object |
 | `/api/reviews/<module_code>` | GET | Get reviews for a module | - | Array of review objects |
@@ -266,12 +308,14 @@ private owner fields even when an account review is publicly anonymous.
 | `/api/reviews/<review_id>/vote` | POST | Add or update vote | `{ vote_type: 1 \| -1 }` | `{ score, user_vote }` |
 | `/api/reviews/<review_id>/vote` | DELETE | Remove vote | - | `{ score, user_vote: 0 }` |
 | `/api/reviews/votes` | POST | Bulk vote scores for multiple reviews | `{ review_ids: [...] }` | `{ votes: { review_id: { score, user_vote } } }` |
-| `/api/bookmarks` | GET/DELETE | List or clear account bookmarks | - | Codes or 204 |
-| `/api/bookmarks/<module_code>` | PUT/DELETE | Add/remove account bookmark | - | Code or 204 |
-| `/api/ownership/pending` | GET | Count claimable guest activity | - | Review/vote counts |
+| `/api/bookmarks` | GET | List account bookmarks | - | `{ module_codes: [...] }` |
+| `/api/bookmarks/<module_code>` | PUT | Add account bookmark | - | `{ module_code }` |
+| `/api/bookmarks/<module_code>` | DELETE | Remove account bookmark | - | 204 |
+| `/api/bookmarks` | DELETE | Clear all account bookmarks | - | 204 |
+| `/api/ownership/pending` | GET | Count claimable guest activity | - | `{ reviews, votes }` |
 | `/api/ownership/claim` | POST | Explicit transactional guest claim | `{ bookmark_codes }` | Claim summary |
-| `/api/comparison/generate` | POST | Generate Gemini comparison summary | `{ module1, module2 }` | Comparison text |
-| `/api/gobot` | POST | Chatbot endpoint | `{ message }` | `{ response }` |
+| `/api/comparison/generate` | POST | Generate Gemini comparison summary | `{ module_codes: [...] }` | Comparison text |
+| `/api/gobot` | POST | Chatbot endpoint | `{ message, history? }` | `{ reply, links, suggestions }` |
 
 Each `distribution` contains string keys `"5"` through `"1"`, including ratings with a zero count. Example:
 
@@ -291,6 +335,7 @@ Each `distribution` contains string keys `"5"` through `"1"`, including ratings 
 app/templates/base.html (Layout Partial - Tailwind CSS with glassmorphism)
 ├── Common HTML head, Tailwind CDN, Inter + Outfit fonts, Lucide Icons
 ├── Glass navbar (sticky, translucent, backdrop-blur)
+│   └── Auth-aware: login/register links or user dropdown
 ├── {% block content %}{% endblock %} ← page-specific content injected here
 ├── Glass footer (dark slate background)
 └── Mobile menu toggle script
@@ -342,6 +387,23 @@ app/templates/modules/reviews.html (Review Dashboard)
 │   └── Vote Button Group (thumbs-up, score, thumbs-down)
 └── Edit Review Modal (custom implementation)
 
+app/templates/auth/register.html (Registration Page)
+├── {% extends "base.html" %}
+├── Registration form (display name, email, password, confirm)
+└── Link to login page
+
+app/templates/auth/login.html (Login Page)
+├── {% extends "base.html" %}
+├── Login form (email, password)
+└── Link to registration page
+
+app/templates/auth/profile.html (Account Settings)
+├── {% extends "base.html" %}
+├── Profile form (display name)
+├── Password change form (current, new, confirm)
+├── Account deletion form (current password, confirmation step)
+└── Review/bookmark counts
+
 app/static/js/gobot.js (Chatbot - Gemini-powered)
 ├── GoBot object with welcome popup
 ├── Chat UI with quick-send buttons
@@ -378,44 +440,51 @@ app/static/js/share.js (Share functionality)
 - **AC-012**: Given user clicks a module, When detail view opens, Then full description and diploma list are displayed
 - **AC-013**: Given module has diplomas, When detail view opens, Then diploma names are listed with links to diploma pages
 
+### Authentication
+- **AC-014a**: Given user is on register page, When user submits valid form (display name, email, password, confirm), Then account is created and user is redirected to login
+- **AC-014b**: Given user is on login page, When user submits valid credentials, Then session is created and user is redirected to home page
+- **AC-014c**: Given user is logged in, When user visits /profile, Then profile page shows display name, review count, and bookmark count
+- **AC-014d**: Given user is logged in, When user changes password (current + new + confirm), Then password is updated and confirmation is shown
+- **AC-014e**: Given user is logged in, When user deletes account (verify password → confirm), Then account and all associated data are permanently removed
+
 ### Review System
-- **AC-014**: Given user is on module detail, When user submits review with rating and comment, Then review is saved to backend database
-- **AC-015**: Given reviews exist for a module, When user views module detail, Then existing reviews are displayed with rating and timestamp
-- **AC-016**: Given user submits review, When page reloads, Then review persists in database
+- **AC-015**: Given user is on module detail, When user submits review with rating and comment, Then review is saved to PostgreSQL database
+- **AC-016**: Given reviews exist for a module, When user views module detail, Then existing reviews are displayed with rating and timestamp
+- **AC-017**: Given user submits review, When page reloads, Then review persists in database
 
 ### Module Comparison
-- **AC-017**: Given user is on comparison page, When user searches and selects two modules, Then comparison table displays side-by-side
-- **AC-018**: Given two modules are selected, When comparison table loads, Then module attributes are compared in rows
+- **AC-018**: Given user is on comparison page, When user searches and selects two modules, Then comparison table displays side-by-side
+- **AC-019**: Given two modules are selected, When comparison table loads, Then module attributes are compared in rows
 
 ### Responsive Design
-- **AC-019**: Given user is on mobile (< 768px), When viewing search results, Then modules display in single column
-- **AC-020**: Given user is on tablet (768px-1024px), When viewing search results, Then modules display in 2 columns
-- **AC-021**: Given user is on desktop (> 1024px), When viewing search results, Then modules display in 3 columns
+- **AC-020**: Given user is on mobile (< 768px), When viewing search results, Then modules display in single column
+- **AC-021**: Given user is on tablet (768px-1024px), When viewing search results, Then modules display in 2 columns
+- **AC-022**: Given user is on desktop (> 1024px), When viewing search results, Then modules display in 3 columns
 
 ### Loading States
-- **AC-022**: Given page is loading, When data is being fetched, Then loading animation is displayed
-- **AC-023**: Given search is filtering, When results are updating, Then subtle loading indicator is shown
+- **AC-023**: Given page is loading, When data is being fetched, Then loading animation is displayed
+- **AC-024**: Given search is filtering, When results are updating, Then subtle loading indicator is shown
 
 ### Rating Distribution
-- **AC-024**: Given a module has reviews, When its detail window opens, Then all five rating buckets are shown with counts and bars proportional to the total review count
-- **AC-025**: Given a module has no reviews, When its detail window opens, Then "No ratings yet" is shown and the distribution is hidden
+- **AC-025**: Given a module has reviews, When its detail window opens, Then all five rating buckets are shown with counts and bars proportional to the total review count
+- **AC-026**: Given a module has no reviews, When its detail window opens, Then "No ratings yet" is shown and the distribution is hidden
 
 ### Review Voting
-- **AC-026**: Given user views a review, When user clicks upvote, Then score increments by 1, upvote button fills, and downvote clears
-- **AC-027**: Given user views a review, When user clicks downvote, Then score decrements by 1, downvote button fills, and upvote clears
-- **AC-028**: Given user has voted on a review, When user clicks the same vote again, Then vote is removed and score returns to previous value
-- **AC-029**: Given user is the review owner, When user views vote buttons, Then vote buttons are disabled or hidden
-- **AC-030**: Given user has voted, When page reloads, Then vote state persists (filled icon for active vote)
+- **AC-027**: Given user views a review, When user clicks upvote, Then score increments by 1, upvote button fills, and downvote clears
+- **AC-028**: Given user views a review, When user clicks downvote, Then score decrements by 1, downvote button fills, and upvote clears
+- **AC-029**: Given user has voted on a review, When user clicks the same vote again, Then vote is removed and score returns to previous value
+- **AC-030**: Given user is the review owner, When user views vote buttons, Then vote buttons are disabled or hidden
+- **AC-031**: Given user has voted, When page reloads, Then vote state persists (filled icon for active vote)
 
 ## 6. Test Automation Strategy
 
 - **Test Levels**: Automated API tests (pytest), manual browser testing
 - **Frameworks**: pytest for backend API tests
-- **Test Data Management**: SQLite in-memory database for isolated tests
+- **Test Data Management**: SQLite in-memory database for isolated tests (monkeypatch `app_module.db_name`)
 - **Coverage Requirements**: All API endpoints tested, manual testing for UI
-- **Performance Testing**: Test with full Supabase dataset, ensure smooth filtering
+- **Performance Testing**: Test with full PostgreSQL dataset, ensure smooth filtering
 - **API Testing**: Automated pytest suite for Flask endpoints
-- **Database Testing**: Verify Supabase operations via mocked client in tests
+- **Database Testing**: Verify PostgreSQL operations via direct psycopg2 or mocked client in tests; SQLite fallback for test isolation
 
 ## 7. Rationale & Context
 
@@ -426,27 +495,27 @@ app/static/js/share.js (Share functionality)
 4. **Inter + Outfit font family**: Inter for body text, Outfit for display headings — clean, modern sans-serif optimized for screen readability
 5. **Emerald color palette**: RP brand green as single accent color, restrained to CTAs + active states
 6. **Client-side filtering**: No server needed for search, instant feedback, works offline
-7. **Supabase for modules and reviews**: Managed PostgreSQL with real-time capabilities, no self-hosted database
+7. **PostgreSQL for modules and reviews**: Self-hosted PostgreSQL via Docker Compose, no third-party managed service dependency
 8. **Flask app structure**: Standard Python Flask layout with templates, static, and data separation
 9. **Collapsible filter panel**: School, diploma, rating, and active filters in a toggleable panel, state persisted in URL params
 10. **GoBot chatbot**: Gemini-powered chatbot with early-return handler pipeline, no hardcoded word lists, data-driven heuristics
-11. **Anonymous ownership**: Token-based ownership for reviews without user authentication, using UUID hex stored in localStorage
-12. **Triple-branch repository pattern**: `ReviewRepository` and `VoteRepository` support SQLite (tests), PostgreSQL, and Supabase backends
+11. **Flask-Login authentication**: Session-based auth with bcrypt password hashing, guest-to-account ownership transfer via signed cookies
+12. **Dual-branch repository pattern**: `ReviewRepository` and `VoteRepository` support SQLite (tests) and PostgreSQL (production) backends
 
 **Trade-offs:**
 - Client-side filtering requires loading entire dataset upfront
-- No user authentication means reviews are anonymous and not verifiable
-- Supabase dependency means reviews require network connectivity
+- Guest reviews without authentication are identified by signed cookies (limited to one browser)
+- PostgreSQL runs inside Docker Compose — requires Docker for production
 - Tailwind CDN adds runtime CSS generation (acceptable for student project scale)
 
 ## 8. Dependencies & External Integrations
 
 ### Data Dependencies
-- **DAT-001**: Supabase `rp_modules` table - Module dataset stored in PostgreSQL
-- **DAT-002**: Supabase `rp_courses` table - Diploma/course data scraped from RP website
-- **DAT-003**: Supabase `rp_minors` table - Minor programme data scraped from RP website
+- **DAT-001**: PostgreSQL `rp_modules` table - Module dataset
+- **DAT-002**: PostgreSQL `rp_courses` table - Diploma/course data scraped from RP website
+- **DAT-003**: PostgreSQL `rp_minors` table - Minor programme data scraped from RP website
 - **DAT-004**: Gemini API — On-demand module comparison generation and GoBot chatbot responses
-- **DAT-005**: Career path data (Supabase or local JSON) — Module-to-career matching for GoBot
+- **DAT-005**: Career path data (PostgreSQL or local JSON) — Module-to-career matching for GoBot
 
 ### External Links
 - **EXT-001**: RP Module Pages - Links to official module information
@@ -459,24 +528,27 @@ app/static/js/share.js (Share functionality)
 - **INF-004**: Lucide Icons via CDN (`unpkg.com/lucide`)
 - **INF-005**: Python 3.12+ runtime
 - **INF-006**: Flask web framework
-- **INF-007**: Supabase project with `rp_modules`, `rp_courses`, `rp_minors`, `reviews`, `review_votes`, and `career_paths` tables
+- **INF-007**: PostgreSQL database (Docker Compose or standalone) with `rp_modules`, `rp_courses`, `rp_minors`, `reviews`, `review_votes`, `users`, `bookmarks`, and `career_paths` tables
 - **INF-008**: Scraping pipeline (`app/static/local-data/scripts/`) for automated data collection (5 steps: tokens, modules, diplomas, minors, career paths)
 - **INF-009**: Gemini API key for comparison generation and GoBot chatbot
 
 ### Backend Dependencies
 - **DEP-001**: Flask 3.1.3 - Web framework
-- **DEP-002**: supabase 2.31.0 - Supabase Python client
-- **DEP-003**: python-dotenv 1.2.2 - Environment variable loading
-- **DEP-004**: SQLite3 - Local review database (tests and offline fallback)
-- **DEP-005**: pytest>=8.0,<10.0 - Test framework
-- **DEP-006**: Flask-WTF>=1.2.0 - CSRF protection for forms and state-changing browser APIs
-- **DEP-007**: Flask-Limiter>=3.0.0 - Rate limiting (20/hr POST, 10/hr PUT/DELETE)
-- **DEP-008**: psycopg2-binary>=2.9,<3.0 - PostgreSQL adapter for production database
-- **DEP-009**: playwright>=1.50,<2.0 - Browser automation for scraping (token extraction)
-- **DEP-010**: requests>=2.32,<3.0 - HTTP client for scraping scripts
-- **DEP-011**: httpx>=0.27,<0.29 - Async HTTP client
-- **DEP-012**: crawl4ai>=0.2.0 - Web crawling framework
-- **DEP-013**: beautifulsoup4>=4.12 - HTML parsing for scraping
+- **DEP-002**: Flask-Login>=0.6.0 - Session-based user authentication
+- **DEP-003**: bcrypt>=4.0.0 - Password hashing
+- **DEP-004**: itsdangerous>=2.0,<3.0 - Signed cookie serialization for guest identity
+- **DEP-005**: python-dotenv 1.2.2 - Environment variable loading
+- **DEP-006**: SQLite3 - Local review database (tests and offline fallback)
+- **DEP-007**: pytest>=8.0,<10.0 - Test framework
+- **DEP-008**: Flask-WTF>=1.2.0 - CSRF protection for forms and state-changing browser APIs
+- **DEP-009**: Flask-Limiter>=3.0.0 - Rate limiting (20/hr POST, 10/hr PUT/DELETE)
+- **DEP-010**: psycopg2-binary>=2.9,<3.0 - PostgreSQL adapter for production database
+- **DEP-011**: playwright>=1.50,<2.0 - Browser automation for scraping (token extraction)
+- **DEP-012**: requests>=2.32,<3.0 - HTTP client for scraping scripts and Gemini API calls
+- **DEP-013**: httpx>=0.27,<0.29 - Async HTTP client
+- **DEP-014**: crawl4ai>=0.2.0 - Web crawling framework
+- **DEP-015**: beautifulsoup4>=4.12 - HTML parsing for scraping
+- **DEP-016**: email-validator>=2.0,<3.0 - Email validation for registration forms
 
 ## 9. Examples & Edge Cases
 
@@ -493,7 +565,7 @@ app/static/js/share.js (Share functionality)
 
 ### Comment Edge Cases
 - Empty comment submission: Prevent submission or show validation
-- Very long comments: Limit character count or allow scrolling
+- Very long comments: Limit character count (500 chars max) or allow scrolling
 - No comments yet: Show "No comments yet" message
 
 ### Voting Edge Cases
@@ -502,6 +574,13 @@ app/static/js/share.js (Share functionality)
 - User removes vote: Delete vote row, score updates
 - Review deleted with votes: CASCADE delete removes all associated votes
 - Multiple rapid clicks: Debounce or let upsert handle idempotency
+
+### Authentication Edge Cases
+- Duplicate email registration: Show "account already exists" message
+- Wrong password login: Show "invalid email or password" message
+- Profile update failure: Show error, retry suggestion
+- Account deletion with active reviews: CASCADE delete removes all user data
+- Guest-to-account transfer: Logged-in user updating a guest review claims ownership via cookie match
 
 ## 10. Validation Criteria
 
@@ -513,7 +592,7 @@ app/static/js/share.js (Share functionality)
 - [x] Active filter works correctly (modules in at least one diploma)
 - [x] Filter state persisted in URL params
 - [x] Module detail shows complete information and diploma list
-- [x] Review system saves to Supabase via Flask API
+- [x] Review system saves to PostgreSQL via Flask API
 - [x] Reviews display correctly with rating and timestamp
 - [x] Module comparison page works correctly
 - [x] Responsive design works on mobile, tablet, and desktop
@@ -524,13 +603,22 @@ app/static/js/share.js (Share functionality)
 - [x] Glassmorphism effects render properly (backdrop-blur, translucent backgrounds)
 - [x] Custom modals open and close correctly (keyboard, click-outside, close button)
 - [x] Flask backend starts and serves API endpoints
-- [x] Module data loads from Supabase via /api/modules
+- [x] Module data loads from PostgreSQL via /api/modules
+- [x] User registration creates account with bcrypt password hash
+- [x] User login creates Flask-Login session
+- [x] User logout clears session
+- [x] Profile page displays user info, review count, bookmark count
+- [x] Password change verifies current password before update
+- [x] Account deletion requires password verification and confirmation token
+- [x] Guest-to-account ownership transfer works via cookie match
 - [ ] Cross-browser testing (Chrome, Firefox, Safari, Edge)
 
 ## 11. Related Specifications / Further Reading
 
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 - [Tailwind CSS Theme Variables](https://tailwindcss.com/docs/theme)
+- [Flask-Login Documentation](https://flask-login.readthedocs.io/)
+- [bcrypt Documentation](https://pypi.org/project/bcrypt/)
 - [RP Diploma List](https://www.rp.edu.sg/education/diplomas/)
 - [RP Module List](https://www.rp.edu.sg/education/modules/)
 - [RP Updated Modules](https://lcs.rp.edu.sg/RPModuleSynopsis/)
