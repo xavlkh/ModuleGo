@@ -69,22 +69,22 @@ CSV equivalents are generated alongside each JSON file.
 - Module URLs are validated against the RP sitemap — only modules with actual pages get URLs
 - "School of Technology for the Arts" is normalized to "School of Technology for Arts, Media and Design"
 
-## Importing to Supabase
+## Loading into PostgreSQL
 
-After scraping, upsert the JSON output to Supabase:
+After scraping, load the JSON output into PostgreSQL:
 
 ```bash
 cd ../../  # project root
-python upsert_to_supabase.py
+python seed_db.py
 ```
 
-Requires `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env`. Reads the JSON files from `data/` and upserts to `rp_modules` and `rp_courses`.
+Requires `DATABASE_URL` in `.env` (or docker-compose). Reads the JSON files from `app/static/local-data/data/` and upserts to PostgreSQL tables.
 
 ## Automated Pipeline
 
 The scraping pipeline runs automatically via GitHub Actions every Sunday at 2am UTC. It can also be triggered manually from the Actions tab.
 
-The workflow (`.github/workflows/scrape.yml`) installs Python + Playwright Chromium, runs `run_all.py`, then `upsert_to_supabase.py`. Requires `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as repository secrets.
+The workflow (`.github/workflows/seed.yml`) installs Python + Playwright Chromium, runs `run_all.py`, then loads data into PostgreSQL via `seed_db.py`.
 
 ## Visible Browser Mode
 
