@@ -3,6 +3,7 @@
  * provides edit/delete via a modal.
  * @module reviews
  */
+
 const ReviewDashboard = {
     /** @type {Array<Object>} All reviews from /api/reviews. */
     reviews: [],
@@ -28,6 +29,9 @@ const ReviewDashboard = {
 
         try {
             await Promise.all([DataManager.loadData(), this.loadReviews()]);
+            this.initFromURL();
+            this._toggleClearBtn();
+            this._updateFilterToggleActive();
             this.render();
         } catch (error) {
             console.error('Could not initialize review dashboard:', error);
@@ -42,9 +46,14 @@ const ReviewDashboard = {
         this.elements = {
             list: document.getElementById('reviewDashboardList'),
             search: document.getElementById('reviewSearch'),
+            clearSearch: document.getElementById('clearreviewSearch'),
             confidenceFilter: document.getElementById('confidenceFilter'),
             ratingFilter: document.getElementById('ratingFilter'),
             sort: document.getElementById('reviewSort'),
+            confidenceFilterMobile: document.getElementById('confidenceFilterMobile'),
+            ratingFilterMobile: document.getElementById('ratingFilterMobile'),
+            sortMobile: document.getElementById('reviewSortMobile'),
+            clearFiltersMobile: document.getElementById('clearReviewFiltersMobile'),
             resultCount: document.getElementById('dashboardResultCount'),
             reviewCount: document.getElementById('dashboardReviewCount'),
             monthlyReviewCount: document.getElementById('dashboardMonthlyReviewCount'),
@@ -56,6 +65,9 @@ const ReviewDashboard = {
             editComment: document.getElementById('editReviewComment'),
             editAnonymous: document.getElementById('editReviewAnonymous'),
             saveButton: document.getElementById('saveDashboardReviewBtn'),
+            clearFilters: document.getElementById('clearReviewFilters'),
+            filterToggle: document.getElementById('reviewFilterToggle'),
+            filterPanel: document.getElementById('reviewFilterPanel'),
         };
     },
 
@@ -63,11 +75,134 @@ const ReviewDashboard = {
      * Attach event listeners to the search, filter, sort, and save controls.
      */
     bindEvents() {
-        this.elements.search.addEventListener('input', () => this.renderReviews());
-        this.elements.confidenceFilter.addEventListener('change', () => this.renderReviews());
-        this.elements.ratingFilter.addEventListener('change', () => this.renderReviews());
-        this.elements.sort.addEventListener('change', () => this.renderReviews());
+        this._toggleClearBtn = () => {
+            if (!this.elements.clearSearch) return;
+            this.elements.clearSearch.classList.toggle('hidden', !this.elements.search.value);
+            this.elements.clearSearch.classList.toggle('flex', !!this.elements.search.value);
+        };
+        this._toggleClearBtn();
+        this.elements.search.addEventListener('input', () => { this._toggleClearBtn(); this.updateURL(); this.renderReviews(); });
+        this.elements.clearSearch.addEventListener('click', () => {
+            this.elements.search.value = '';
+            this._toggleClearBtn();
+            this.updateURL();
+            this.renderReviews();
+            this.elements.search.focus();
+        });
+
+        const onFilterChange = () => { this.updateSelectActiveStates(); this._updateFilterToggleActive(); this.updateURL(); this.renderReviews(); };
+        this.elements.confidenceFilter.addEventListener('change', onFilterChange);
+        this.elements.ratingFilter.addEventListener('change', onFilterChange);
+        this.elements.sort.addEventListener('change', onFilterChange);
+
+        if (this.elements.confidenceFilterMobile) {
+            this.elements.confidenceFilterMobile.addEventListener('change', () => {
+                this.elements.confidenceFilter.value = this.elements.confidenceFilterMobile.value;
+                onFilterChange();
+            });
+        }
+        if (this.elements.ratingFilterMobile) {
+            this.elements.ratingFilterMobile.addEventListener('change', () => {
+                this.elements.ratingFilter.value = this.elements.ratingFilterMobile.value;
+                onFilterChange();
+            });
+        }
+        if (this.elements.sortMobile) {
+            this.elements.sortMobile.addEventListener('change', () => {
+                this.elements.sort.value = this.elements.sortMobile.value;
+                onFilterChange();
+            });
+        }
+
         this.elements.saveButton.addEventListener('click', () => this.saveEdit());
+        if (this.elements.clearFilters) this.elements.clearFilters.addEventListener('click', () => this.clearFilters());
+        if (this.elements.clearFiltersMobile) this.elements.clearFiltersMobile.addEventListener('click', () => this.clearFilters());
+
+        if (this.elements.filterToggle && this.elements.filterPanel) {
+            this.elements.filterToggle.addEventListener('click', () => {
+                const isClosed = this.elements.filterPanel.style.gridTemplateRows === '0fr';
+                this.elements.filterPanel.style.gridTemplateRows = isClosed ? '1fr' : '0fr';
+            });
+        }
+    },
+
+    _updateFilterToggleActive() {
+        const btn = this.elements.filterToggle;
+        if (!btn) return;
+        const hasActive = this.elements.confidenceFilter.value !== 'all' ||
+                          this.elements.ratingFilter.value !== 'all' ||
+                          this.elements.sort.value !== 'newest';
+        const ACTIVE = ['bg-emerald-500/10', 'dark:bg-emerald-500/20', 'border-emerald-300', 'dark:border-emerald-700', 'text-emerald-600', 'dark:text-emerald-400'];
+        const IDLE = ['bg-white/95', 'dark:bg-zinc-800', 'border-zinc-200', 'dark:border-zinc-700', 'text-zinc-600', 'dark:text-zinc-300'];
+        (hasActive ? IDLE : ACTIVE).forEach(c => btn.classList.remove(c));
+        (hasActive ? ACTIVE : IDLE).forEach(c => btn.classList.add(c));
+    },
+
+    updateSelectActiveStates() {
+        const selects = [this.elements.confidenceFilter, this.elements.ratingFilter, this.elements.sort,
+                         this.elements.confidenceFilterMobile, this.elements.ratingFilterMobile, this.elements.sortMobile];
+        selects.forEach(s => {
+            if (!s) return;
+            const isDefault = s.id.includes('Sort') || s.id.includes('sort') ? s.value === 'newest' : s.value === 'all';
+            if (!isDefault) {
+                s.classList.add('select-field-active');
+            } else {
+                s.classList.remove('select-field-active');
+            }
+        });
+    },
+
+    updateURL() {
+        const url = new URL(window.location);
+        const search = this.elements.search.value.trim();
+        const confidence = this.elements.confidenceFilter.value;
+        const rating = this.elements.ratingFilter.value;
+        const sort = this.elements.sort.value;
+
+        const setParam = (key, value, def) => {
+            if (value && value !== def) url.searchParams.set(key, value);
+            else url.searchParams.delete(key);
+        };
+        setParam('q', search, '');
+        setParam('confidence', confidence, 'all');
+        setParam('rating', rating, 'all');
+        setParam('sort', sort, 'newest');
+        window.history.replaceState({}, '', url);
+    },
+
+    initFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        const q = params.get('q') || '';
+        const confidence = params.get('confidence') || 'all';
+        const rating = params.get('rating') || 'all';
+        const sort = params.get('sort') || 'newest';
+
+        if (q) this.elements.search.value = q;
+        if (confidence !== 'all') {
+            this.elements.confidenceFilter.value = confidence;
+            if (this.elements.confidenceFilterMobile) this.elements.confidenceFilterMobile.value = confidence;
+        }
+        if (rating !== 'all') {
+            this.elements.ratingFilter.value = rating;
+            if (this.elements.ratingFilterMobile) this.elements.ratingFilterMobile.value = rating;
+        }
+        if (sort !== 'newest') {
+            this.elements.sort.value = sort;
+            if (this.elements.sortMobile) this.elements.sortMobile.value = sort;
+        }
+    },
+
+    clearFilters() {
+        this.elements.confidenceFilter.value = 'all';
+        this.elements.ratingFilter.value = 'all';
+        this.elements.sort.value = 'newest';
+        if (this.elements.confidenceFilterMobile) this.elements.confidenceFilterMobile.value = 'all';
+        if (this.elements.ratingFilterMobile) this.elements.ratingFilterMobile.value = 'all';
+        if (this.elements.sortMobile) this.elements.sortMobile.value = 'newest';
+        this.updateSelectActiveStates();
+        this._updateFilterToggleActive();
+        this.updateURL();
+        this.renderReviews();
     },
 
     /**
@@ -86,6 +221,7 @@ const ReviewDashboard = {
     async render() {
         this.renderStats();
         await this.renderReviews();
+        this.updateSelectActiveStates();
     },
 
     /**
@@ -136,10 +272,6 @@ const ReviewDashboard = {
         return styles[level];
     },
 
-    /**
-     * Apply search, confidence, rating, and sort filters to the full review list.
-     * @returns {Array<Object>} Filtered and sorted reviews.
-     */
     getFilteredReviews() {
         const query = this.elements.search.value.trim().toLowerCase();
         const confidence = this.elements.confidenceFilter.value;
@@ -186,7 +318,6 @@ const ReviewDashboard = {
             return;
         }
 
-        // Fetch vote data for all reviews
         let votesData = {};
         try {
             const reviewIds = filtered.map(r => r.id);
@@ -206,12 +337,6 @@ const ReviewDashboard = {
         lucide.createIcons();
     },
 
-    /**
-     * Create a single review card DOM element.
-     * @param {Object} review - The review object.
-     * @param {Object} votes - Vote data {score, user_vote} for this review.
-     * @returns {HTMLArticleElement} The card element.
-     */
 createReviewCard(review, votes = { score: 0, user_vote: 0 }) {
     const module = DataManager.getModule(review.module_code);
     const isOwner = review.is_owner === true;

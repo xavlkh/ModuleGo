@@ -25,7 +25,7 @@
 {% endmacro %}
 
 {% macro accountLinks() %}
-{% if current_user %}
+{% if current_user.is_authenticated %}
 <div class="relative" id="user-dropdown">
     <button onclick="document.getElementById('user-menu').classList.toggle('hidden')" class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-zinc-800/50">
         <i data-lucide="user" class="w-4 h-4"></i>
@@ -105,10 +105,13 @@ document.addEventListener('click', function(e) {
     <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-400"></i>
     <input
         id="{{ id }}"
-        type="search"
-        class="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/95 dark:bg-zinc-800 shadow-sm pl-10 pr-4 py-3 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate {{ attrs }}"
+        type="text"
+        class="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/95 dark:bg-zinc-800 shadow-sm pl-10 pr-10 py-3 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate {{ attrs }}"
         placeholder="{{ placeholder }}"
     >
+    <button id="clear{{ id | replace('-', '') | replace('_', '') }}" type="button" class="absolute right-3 top-1/2 -translate-y-1/2 hidden h-6 w-6 items-center justify-center rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors" aria-label="Clear search">
+        <i data-lucide="x" class="h-4 w-4"></i>
+    </button>
 </div>
 {% endmacro %}
 
@@ -228,7 +231,7 @@ document.addEventListener('click', function(e) {
 <svg class="{{ class }} hidden dark:block" viewBox="0 0 760.1 451.19" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="ModuleGo">
     <path fill="#16a34a" stroke="#16a34a" stroke-width="5.82" d="M146.62,263.34c-4.42-8.03-10.5-14.14-18.24-18.34-7.74-4.2-16.77-6.3-27.09-6.3-11.42,0-21.55,2.56-30.4,7.67-8.84,5.11-15.75,12.41-20.72,21.89-4.98,9.49-7.46,20.44-7.46,32.84s2.53,23.91,7.6,33.39c5.07,9.49,12.11,16.79,21.14,21.89,9.02,5.11,19.52,7.67,31.5,7.67,14.73,0,26.81-3.88,36.2-11.64,9.39-7.75,15.56-18.56,18.52-32.43h-66.32v-29.29h104.46v33.39c-2.58,13.32-8.11,25.64-16.58,36.95-8.47,11.32-19.39,20.39-32.74,27.23-13.36,6.84-28.33,10.26-44.91,10.26-18.61,0-35.42-4.15-50.44-12.45-15.02-8.3-26.81-19.84-35.38-34.62-8.56-14.78-12.85-31.57-12.85-50.36s4.28-35.62,12.85-50.49c8.57-14.87,20.36-26.45,35.38-34.76,15.01-8.3,31.73-12.45,50.16-12.45,21.74,0,40.63,5.24,56.65,15.74,16.03,10.49,27.09,25.23,33.17,44.2h-44.49Z"/>
     <path fill="#16a34a" d="M353.54,210.01c22.18,11.7,39.18,30.15,49.82,54.31,15.67,35.57,14.99,79.9-1.48,117.34.32.53.65,1.08.99,1.65,2.34,3.93,5.26,9.04,8.09,13.99,2.03,3.55,4.5,7.88,6.41,11.14,3.66-.26,7.15-.55,10.56-.84,7.82-.66,15.11-1.27,22.47-1.27,21.42,0,43.47,5.2,81.09,29.61v-219.92c-47.48-23.49-94.53-30.04-139.99-19.46-15.6,3.63-28.45,8.79-37.97,13.46Z"/>
-    <path fill="none" stroke="#16a34a" stroke-width="2" d="M543.14,208.13v238.49c1.18-.08,2.38-.14,3.62-.14,4.29,0,8.18.49,11.66,1.38,33.75-27.41,111.78-55.15,190.68,3.34,2.4-.73,5-1.26,7.82-1.55v-241.51c-126.73-66.6-213.78,0-213.78,0ZM745.28,434.36c-34.2-22.19-71.81-32.07-109.5-28.65-39.52,3.59-67.14,20.02-80.3,29.71-.23-.03-.46-.06-.69-.09v-220.99c7.95-4.92,25.89-14.6,51.38-20.07,44.85-9.62,91.62-2.57,139.11,20.98v219.1Z"/>
+    <path fill="none" d="M543.14,208.13v238.49c1.18-.08,2.38-.14,3.62-.14,4.29,0,8.18.49,11.66,1.38,33.75-27.41,111.78-55.15,190.68,3.34,2.4-.73,5-1.26,7.82-1.55v-241.51c-126.73-66.6-213.78,0-213.78,0ZM745.28,434.36c-34.2-22.19-71.81-32.07-109.5-28.65-39.52,3.59-67.14,20.02-80.3,29.71-.23-.03-.46-.06-.69-.09v-220.99c7.95-4.92,25.89-14.6,51.38-20.07,44.85-9.62,91.62-2.57,139.11,20.98v219.1Z"/>
     <path fill="#16a34a" d="M606.17,194.28c-25.49,5.47-43.43,15.15-51.38,20.07v220.99c.23.03.46.06.69.09,13.17-9.69,40.78-26.12,80.3-29.71,37.69-3.43,75.29,6.46,109.5,28.65v-219.1c-47.49-23.55-94.25-30.61-139.11-20.98Z"/>
     <circle cx="293.16" cy="312.28" r="61.78" fill="none" stroke="#16a34a" stroke-width="40.76" stroke-miterlimit="10"/>
     <rect x="339.07" y="416.66" width="34.01" height="1.11" rx=".1" ry=".1" fill="#18181b" stroke="#16a34a" stroke-width="34.94" stroke-miterlimit="10" transform="translate(172.79 934.2) rotate(-120)"/>

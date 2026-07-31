@@ -12,7 +12,6 @@ const ACTIVE_BTN_CLASSES = {
 /** Base classes for the filter toggle button (shared by all states). */
 const FILTER_TOGGLE_BASE = 'flex-none w-14 rounded-xl border py-3.5 text-sm font-semibold transition-all duration-200 shrink-0 truncate flex items-center justify-center gap-1.5';
 
-/** State classes for the filter toggle button. */
 const FILTER_TOGGLE_STATES = {
     idle: `${FILTER_TOGGLE_BASE} bg-white/95 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700`,
     open: `${FILTER_TOGGLE_BASE} bg-emerald-500/10 border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20`,
@@ -20,15 +19,11 @@ const FILTER_TOGGLE_STATES = {
     openAndFiltered: `${FILTER_TOGGLE_BASE} bg-emerald-500/10 border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20`,
 };
 
-/** Base and state classes for the bookmark toggle button. */
 const BOOKMARK_TOGGLE_BASE = 'flex-none w-12 rounded-xl border py-3.5 text-sm font-semibold transition-all duration-200 shrink-0 truncate flex items-center justify-center gap-1.5';
 const BOOKMARK_TOGGLE_STATES = {
     inactive: `${BOOKMARK_TOGGLE_BASE} bg-white/95 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700`,
     active: `${BOOKMARK_TOGGLE_BASE} bg-emerald-500/10 border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20`,
 };
-
-/** Active state class for select filter dropdowns. */
-const SELECT_ACTIVE = '!bg-emerald-500/10 !border-emerald-400 dark:!border-emerald-600 !text-emerald-600 dark:!text-emerald-400';
 
 const UIRenderer = {
     resultsContainer: null,
@@ -121,7 +116,7 @@ const UIRenderer = {
         if (this.ratingFilter) this.ratingFilter.addEventListener('change', onFilterChange);
         if (this.moduleTypeFilter) this.moduleTypeFilter.addEventListener('change', onFilterChange);
 
-        const TOGGLE_ACTIVE = 'w-full sm:w-28 bg-emerald-500/10 border border-emerald-300 dark:border-emerald-700 rounded-xl py-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-all duration-200 shrink-0 flex items-center justify-center gap-1.5';
+        const TOGGLE_ACTIVE = 'w-full sm:w-28 bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-300 dark:border-emerald-700 rounded-xl py-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 dark:hover:bg-emerald-500/30 transition-all duration-200 shrink-0 flex items-center justify-center gap-1.5';
         const TOGGLE_INACTIVE = 'w-full sm:w-28 bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all duration-200 shrink-0 flex items-center justify-center gap-1.5';
 
         if (this.activeFilter) {
@@ -328,16 +323,19 @@ const UIRenderer = {
     },
 
     updateSelectActiveStates() {
-        [this.schoolFilter, this.diplomaFilter, this.minorFilter, this.ratingFilter, this.moduleTypeFilter].forEach(el => {
-            if (!el) return;
-            const isActive = el.value !== 'all';
-            SELECT_ACTIVE.split(' ').forEach(cls => el.classList.toggle(cls, isActive));
+        const selects = [this.schoolFilter, this.diplomaFilter, this.minorFilter, this.ratingFilter, this.moduleTypeFilter];
+        selects.forEach(s => {
+            if (!s) return;
+            if (s.value && s.value !== 'all') {
+                s.classList.add('select-field-active');
+            } else {
+                s.classList.remove('select-field-active');
+            }
         });
     },
 
     updateFilterToggleState() {
         if (!this.filterToggle) return;
-        const isOpen = this.filterPanel && this.filterPanel.style.gridTemplateRows !== '0fr';
         const count = this.getActiveFilterCount();
         const hasActiveFilters = count > 0;
 
@@ -346,11 +344,7 @@ const UIRenderer = {
             badge.classList.toggle('hidden', !hasActiveFilters);
         }
 
-        if (isOpen && hasActiveFilters) {
-            this.filterToggle.className = FILTER_TOGGLE_STATES.openAndFiltered;
-        } else if (isOpen) {
-            this.filterToggle.className = FILTER_TOGGLE_STATES.open;
-        } else if (hasActiveFilters) {
+        if (hasActiveFilters) {
             this.filterToggle.className = FILTER_TOGGLE_STATES.hasFilters;
         } else {
             this.filterToggle.className = FILTER_TOGGLE_STATES.idle;
@@ -605,7 +599,7 @@ async function initHomePage() {
         const showBookmarks = urlParams.searchParams.get('bookmarks') === 'true';
         const hasFilters = initialSchool !== 'all' || initialDiploma !== 'all' || initialMinor !== 'all' || initialRating !== 'all' || initialActive === 'true' || initialModuleType !== 'all';
 
-        const TOGGLE_ACTIVE = 'w-full sm:w-28 bg-emerald-500/10 border border-emerald-300 dark:border-emerald-700 rounded-xl py-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-all duration-200 shrink-0 flex items-center justify-center gap-1.5';
+        const TOGGLE_ACTIVE = 'w-full sm:w-28 bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-300 dark:border-emerald-700 rounded-xl py-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 dark:hover:bg-emerald-500/30 transition-all duration-200 shrink-0 flex items-center justify-center gap-1.5';
 
         if (initialSchool !== 'all' && UIRenderer.schoolFilter) UIRenderer.schoolFilter.value = initialSchool;
         if (initialDiploma !== 'all' && UIRenderer.diplomaFilter) UIRenderer.diplomaFilter.value = initialDiploma;
@@ -618,8 +612,6 @@ async function initHomePage() {
             const label = UIRenderer.activeFilter.querySelector('span');
             if (label) label.textContent = 'Active';
         }
-        UIRenderer.updateSelectActiveStates();
-
         if (showBookmarks) {
             UIRenderer.isBookmarksView = true;
             if (UIRenderer.bookmarkToggle) {
@@ -647,6 +639,7 @@ async function initHomePage() {
             UIRenderer.updateResultsCount(DataManager.modules.length);
         }
         UIRenderer.updateFilterToggleState();
+        UIRenderer.updateSelectActiveStates();
         UIRenderer.updateShareButton();
     } catch (error) {
         console.error('Failed to initialize app:', error);

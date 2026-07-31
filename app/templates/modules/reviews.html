@@ -28,25 +28,79 @@
                 <h2 class="text-lg font-bold text-zinc-900 dark:text-white mb-0">All reviews</h2>
                 <p id="dashboardResultCount" class="text-xs text-zinc-500 dark:text-zinc-400">Loading reviews...</p>
             </div>
-            <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
-                {{ inputSearch('reviewSearch', 'Search comments...', 'w-full sm:w-56') }}
-                {{ selectField('confidenceFilter', [
-                    ('all', 'All confidence'),
-                    ('high', 'High confidence'),
-                    ('low', 'Low confidence')
-                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm min-w-0 flex-1 sm:flex-none sm:w-auto') }}
-                {{ selectField('ratingFilter', [
-                    ('all', 'All ratings'),
-                    ('5', '5 stars'),
-                    ('4', '4 stars'),
-                    ('3', '3 stars'),
-                    ('2', '2 stars'),
-                    ('1', '1 star')
-                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm min-w-0 flex-1 sm:flex-none sm:w-auto') }}
-                {{ selectField('reviewSort', [
-                    ('newest', 'Newest first'),
-                    ('oldest', 'Oldest first')
-                ], 'rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm text-sm min-w-0 flex-1 sm:flex-none sm:w-auto') }}
+        </div>
+
+        <div class="max-w-lg sm:max-w-none mx-auto mb-6">
+            <div class="glass-strong rounded-2xl p-2 shadow-glass-lg">
+                <div class="flex flex-row gap-2 items-stretch">
+                    <div class="relative min-w-0 flex-1">
+                        <i data-lucide="search" class="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+                        <input
+                            id="reviewSearch"
+                            type="text"
+                            class="w-full rounded-xl bg-white/95 dark:bg-zinc-800 shadow-sm pl-12 pr-10 py-3.5 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate"
+                            placeholder="Search comments..."
+                            autocomplete="off"
+                        >
+                        <button id="clearreviewSearch" type="button" class="absolute right-3 top-1/2 -translate-y-1/2 hidden h-6 w-6 items-center justify-center rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors" aria-label="Clear search">
+                            <i data-lucide="x" class="h-4 w-4"></i>
+                        </button>
+                    </div>
+                    <button id="reviewFilterToggle" class="sm:hidden flex-none w-14 rounded-xl border py-3.5 text-sm font-semibold transition-all duration-200 shrink-0 truncate flex items-center justify-center gap-1.5 bg-white/95 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700">
+                        <i data-lucide="sliders-horizontal" class="w-5 h-5 shrink-0"></i>
+                    </button>
+                    <select id="confidenceFilter" class="hidden sm:block select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full sm:w-auto">
+                        <option value="all">All confidence</option>
+                        <option value="high">High confidence</option>
+                        <option value="low">Low confidence</option>
+                    </select>
+                    <select id="ratingFilter" class="hidden sm:block select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full sm:w-auto">
+                        <option value="all">All ratings</option>
+                        <option value="5">5 stars</option>
+                        <option value="4">4 stars</option>
+                        <option value="3">3 stars</option>
+                        <option value="2">2 stars</option>
+                        <option value="1">1 star</option>
+                    </select>
+                    <select id="reviewSort" class="hidden sm:block select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full sm:w-auto">
+                        <option value="newest">Newest first</option>
+                        <option value="oldest">Oldest first</option>
+                    </select>
+                    <button id="clearReviewFilters" class="hidden sm:flex w-full sm:w-auto bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl py-3 px-5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all duration-200 shrink-0 items-center justify-center gap-1.5">
+                        <span>Clear All</span>
+                    </button>
+                </div>
+
+                <div id="reviewFilterPanel" class="grid transition-[grid-template-rows] duration-300 ease-out sm:hidden" style="grid-template-rows: 0fr;">
+                    <div class="overflow-hidden">
+                        <div class="pt-2">
+                            <div class="flex flex-col gap-2 items-stretch">
+                                <select id="confidenceFilterMobile" class="select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full">
+                                    <option value="all">All confidence</option>
+                                    <option value="high">High confidence</option>
+                                    <option value="low">Low confidence</option>
+                                </select>
+                                <select id="ratingFilterMobile" class="select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full">
+                                    <option value="all">All ratings</option>
+                                    <option value="5">5 stars</option>
+                                    <option value="4">4 stars</option>
+                                    <option value="3">3 stars</option>
+                                    <option value="2">2 stars</option>
+                                    <option value="1">1 star</option>
+                                </select>
+                                <select id="reviewSortMobile" class="select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full">
+                                    <option value="newest">Newest first</option>
+                                    <option value="oldest">Oldest first</option>
+                                </select>
+                            </div>
+                            <div class="flex justify-end mt-2">
+                                <button id="clearReviewFiltersMobile" class="px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors duration-200">
+                                    Clear All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -84,7 +138,7 @@
                 <textarea id="editReviewComment" class="w-full rounded-xl bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-sm px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400" rows="4" maxlength="500"></textarea>
                 <p class="mt-1.5 text-xs text-zinc-400 dark:text-zinc-400">Optional, maximum 500 characters.</p>
             </div>
-            {% if current_user %}
+                {% if current_user.is_authenticated %}
             <label class="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/60">
                 <input id="editReviewAnonymous" type="checkbox" checked class="mt-0.5 h-4 w-4 rounded border-zinc-300 text-primary-600 focus:ring-primary-500">
                 <span>
