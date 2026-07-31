@@ -5,10 +5,15 @@
 __pycache__
 *.pyc
 *.db
-.vercel
-vercel.json
+*.pem
 tests/
 docs/
+plan/
+ansible/
 README.md
 AGENTS.md
 LICENSE
+seed_db.py
+app/static/local-data/scripts/
+app/static/local-data/SCRAPING_GUIDE.md
+trivy-report.txt

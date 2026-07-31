@@ -1,18 +1,18 @@
 ---
 goal: ModuleGo - Republic Polytechnic Module Viewer Implementation
-version: 12.0
+version: 14.0
 date_created: 2026-06-29
-last_updated: 2026-07-29
+last_updated: 2026-07-31
 owner: Developer
 status: 'In Progress'
-tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'supabase', 'dark-mode', 'ui-redesign', 'saas-patterns', 'security', 'csrf', 'rate-limiting', 'scraping', 'automation', 'gobot', 'chatbot', 'minors', 'career-paths', 'bookmarks', 'share', 'theme-refresh']
+tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'flask-login', 'postgresql', 'dark-mode', 'ui-redesign', 'saas-patterns', 'security', 'csrf', 'rate-limiting', 'scraping', 'automation', 'gobot', 'chatbot', 'minors', 'career-paths', 'bookmarks', 'share', 'theme-refresh']
 ---
 
 # Introduction
 
 ![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
 
-Implementation plan for ModuleGo, a responsive module search application for Republic Polytechnic students. The application uses Vanilla JS, Tailwind CSS (glassmorphism design system), and HTML for the frontend, with Python Flask and Supabase PostgreSQL for the backend. Module data and reviews are stored in Supabase, with Flask proxying all calls so the browser never sees the secret key. SQLite is used only for automated tests.
+Implementation plan for ModuleGo, a responsive module search application for Republic Polytechnic students. The application uses Vanilla JS, Tailwind CSS (glassmorphism design system), and HTML for the frontend, with Python Flask and PostgreSQL for the backend. Dual-branch pattern: PostgreSQL for production, SQLite for tests and local dev fallback. Flask proxying all calls so the browser never sees the secret key. Authentication uses Flask-Login with bcrypt password hashing.
 
 > **Note:** This plan consolidates the former `plan-security-hardening.md` and `plan-scraping-pipeline.md` files into a single source of truth.
 
@@ -27,7 +27,7 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **REQ-007**: User can filter modules by School using collapsible filter panel
 - **REQ-008**: User can compare two modules side-by-side
 - **REQ-009**: User can leave reviews with ratings (1-5) and comments on modules
-- **REQ-010**: Reviews are stored in Supabase `reviews` table
+- **REQ-010**: Reviews are stored in PostgreSQL `reviews` table
 - **REQ-011**: User can view existing reviews for each module
 - **REQ-012**: User can filter by diploma (populated from `/api/courses`)
 - **REQ-013**: User can filter by minimum average rating (5 Stars, 4 Stars & Up, etc.)
@@ -45,8 +45,8 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **CON-001**: Use only Vanilla JavaScript (no frameworks)
 - **CON-002**: Use Tailwind CSS for styling (via CDN) with glassmorphism design tokens
 - **CON-003**: Use HTML5 semantic elements
-- **CON-004**: Backend uses Python Flask with Supabase PostgreSQL
-- **CON-005**: Module data is stored in Supabase, diploma data is served via `/api/courses`
+- **CON-004**: Backend uses Python Flask with PostgreSQL
+- **CON-005**: Module data is stored in PostgreSQL, diploma data is served via `/api/courses`
 - **CON-006**: Project follows Flask app structure: `app/templates/` for HTML, `app/static/` for assets
 - **GUD-001**: Follow RP brand colors with modern emerald palette (Primary #00A651 mapped to emerald-500)
 - **GUD-002**: SLP spacing rhythm: hero `py-16 md:py-24`, sections `py-12 md:py-20`, cards `gap-6`
@@ -73,7 +73,7 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 - **GUD-G02**: Handler order must be intentional — most specific first, fallback last
 - **GUD-G03**: Each handler returns early — no else chains, no flags
 - **PAT-G01**: Match the existing early-return pattern used throughout `app.py`
-- **REQ-BS01**: Users can bookmark/favorite modules (persisted in localStorage)
+- **REQ-BS01**: Users can bookmark/favorite modules (server-side for accounts, localStorage for guests)
 - **REQ-BS02**: Bookmarked modules are highlighted in search results
 - **REQ-BS03**: Users can share module links via clipboard copy
 - **REQ-BS04**: Users can export module data as CSV
@@ -164,18 +164,18 @@ Implementation plan for ModuleGo, a responsive module search application for Rep
 ### Implementation Phase 5B: Hybrid Account Ownership
 
 - GOAL-005B: Keep guest participation while adding optional cross-device
-  Supabase accounts.
+  accounts (Flask-Login + PostgreSQL).
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-A01 | Add request-scoped Supabase registration, confirmation, login, refresh and logout | Done | 2026-07-29 |
+| TASK-A01 | Add request-scoped registration, confirmation, login, refresh and logout via Flask-Login | Done | 2026-07-29 |
 | TASK-A02 | Replace browser owner tokens with signed HTTP-only guest cookies | Done | 2026-07-29 |
 | TASK-A03 | Add account/guest review and vote ownership with self-vote protection | Done | 2026-07-29 |
 | TASK-A04 | Add anonymous-by-default account reviews with editable visibility | Done | 2026-07-29 |
 | TASK-A05 | Keep guest bookmarks local and add account bookmark APIs | Done | 2026-07-29 |
 | TASK-A06 | Add explicit transactional guest-activity claim flow | Done | 2026-07-29 |
 | TASK-A07 | Protect state-changing APIs with Flask-WTF CSRF tokens | Done | 2026-07-29 |
-| TASK-A08 | Supply idempotent manual Supabase migration and verification guide | Done | 2026-07-29 |
+| TASK-A08 | Supply idempotent manual migration and verification guide | Done | 2026-07-29 |
 
 Acceptance checks:
 
@@ -228,9 +228,9 @@ Acceptance checks:
 | TASK-050 | Create `.env.example` for environment configuration | ✅ | 2026-07-05 |
 | TASK-051 | Update `.gitignore` for new project structure | ✅ | 2026-07-05 |
 
-### Implementation Phase 9: Supabase Integration
+### Implementation Phase 9: ~~Supabase Integration~~ (Superseded by Phase 34)
 
-- GOAL-009: Migrate from local SQLite to Supabase for modules and reviews
+- GOAL-009: ~~Migrate from local SQLite to Supabase for modules and reviews~~ — Replaced by Phase 34 (Flask-Login + PostgreSQL migration). All Supabase SDK usage removed.
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
@@ -654,18 +654,18 @@ Acceptance checks:
 
 ### Implementation Phase 26: Automated Scraping Pipeline
 
-- GOAL-26: Automate the scraping pipeline with Supabase sync via GitHub Actions
+- GOAL-26: Automate the scraping pipeline with local JSON output via GitHub Actions
 
-#### Phase 26.1: Supabase Upsert Script
+#### Phase 26.1: ~~Supabase Upsert Script~~ (Superseded by Phase 34)
 
-- GOAL-26.1: Create standalone upsert script for GitHub Actions
+- GOAL-26.1: ~~Create standalone upsert script for GitHub Actions~~ — Supabase removed in Phase 34. Scraped JSON is now loaded directly into PostgreSQL via `seed_db.py` or local SQLite.
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-207 | Create `upsert_to_supabase.py` — standalone CLI script reading JSON output and upserting to Supabase | ✅ | 2026-07-19 |
-| TASK-208 | Implement `upsert_modules()` — map synopsis JSON fields to Supabase `rp_modules` columns | ✅ | 2026-07-19 |
-| TASK-210 | Implement `upsert_courses()` — map courses JSON to `rp_courses`, extract module code arrays | ✅ | 2026-07-19 |
-| TASK-211 | Fix double-encoding bug — remove `json.dumps()` from module code lists in `upsert_courses()` | ✅ | 2026-07-19 |
+| TASK-207 | ~~Create `upsert_to_supabase.py`~~ — Superseded; replaced by `seed_db.py` for PostgreSQL seeding | ✅ | 2026-07-19 |
+| TASK-208 | ~~Implement `upsert_modules()`~~ — Superseded; module data loaded via PostgreSQL or JSON fallback | ✅ | 2026-07-19 |
+| TASK-210 | ~~Implement `upsert_courses()`~~ — Superseded; course data loaded via PostgreSQL or JSON fallback | ✅ | 2026-07-19 |
+| TASK-211 | ~~Fix double-encoding bug~~ — Superseded with upsert removal | ✅ | 2026-07-19 |
 
 #### Phase 26.2: GitHub Actions Workflow
 
@@ -676,8 +676,8 @@ Acceptance checks:
 | TASK-212 | Create `.github/workflows/scrape.yml` — weekly cron (Sunday 2am UTC) + `workflow_dispatch` | ✅ | 2026-07-19 |
 | TASK-213 | Add Python Playwright setup for browser-based token extraction | ✅ | 2026-07-20 |
 | TASK-214 | Install Playwright Chromium in the scraping workflow | ✅ | 2026-07-20 |
-| TASK-215 | Add `run_all.py` + `upsert_to_supabase.py` execution steps | ✅ | 2026-07-19 |
-| TASK-216 | Add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as required repository secrets | ✅ | 2026-07-19 |
+| TASK-215 | Add `run_all.py` execution step to workflow | ✅ | 2026-07-19 |
+| TASK-216 | ~~Add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as required repository secrets~~ — Superseded; Supabase removed in Phase 34 | ✅ | 2026-07-19 |
 
 #### Phase 26.3: Scraping Script Updates
 
@@ -702,7 +702,7 @@ Acceptance checks:
 | TASK-238 | Create `app/static/local-data/scripts/step4_scrape_minors.py` — scrape RP minor programme data | ✅ | 2026-07-28 |
 | TASK-239 | Create `app/static/local-data/scripts/step5_generate_career_paths.py` — generate career path mappings | ✅ | 2026-07-28 |
 | TASK-240 | Update `run_all.py` to include steps 4 and 5 in the pipeline | ✅ | 2026-07-28 |
-| TASK-241 | Update `upsert_to_supabase.py` to handle minors and career paths | ✅ | 2026-07-28 |
+| TASK-241 | ~~Update `upsert_to_supabase.py` to handle minors and career paths~~ — Superseded; `seed_db.py` handles PostgreSQL seeding | ✅ | 2026-07-28 |
 | TASK-242 | Add `/api/minors` endpoint to serve minor programme data | ✅ | 2026-07-28 |
 | TASK-243 | Add `/api/career-paths` endpoint to serve career path data | ✅ | 2026-07-28 |
 
@@ -713,7 +713,7 @@ Acceptance checks:
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
 | TASK-224 | Extend SQLite rating summaries with conditional counts for ratings five through one | ✅ | 2026-07-21 |
-| TASK-225 | Extend Supabase rating summaries with zero-filled five-to-one distribution buckets | ✅ | 2026-07-21 |
+| TASK-225 | Extend PostgreSQL rating summaries with zero-filled five-to-one distribution buckets | ✅ | 2026-07-21 |
 | TASK-226 | Preserve the existing average and review-count fields in `/api/ratings` | ✅ | 2026-07-21 |
 | TASK-227 | Render accessible proportional rating bars in the module-detail review section | ✅ | 2026-07-21 |
 | TASK-228 | Refresh API rating summaries and review lists after review CRUD operations | ✅ | 2026-07-21 |
@@ -780,7 +780,7 @@ The handler pipeline must run in this exact order, each returning early:
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-253 | Create `VoteRepository` class in app.py with triple-branch pattern (SQLite/PostgreSQL/Supabase) | ✅ | 2026-07-28 |
+| TASK-253 | Create `VoteRepository` class in app.py with dual-branch pattern (SQLite/PostgreSQL) | ✅ | 2026-07-28 |
 | TASK-254 | Implement `get_votes()` — return score and user vote for a single review | ✅ | 2026-07-28 |
 | TASK-255 | Implement `get_votes_bulk()` — return scores for multiple reviews (dashboard optimization) | ✅ | 2026-07-28 |
 | TASK-256 | Implement `vote()` — upsert vote, return updated score | ✅ | 2026-07-28 |
@@ -833,14 +833,96 @@ The handler pipeline must run in this exact order, each returning early:
 | TASK-271 | Run existing test suite (`pytest tests/ -v`) to verify no regressions. | ✅ | 2026-07-29 |
 | TASK-272 | Manually verify: (1) Toggle light->dark->system on home page, (2) Toggle on comparison page, (3) Toggle on reviews page, (4) Verify no FOUC on any page, (5) Verify header styling is correct in all modes, (6) Verify mobile menu theme toggle works. | ✅ | 2026-07-29 |
 
+### Implementation Phase 34: Flask-Login Migration (Remove Supabase Auth)
+
+- GOAL-34: Replace Supabase Auth with Flask-Login + bcrypt, removing all Supabase SDK usage
+
+#### Phase 34.1: Database Schema + User Model
+
+- GOAL-34.1: Create users table and Flask-Login User model
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-273 | Add `users` table to `init_db()` in app.py: columns `id` (UUID), `email` (unique), `display_name`, `password_hash`, `created_at` | ✅ | 2026-07-31 |
+| TASK-274 | Add PostgreSQL users table creation to `init_pg_users()` | ✅ | 2026-07-31 |
+| TASK-275 | Create `User` class in `user_model.py` implementing Flask-Login `UserMixin` with bcrypt password hashing | ✅ | 2026-07-31 |
+| TASK-276 | User model DB backend selection: SQLite when `use_sqlite_reviews()`, PostgreSQL when `use_postgres()` | ✅ | 2026-07-31 |
+
+#### Phase 34.2: Flask-Login Setup
+
+- GOAL-34.2: Integrate Flask-Login into Flask app
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-277 | Add `flask-login` and `bcrypt` to requirements.txt | ✅ | 2026-07-31 |
+| TASK-278 | Initialize `LoginManager` in app.py, set `login_view`, add `user_loader` callback | ✅ | 2026-07-31 |
+| TASK-279 | Remove `supabase` import from db.py | ✅ | 2026-07-31 |
+
+#### Phase 34.3: Rewrite auth_routes.py
+
+- GOAL-34.3: Replace Supabase Auth with Flask-Login + User model calls
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-280 | Remove all Supabase SDK imports and client creation functions | ✅ | 2026-07-31 |
+| TASK-281 | Replace `sign_up_user()` with `User.create()` (bcrypt hash + insert) | ✅ | 2026-07-31 |
+| TASK-282 | Replace `sign_in_user()` with `User.find_by_email()` + `login_user()` | ✅ | 2026-07-31 |
+| TASK-283 | Remove `verify_access_token()` / `refresh_user_session()` — Flask-Login handles sessions | ✅ | 2026-07-31 |
+| TASK-284 | Replace `sign_out_user()` with `logout_user()` | ✅ | 2026-07-31 |
+| TASK-285 | Replace `update_display_name()` with `User.update_display_name()` | ✅ | 2026-07-31 |
+| TASK-286 | Replace `change_user_password()` with `current_user.change_password()` | ✅ | 2026-07-31 |
+| TASK-287 | Replace `delete_user_account()` with `current_user.delete()` | ✅ | 2026-07-31 |
+| TASK-288 | Remove session token storage helpers and constants | ✅ | 2026-07-31 |
+| TASK-289 | Simplify `load_current_user()` / `verify_auth()` / `inject_current_user()` to use Flask-Login | ✅ | 2026-07-31 |
+| TASK-290 | Update all route handlers (register, login, logout, profile, change_password, delete_account, `/api/auth/me`) | ✅ | 2026-07-31 |
+| TASK-291 | Remove `_friendly_auth_error` and `_friendly_profile_error` Supabase-specific error parsing | ✅ | 2026-07-31 |
+
+#### Phase 34.4: Update Ownership & Repository Layer
+
+- GOAL-34.4: Ensure ownership works with Flask-Login user IDs
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-292 | Update `ownership.py` to use Flask-Login `current_user` instead of `g.current_user` dict | ✅ | 2026-07-31 |
+| TASK-293 | Add guest-to-account ownership transfer via `current_guest_hash()` cookie | ✅ | 2026-07-31 |
+| TASK-294 | Remove all 28 Supabase data operations from app.py (ReviewRepository, VoteRepository, etc.) | ✅ | 2026-07-31 |
+| TASK-295 | Remove Supabase fallback paths from `_build_modules_list()`, `get_courses()`, `get_minors()`, `_load_career_paths()` | ✅ | 2026-07-31 |
+
+#### Phase 34.5: Update Tests
+
+- GOAL-34.5: Make tests pass with Flask-Login
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-296 | Rewrite `tests/test_auth.py` — use actual `User.create()` / login instead of mocking Supabase | ✅ | 2026-07-31 |
+| TASK-297 | Update `tests/test_ownership.py` — use Flask-Login registration/login | ✅ | 2026-07-31 |
+| TASK-298 | Fix navbar templates: `{% if current_user %}` → `{% if current_user.is_authenticated %}` | ✅ | 2026-07-31 |
+| TASK-299 | Verify all 89 tests pass | ✅ | 2026-07-31 |
+
+#### Phase 34.6: Cleanup
+
+- GOAL-34.6: Remove all Supabase/Vercel remnants
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-300 | Remove `supabase` from requirements.txt and requirements-runtime.txt | ✅ | 2026-07-31 |
+| TASK-301 | Add `flask-login` and `bcrypt` to requirements-runtime.txt | ✅ | 2026-07-31 |
+| TASK-302 | Remove `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY` from .env.example | ✅ | 2026-07-31 |
+| TASK-303 | Remove `os.environ.get('VERCEL')` check from app.py | ✅ | 2026-07-31 |
+| TASK-304 | Update README.md — remove Supabase badge, env vars, account setup section | ✅ | 2026-07-31 |
+| TASK-305 | Run ruff check — all files clean | ✅ | 2026-07-31 |
+| TASK-306 | Update AGENTS.md — remove triple-branch Supabase pattern, fix API route descriptions, update file map, remove upsert_to_supabase.py reference | ✅ | 2026-07-31 |
+| TASK-307 | Update `app/static/local-data/SCRAPING_GUIDE.md` — remove Supabase upsert section, update workflow description | ✅ | 2026-07-31 |
+| TASK-308 | Update `.github/copilot-instructions.md` — remove Supabase key security references | ✅ | 2026-07-31 |
+
 ## 3. Alternatives
 
 - **ALT-001**: React/Vue framework - Rejected due to constraint CON-001 (Vanilla JS only)
-- **ALT-002**: LocalStorage for review persistence - Rejected in favor of Supabase for better data integrity and shared access
-- **ALT-003**: IndexedDB for persistence - Rejected as Supabase provides better querying and cross-device access
+- **ALT-002**: LocalStorage for review persistence - Rejected in favor of PostgreSQL for better data integrity and shared access
+- **ALT-003**: IndexedDB for persistence - Rejected as PostgreSQL provides better querying and cross-device access
 - **ALT-004**: Bootstrap 5 + Tailwind hybrid - Rejected to avoid CSS bloat and maintain clean utility-only approach
 - **ALT-005**: Separate rating and comment systems - Rejected in favor of unified review system
-- **ALT-006**: Self-hosted PostgreSQL - Rejected in favor of managed Supabase for simplicity
+- **ALT-006**: Flask-Login with PostgreSQL — chosen for lightweight auth without external services
 - **ALT-007**: Bootstrap Modal with Tailwind CSS - Rejected in favor of fully custom modal to eliminate Bootstrap JS dependency
 - **ALT-008**: Keep glassmorphism but tone it down - Rejected because the SLP pattern of solid surfaces is cleaner and more maintainable. Glassmorphism on cards fights with content hierarchy
 - **ALT-009**: Switch to a different accent color (blue, rose) - Rejected because emerald is RP's brand color and already established in the codebase
@@ -856,27 +938,23 @@ The handler pipeline must run in this exact order, each returning early:
 - **DEP-001**: Tailwind CSS v3 via CDN (runtime CSS generation)
 - **DEP-002**: Inter font via Google Fonts CDN
 - **DEP-003**: Lucide Icons via CDN (icon library)
-- **DEP-004**: Supabase `rp_modules` table (module dataset)
-- **DEP-005**: Supabase `reviews` table (review storage)
-- **DEP-006**: Flask 3.1.3 (Python web framework)
-- **DEP-007**: supabase 2.31.0 (Python client)
+- **DEP-004**: PostgreSQL container (docker-compose) for module and review data
+- **DEP-005**: Flask 3.1.3 (Python web framework)
+- **DEP-006**: Flask-Login >=0.6.0 (session management)
+- **DEP-007**: bcrypt >=4.0.0 (password hashing)
 - **DEP-008**: python-dotenv 1.2.2 (env var loading)
 - **DEP-009**: Python 3.12+ runtime
-- **DEP-010**: Supabase `rp_courses` table (diploma data from scraping)
-- **DEP-011**: `app/static/local-data/scripts/` — Python scraping scripts (requests, BeautifulSoup, Playwright)
-- **DEP-012**: Outfit font via Google Fonts CDN (display headings)
-- **DEP-013**: Flask-WTF>=1.2.0 — CSRF protection
-- **DEP-014**: Flask-Limiter>=3.0.0 — Rate limiting
-- **DEP-015**: pytest>=8.0,<10.0 — Test framework
-- **DEP-016**: psycopg2-binary>=2.9,<3.0 — PostgreSQL adapter for production database
-- **DEP-017**: playwright>=1.50,<2.0 — Browser automation for scraping (token extraction)
-- **DEP-018**: requests>=2.32,<3.0 — HTTP client for scraping scripts
-- **DEP-019**: httpx>=0.27,<0.29 — Async HTTP client
-- **DEP-020**: crawl4ai>=0.2.0 — Web crawling framework
-- **DEP-021**: beautifulsoup4>=4.12 — HTML parsing for scraping
-- **DEP-022**: Supabase `rp_minors` table (minor programme data from scraping)
-- **DEP-023**: Supabase `career_paths` table (career path data)
-- **DEP-024**: Gemini API key (comparison generation and GoBot chatbot)
+- **DEP-010**: Flask-WTF>=1.2.0 — CSRF protection
+- **DEP-011**: Flask-Limiter>=3.0.0 — Rate limiting
+- **DEP-012**: pytest>=8.0,<10.0 — Test framework
+- **DEP-013**: psycopg2-binary>=2.9,<3.0 — PostgreSQL adapter
+- **DEP-014**: playwright>=1.50,<2.0 — Browser automation for scraping
+- **DEP-015**: requests>=2.32,<3.0 — HTTP client for scraping scripts
+- **DEP-016**: httpx>=0.27,<2.0 — Async HTTP client
+- **DEP-017**: crawl4ai>=0.2.0 — Web crawling framework
+- **DEP-018**: beautifulsoup4>=4.12 — HTML parsing for scraping
+- **DEP-019**: Outfit font via Google Fonts CDN (display headings)
+- **DEP-020**: Gemini API key (comparison generation and GoBot chatbot)
 - **DEP-G01**: Only modifies `app.py` function `gobot_chat` — no other files
 - **DEP-G02**: Depends on `_build_modules_list()`, `_load_career_paths()`, `ReviewRepository` — all already exist
 
@@ -887,6 +965,10 @@ The handler pipeline must run in this exact order, each returning early:
 | `app/templates/modules/index.html` | Main search and browse page with collapsible filter panel |
 | `app/templates/modules/comparison.html` | Module comparison page (Tailwind glassmorphism) |
 | `app/templates/modules/reviews.html` | Review dashboard page (Tailwind glassmorphism) |
+| `app/templates/modules/bookmarks.html` | Bookmarked modules page |
+| `app/templates/auth/register.html` | Account registration form |
+| `app/templates/auth/login.html` | Account login form |
+| `app/templates/auth/profile.html` | Account profile page (display name, password, deletion) |
 | `app/templates/base.html` | Layout template with glass navbar/footer (Tailwind) |
 | `app/templates/_macros.html` | Shared Jinja macros (hero, navLinks, themeToggle, selectField, glassCard, statCard, modalOverlay, etc.) |
 | `app/static/css/app.css` | Tailwind CSS with `:root` custom properties and glassmorphism tokens |
@@ -894,11 +976,14 @@ The handler pipeline must run in this exact order, each returning early:
 | `app/static/js/data.js` | Data loading from `/api/modules` + `/api/courses` + `/api/minors` with diploma/minor/rating/active filtering |
 | `app/static/js/ui.js` | UI rendering, search, pagination, filter panel + app initialization (merged from search.js + app.js) |
 | `app/static/js/comparison.js` | Module comparison logic (Tailwind markup) |
-| `app/static/js/detail.js` | Module detail modal + review CRUD (owner token headers) |
+| `app/static/js/detail.js` | Module detail modal + review CRUD (ownership-based) |
 | `app/static/js/reviews.js` | Review dashboard + module detail review CRUD (merged from detail.js) |
-| `app/static/js/gobot.js` | GoBot chatbot client-side UI (welcome popup, chat interface, quick-send buttons, message history) |
-| `app/static/js/bookmark.js` | BookmarkManager — favorites with localStorage persistence |
+| `app/static/js/bookmark.js` | BookmarkManager — favorites with localStorage (guest) and server-side API (account) |
+| `app/static/js/bookmarks-page.js` | Bookmarks page rendering and interaction logic |
 | `app/static/js/share.js` | ShareManager — clipboard copy, CSV export, toast notifications |
+| `app/static/js/gobot.js` | GoBot chatbot client-side UI (welcome popup, chat interface, quick-send buttons, message history) |
+| `app/static/js/profile.js` | Profile page client-side logic |
+| `app/static/js/ownership.js` | Guest-to-account ownership claim UI |
 | `app/static/local-data/scripts/step1_get_tokens.py` | Playwright browser automation for RP session token extraction |
 | `app/static/local-data/scripts/step2_scrape_all_modules.py` | Scrapes module synopsis data from RP OutSystems |
 | `app/static/local-data/scripts/step3_scrape_diplomas.py` | Scrapes diploma curriculum data (courses + module mappings) |
@@ -907,21 +992,24 @@ The handler pipeline must run in this exact order, each returning early:
 | `app/static/local-data/data/` | Scraping output (gitignored) — tokens.json, rp_modules_synopsis, rp_courses, rp_minors, career_paths |
 | `app/static/local-data/run_all.py` | Sequential runner for scraping steps 1-5 |
 | `app/static/local-data/SCRAPING_GUIDE.md` | Documentation for the scraping pipeline |
-| `app.py` | Flask backend with Supabase integration, ReviewRepository, VoteRepository, CSRF, rate limiting, GoBot chatbot |
-| `upsert_to_supabase.py` | Standalone CLI for upserting scraped JSON to Supabase (modules, courses, minors, career paths) — used by GitHub Actions |
-| `requirements.txt` | Python dependencies (Flask, Flask-WTF, Flask-Limiter, supabase, python-dotenv, pytest, playwright, requests, httpx, crawl4ai, beautifulsoup4, psycopg2-binary) |
+| `app.py` | Flask backend with ReviewRepository, VoteRepository, BookmarkRepository, OwnershipRepository, CSRF, rate limiting, GoBot chatbot |
+| `auth_routes.py` | Authentication routes — Flask-Login register, login, logout, profile, password change, account deletion |
+| `user_model.py` | Flask-Login User model with bcrypt password hashing (SQLite + PostgreSQL) |
+| `ownership.py` | Guest/account identity, ownership checks, guest-to-account transfer |
+| `db.py` | DB backend selection helpers, row mappers |
+| `seed_db.py` | PostgreSQL seed script — creates tables and upserts scraped JSON data |
+| `requirements.txt` | Python dependencies (Flask, Flask-Login, bcrypt, Flask-WTF, Flask-Limiter, etc.) |
 | `requirements-runtime.txt` | Production-only dependencies (subset of requirements.txt) |
+| `tests/conftest.py` | Pytest fixtures — app, client, auth_client, CSRF disabled for testing |
 | `tests/test_reviews.py` | Pytest test suite for review API endpoints |
-| `tests/test_security.py` | Pytest test suite for ownership validation, CSRF, rate limiting |
+| `tests/test_security.py` | Pytest test suite for SQL injection, XSS, mass assignment, boundary conditions |
 | `tests/test_comparison.py` | Pytest test suite for comparison API endpoints |
-| `.github/workflows/scrape.yml` | GitHub Actions workflow for weekly automated scraping |
+| `tests/test_auth.py` | Pytest test suite for Flask-Login authentication routes |
+| `tests/test_ownership.py` | Pytest test suite for ownership and claim flow |
 | `.github/workflows/ci.yml` | GitHub Actions workflow for CI (lint, compile, test) |
-| `.env.example` | Supabase + Gemini credential template |
-| `vercel.json` | Vercel serverless function configuration |
-| `app.py` lines 1591-1711 | GoBot chatbot `gobot_chat` function + `_load_career_paths` helper + Gemini integration |
-| `app/templates/base.html` | Removed `applyTheme` IIFE and inline header script (Phase 33) |
-| `app/templates/_macros.html` | Simplified themeToggle macro — delegated event listener, `data-theme` selectors (Phase 33) |
-| `app/static/css/app.css` | Added CSS transition rules for smooth theme switching on reload (Phase 33) |
+| `.env.example` | Gemini + PostgreSQL credential template |
+| `Dockerfile` | Docker image build config (Gunicorn on port 5000) |
+| `docker-compose.yml` | PostgreSQL + Flask app + Nginx reverse proxy |
 
 ## 6. Testing
 
@@ -931,15 +1019,15 @@ The handler pipeline must run in this exact order, each returning early:
 - **TEST-004**: School filter correctly filters modules by selected school
 - **TEST-005**: Module detail shows complete information
 - **TEST-006**: Diploma list displays correctly for modules with mapped diplomas
-- **TEST-007**: Review submission saves to Supabase via Flask API
+- **TEST-007**: Review submission saves to PostgreSQL via Flask API
 - **TEST-008**: Reviews display correctly with rating and timestamp
 - **TEST-009**: Module comparison page loads and displays two modules side-by-side
 - **TEST-010**: Responsive design works at 375px (mobile), 768px (tablet), 1024px+ (desktop)
 - **TEST-011**: Loading animation displays during data load
 - **TEST-012**: External links open in new tab
 - **TEST-013**: Flask backend starts and serves API endpoints correctly
-- **TEST-014**: `/api/modules` returns JSON array of modules from Supabase
-- **TEST-015**: SQLite fallback works for automated tests (no Supabase needed)
+- **TEST-014**: `/api/modules` returns JSON array of modules from PostgreSQL
+- **TEST-015**: SQLite fallback works for automated tests (no PostgreSQL needed)
 - **TEST-016**: Pagination shows 9 modules per page, resets on search/filter change
 - **TEST-017**: Ellipsis shows page 1 anchored when beyond page 3
 - **TEST-018**: Arrow keys navigate pages when pagination focused
@@ -961,6 +1049,28 @@ The handler pipeline must run in this exact order, each returning early:
 - **TEST-034**: Rating-summary API returns all five distribution buckets, including zero counts
 - **TEST-035**: Five 1-star and five 5-star reviews return average 3.0 and the correct mixed-opinion distribution
 - **TEST-036**: Rating distribution updates immediately after editing and deleting reviews
+- **TEST-A01**: Registration rejects mismatched passwords and duplicate emails
+- **TEST-A02**: Login creates session, wrong password rejected
+- **TEST-A03**: `/api/auth/me` returns current user JSON when logged in
+- **TEST-A04**: Logout clears session
+- **TEST-A05**: Profile page requires login, displays user details, updates display name
+- **TEST-A06**: Password change verifies current password, succeeds with correct password
+- **TEST-A07**: Account deletion requires password verification, issues deletion token, clears session
+- **TEST-O01**: Public review fields never include user_id or guest_owner_hash
+- **TEST-O02**: Cross-guest write denied (guest A cannot edit guest B's review)
+- **TEST-O03**: Self-vote prevention (user cannot vote on own review)
+- **TEST-O04**: Account review visibility + bookmark APIs work for authenticated users
+- **TEST-O05**: Profile name sync preserves other reviews
+- **TEST-O06**: Guest claim conflict handling (account wins)
+- **TEST-B01**: Bookmark toggle adds/removes module from bookmarks
+- **TEST-B02**: Bookmark page displays saved modules
+- **TEST-S01**: Mass assignment blocked (cannot inject extra fields via API)
+- **TEST-S02**: SQL injection payloads rejected in module code, comment, search
+- **TEST-S03**: XSS payloads stored in reviews are escaped on output
+- **TEST-S04**: Boundary conditions — module code length, comment length, empty/whitespace/null-byte/unicode inputs
+- **TEST-C01**: Gemini comparison generation works with valid payload
+- **TEST-C02**: Unknown module rejected in comparison
+- **TEST-C03**: Missing Gemini key returns appropriate error
 - **TEST-G01**: Send "hi" → get greeting, not module list
 - **TEST-G02**: Send "thanks" → get acknowledgment (len < 10, hits the very short fallback)
 - **TEST-G03**: Send "C270" → get module details for C270
@@ -980,10 +1090,10 @@ The handler pipeline must run in this exact order, each returning early:
 ## 7. Risks & Assumptions
 
 - **RISK-001**: Large dataset (537 modules) may cause slow initial load - Mitigation: Show loading indicator
-- **RISK-002**: Supabase outage would affect both module data and reviews - Mitigation: Acceptable for student project; SQLite fallback for tests
+- **RISK-002**: PostgreSQL outage would affect both module data and reviews - Mitigation: SQLite fallback for tests
 - **RISK-003**: Diploma mapping may be incomplete - Mitigation: Show "No diploma information available" for unmapped modules
 - **RISK-004**: Flask backend must be running for all functionality - Mitigation: Show error message if server not available
-- **RISK-005**: Supabase column names may differ from expectations - Mitigation: Map columns in `/api/modules` endpoint
+- **RISK-005**: PostgreSQL column names may differ from expectations - Mitigation: Map columns in `/api/modules` endpoint
 - **RISK-006**: Tailwind CDN adds runtime CSS generation - Mitigation: Acceptable for student project scale; can migrate to build step later
 - **RISK-007**: Glassmorphism effects may not render on older browsers - Mitigation: Graceful degradation with fallback solid backgrounds
 - **RISK-008**: Dark mode contrast may be insufficient on certain components - Mitigation: Test all combinations with contrast checker, minimum 4.5:1 ratio
@@ -991,20 +1101,18 @@ The handler pipeline must run in this exact order, each returning early:
 - **RISK-010**: Merging detail.js into reviews.js may cause regression in detail modal - Mitigation: Test coverage of review CRUD
 - **RISK-011**: Changing CSS class names on cards may break JS that targets `.glass-card` — verify `ui.js` and `detail.js` selectors
 - **RISK-012**: Dark mode custom oklch vars may produce unexpected contrast on some monitors — test on multiple screens
-- **RISK-013**: Existing `owner_token` reviews cannot be safely assigned to an account. Mitigation: preserve them as readable legacy content.
-- **RISK-014**: Clearing the signed guest cookie removes guest mutation access. Mitigation: the cookie is HTTP-only, lasts 30 days, and users can explicitly claim activity after login.
-- **RISK-015**: Flask-Limiter in-memory storage is per-invocation on Vercel serverless — not global rate limiting. Mitigation: Acceptable for student project scale
+- **RISK-013**: Existing `owner_token` reviews cannot be safely assigned to an account — preserved as readable legacy content (superseded by hybrid ownership in Phase 5B)
+- **RISK-014**: Clearing the signed guest cookie removes guest mutation access — mitigated by HTTP-only cookie lasting 30 days and explicit claim flow after login
+- **RISK-015**: Flask-Limiter in-memory storage is per-invocation — not global rate limiting. Mitigation: Acceptable for single-server deployment
 - **RISK-016**: Scraping scripts depend on RP website structure — changes may break scraping. Mitigation: Monitor scraping workflow, fix as needed
 - **RISK-017**: Playwright browser automation is required for CSRF token extraction in step 1. Mitigation: use installed Chrome locally and install Playwright Chromium in GitHub Actions
 - **RISK-018**: RP session tokens may expire during scraping. Mitigation: Pipeline skips step1 if tokens.json exists; GitHub Actions runs fresh each time
-- **RISK-019**: GitHub Actions workflows depend on repository secrets (`SUPABASE_URL`, `SUPABASE_SECRET_KEY`) — must be configured for CI/scraping to work. Mitigation: Manual scraping via `run_all.py` works without secrets
 - **RISK-020**: `VoteRepository` handles vote persistence across three backends — complexity may introduce edge cases. Mitigation: Covered by test_security.py vote tests
 - **ASSUMPTION-001**: Users have modern browsers with JavaScript support
 - **ASSUMPTION-002**: Tailwind CSS CDN and Google Fonts CDN are accessible
-- **ASSUMPTION-003**: Module data in Supabase is accurate and up-to-date
+- **ASSUMPTION-003**: Module data in PostgreSQL is accurate and up-to-date
 - **ASSUMPTION-004**: Python 3.12+ is installed on the server
-- **ASSUMPTION-005**: Supabase credentials in `.env` are valid
-- **ASSUMPTION-006**: Single-server deployment (Vercel serverless) — in-memory rate limiting is per-invocation, not global
+- **ASSUMPTION-005**: PostgreSQL is available via DATABASE_URL environment variable
 - **RISK-G01**: Module codes might share prefixes (e.g., "C270" and "C2701") — token cleaning strips punctuation before exact match, so "C270" only matches if an alphanumeric token exactly equals "c270". A token "C2701" would NOT match "C270". This is correct.
 - **ASSUMPTION-G01**: The `_build_modules_list()` returns data in the expected format with `code`, `name`, `synopsis` keys — verified in existing codebase.
 - **ASSUMPTION-G02**: `ReviewRepository.list_by_module()` and `.rating_summaries()` exist and work — verified in existing codebase.
@@ -1017,7 +1125,8 @@ The handler pipeline must run in this exact order, each returning early:
 - [Flask Documentation](https://flask.palletsprojects.com/)
 - [Flask-WTF Documentation](https://flask-wtf.readthedocs.io/)
 - [Flask-Limiter Documentation](https://flask-limiter.readthedocs.io/)
-- [Supabase Row Level Security](https://supabase.com/docs/guides/auth/row-level-security)
+- [Flask-Login Documentation](https://flask-login.readthedocs.io/)
+- [bcrypt Documentation](https://pypi.org/project/bcrypt/)
 - [SQLite Documentation](https://www.sqlite.org/docs.html)
 - [RP Diploma List](https://www.rp.edu.sg/education/diplomas/)
 - [RP Module List](https://www.rp.edu.sg/education/modules/)
