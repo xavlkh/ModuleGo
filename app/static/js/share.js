@@ -1,3 +1,8 @@
+/**
+ * Share and export functionality for filtered module lists.
+ * Handles URL sharing and CSV export.
+ * @module share
+ */
 const ShareManager = {
     getShareUrl() {
         const params = new URLSearchParams(window.location.search);

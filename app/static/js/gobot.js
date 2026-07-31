@@ -1,3 +1,8 @@
+/**
+ * GoBot chatbot: AI-powered module recommendation advisor.
+ * Handles chat UI, message history, and server communication.
+ * @module gobot
+ */
 const GoBot = {
   STORAGE_KEY: 'gobot_history',
   WELCOME_KEY: 'gobot_welcomed',
@@ -247,6 +252,7 @@ const GoBot = {
 
     try {
       const controller = new AbortController();
+      // 30-second timeout prevents hung requests from blocking the UI
       const timeout = setTimeout(() => controller.abort(), 30000);
       const res = await fetch('/api/gobot', {
         method: 'POST',

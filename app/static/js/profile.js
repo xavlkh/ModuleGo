@@ -1,3 +1,7 @@
+/**
+ * Account profile page: password change and account deletion.
+ * @module profile
+ */
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('deleteAccountForm');
     if (!form) return;

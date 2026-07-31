@@ -24,10 +24,8 @@ const DetailManager = {
         this.modal.init();
     },
 
-    /** Show the module detail modal. */
     showModal() { this.modal.show(); },
 
-    /** Hide the module detail modal. */
     hideModal() { this.modal.hide(); },
 
     /**
@@ -44,7 +42,6 @@ const DetailManager = {
 
         document.getElementById('moduleModalLabel').textContent = `${module.code} - ${module.name}`;
         document.getElementById('moduleModalBody').innerHTML = this.createDetailContent(module);
-        // Set up bookmark button event listener
         const bookmarkBtn =
         document.getElementById('bookmarkModuleBtn');
 
@@ -307,7 +304,6 @@ const DetailManager = {
                 return;
             }
 
-            // Fetch vote data for all reviews
             let votesData = {};
             try {
                 const reviewIds = reviews.map(r => r.id);

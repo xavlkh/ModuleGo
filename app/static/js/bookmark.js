@@ -28,7 +28,6 @@ const BookmarkManager = {
         this.initialized = true;
     },
 
-    /** Read browser-only guest bookmarks. */
     loadLocal() {
         try {
             const saved = localStorage.getItem(this.storageKey);
@@ -41,14 +40,12 @@ const BookmarkManager = {
         }
     },
 
-    /** Save browser-only guest bookmarks. */
     saveLocal() {
         try {
             localStorage.setItem(this.storageKey, JSON.stringify(this.bookmarks));
         } catch {}
     },
 
-    /** Notify all pages that bookmark state changed. */
     notify() {
         document.dispatchEvent(new CustomEvent('bookmarks:changed'));
     },
@@ -58,7 +55,6 @@ const BookmarkManager = {
         return Boolean(code && this.bookmarks.includes(code));
     },
 
-    /** Toggle a bookmark and return its new state. */
     async toggle(moduleCode) {
         const code = _normalizeCode(moduleCode);
         if (!code) return false;
@@ -70,7 +66,6 @@ const BookmarkManager = {
         return true;
     },
 
-    /** Add a guest or account bookmark. */
     async add(moduleCode) {
         const code = _normalizeCode(moduleCode);
         if (!code) return false;
@@ -86,7 +81,6 @@ const BookmarkManager = {
         return true;
     },
 
-    /** Remove a guest or account bookmark. */
     async remove(moduleCode) {
         const code = _normalizeCode(moduleCode);
         if (!code) return false;
@@ -120,7 +114,6 @@ const BookmarkManager = {
         return this.bookmarks.length;
     },
 
-    /** Clear the active guest or account bookmark store. */
     async clear() {
         if (this.accountMode) {
             const response = await apiFetch('/api/bookmarks', { method: 'DELETE' });

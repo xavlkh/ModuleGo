@@ -3,7 +3,6 @@
  * @module bookmarks-page
  */
 const BookmarksPage = {
-    /** Initialise the page and load catalogue data. */
     async init() {
         this.grid = document.getElementById('bookmarkGrid');
         this.loading = document.getElementById('bookmarkLoading');
@@ -29,7 +28,6 @@ const BookmarksPage = {
         }
     },
 
-    /** Render the current bookmark collection. */
     render() {
         const modules = BookmarkManager.getModules();
         this.loading.classList.add('hidden');
@@ -84,7 +82,6 @@ const BookmarksPage = {
         return wrapper;
     },
 
-    /** Remove every bookmark after user confirmation. */
     async clearAll() {
         if (window.confirm('Remove all bookmarked modules?')) {
             await BookmarkManager.clear();

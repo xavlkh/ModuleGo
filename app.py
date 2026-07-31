@@ -19,15 +19,14 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
-from postgrest.exceptions import APIError
 
 from auth_routes import auth_bp
 from db import (
     public_review,
     review_to_dict,
     select_review,
-    supabase,
 )
 from ownership import (
     current_guest_hash,
@@ -49,13 +48,24 @@ app.config.update(
     ),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    SESSION_COOKIE_SECURE=os.environ.get('VERCEL') == '1',
+    SESSION_COOKIE_SECURE=False,
     PERMANENT_SESSION_LIFETIME=30 * 24 * 60 * 60,
 )
 app.register_blueprint(auth_bp)
 app.after_request(set_pending_guest_cookie)
 
 csrf = CSRFProtect()
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'auth.login'
+login_manager.login_message_category = 'error'
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    from user_model import User
+    return User.find_by_id(user_id)
 
 
 _test_request_counter = 0
@@ -123,10 +133,6 @@ def inject_globals():
     }
 
 
-# ---------------------------------------------------------------------------
-# Database helpers
-# ---------------------------------------------------------------------------
-
 def get_db() -> sqlite3.Connection:
     """Open a local review database connection with dictionary-like rows."""
     conn = sqlite3.connect(db_name)
@@ -149,10 +155,10 @@ def database_connection():
 
 
 def use_sqlite_reviews() -> bool:
-    """Return True when SQLite should be used (tests or Supabase unavailable)."""
+    """Return True when SQLite should be used (tests or no PostgreSQL)."""
     if app.config.get('TESTING'):
         return True
-    return supabase is None and not database_url
+    return not database_url
 
 
 def use_postgres() -> bool:
@@ -283,7 +289,35 @@ def init_db() -> None:
                 LABEL TEXT NOT NULL,
                 KEYWORDS TEXT NOT NULL DEFAULT '[]')'''
         )
+        conn.execute(
+            '''CREATE TABLE IF NOT EXISTS USERS
+               (ID TEXT PRIMARY KEY,
+                EMAIL TEXT NOT NULL UNIQUE,
+                DISPLAY_NAME TEXT NOT NULL,
+                PASSWORD_HASH TEXT NOT NULL,
+                CREATED_AT DATETIME DEFAULT CURRENT_TIMESTAMP)'''
+        )
     _seed_career_paths()
+    _init_pg_users()
+
+
+def _init_pg_users() -> None:
+    """Create the users table in PostgreSQL if it doesn't exist."""
+    if not use_postgres():
+        return
+    try:
+        with pg_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                '''CREATE TABLE IF NOT EXISTS users
+                   (id TEXT PRIMARY KEY,
+                    email TEXT NOT NULL UNIQUE,
+                    display_name TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW())'''
+            )
+        conn.commit()
+    except psycopg2.Error:
+        pass
 
 
 def _load_career_paths_from_file() -> list | None:
@@ -402,7 +436,42 @@ def init_pg_db() -> None:
                 LABEL TEXT NOT NULL,
                 KEYWORDS TEXT NOT NULL DEFAULT '[]')'''
         )
+        cur.execute(
+            '''CREATE TABLE IF NOT EXISTS RP_MODULES
+               (MODULE_CODE TEXT PRIMARY KEY,
+                MODULE_NAME TEXT DEFAULT '',
+                SYNOPSIS TEXT DEFAULT '',
+                SCHOOL_NAME TEXT DEFAULT '',
+                SCHOOL_ABBR TEXT DEFAULT '',
+                URL TEXT DEFAULT '')'''
+        )
+        cur.execute(
+            '''CREATE TABLE IF NOT EXISTS RP_COURSES
+               (COURSE_CODE TEXT PRIMARY KEY,
+                COURSE_NAME TEXT DEFAULT '',
+                SCHOOL_NAME TEXT DEFAULT '',
+                SCHOOL_ABBR TEXT DEFAULT '',
+                URL TEXT DEFAULT '',
+                GENERAL_MODULES JSONB DEFAULT '[]',
+                MAJOR_MODULES JSONB DEFAULT '[]',
+                DISCIPLINE_MODULES JSONB DEFAULT '[]',
+                ELECTIVE_MODULES JSONB DEFAULT '[]',
+                INDUSTRY_MODULES JSONB DEFAULT '[]',
+                MAJOR_GROUPS JSONB DEFAULT '[]')'''
+        )
+        cur.execute(
+            '''CREATE TABLE IF NOT EXISTS RP_MINORS
+               (MINOR_NAME TEXT PRIMARY KEY,
+                MINOR_TYPE TEXT DEFAULT '',
+                URL TEXT DEFAULT '',
+                MODULES JSONB DEFAULT '[]',
+                ELIGIBILITY TEXT DEFAULT '')'''
+        )
+    _init_pg_users()
     _seed_pg_career_paths()
+    _seed_pg_modules()
+    _seed_pg_courses()
+    _seed_pg_minors()
 
 
 def _seed_pg_career_paths() -> None:
@@ -426,22 +495,104 @@ def _seed_pg_career_paths() -> None:
                 continue
 
 
+def _seed_pg_modules() -> None:
+    """Seed modules from local JSON into PostgreSQL if table is empty."""
+    with pg_connection() as conn, conn.cursor() as cur:
+        cur.execute('SELECT COUNT(*) FROM RP_MODULES')
+        if cur.fetchone()[0] > 0:
+            return
+    path = os.path.join(_LOCAL_DATA_DIR, 'rp_modules_synopsis.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            modules = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return
+    with pg_connection() as conn, conn.cursor() as cur:
+        for m in modules:
+            try:
+                cur.execute(
+                    'INSERT INTO RP_MODULES (MODULE_CODE, MODULE_NAME, SYNOPSIS, SCHOOL_NAME, SCHOOL_ABBR, URL) '
+                    'VALUES (%s, %s, %s, %s, %s, %s)',
+                    (m['module_code'], m.get('module_name', ''), m.get('synopsis', ''),
+                     m.get('school_name', ''), m.get('school_abbr', ''), m.get('url', ''))
+                )
+            except psycopg2.Error:
+                continue
+
+
+def _seed_pg_courses() -> None:
+    """Seed courses from local JSON into PostgreSQL if table is empty."""
+    with pg_connection() as conn, conn.cursor() as cur:
+        cur.execute('SELECT COUNT(*) FROM RP_COURSES')
+        if cur.fetchone()[0] > 0:
+            return
+    path = os.path.join(_LOCAL_DATA_DIR, 'rp_courses.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            courses = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return
+    module_keys = ['general_modules', 'major_modules', 'discipline_modules', 'elective_modules', 'industry_modules']
+    with pg_connection() as conn, conn.cursor() as cur:
+        for d in courses:
+            try:
+                row = {
+                    'course_code': d.get('course_code', ''),
+                    'course_name': d.get('course_name', ''),
+                    'school_name': d.get('school_name', ''),
+                    'school_abbr': d.get('school_abbr', ''),
+                    'url': d.get('url', ''),
+                }
+                for key in module_keys:
+                    row[key] = json.dumps([m['code'] for m in d.get(key, []) if 'code' in m])
+                row['major_groups'] = json.dumps(d.get('major_groups', []))
+                cur.execute(
+                    'INSERT INTO RP_COURSES (COURSE_CODE, COURSE_NAME, SCHOOL_NAME, SCHOOL_ABBR, URL, '
+                    'GENERAL_MODULES, MAJOR_MODULES, DISCIPLINE_MODULES, ELECTIVE_MODULES, INDUSTRY_MODULES, MAJOR_GROUPS) '
+                    'VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                    (row['course_code'], row['course_name'], row['school_name'],
+                     row['school_abbr'], row['url'], row['general_modules'],
+                     row['major_modules'], row['discipline_modules'],
+                     row['elective_modules'], row['industry_modules'], row['major_groups'])
+                )
+            except psycopg2.Error:
+                continue
+
+
+def _seed_pg_minors() -> None:
+    """Seed minor programmes from local JSON into PostgreSQL if table is empty."""
+    with pg_connection() as conn, conn.cursor() as cur:
+        cur.execute('SELECT COUNT(*) FROM RP_MINORS')
+        if cur.fetchone()[0] > 0:
+            return
+    path = os.path.join(_LOCAL_DATA_DIR, 'rp_minors.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            minors = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return
+    with pg_connection() as conn, conn.cursor() as cur:
+        for m in minors:
+            try:
+                cur.execute(
+                    'INSERT INTO RP_MINORS (MINOR_NAME, MINOR_TYPE, URL, MODULES, ELIGIBILITY) '
+                    'VALUES (%s, %s, %s, %s, %s)',
+                    (m['minor_name'], m.get('minor_type', ''), m.get('url', ''),
+                     json.dumps([{'code': mod['code'], 'name': mod['name']} for mod in m.get('modules', [])]),
+                     m.get('eligibility', ''))
+                )
+            except psycopg2.Error:
+                continue
+
+
 if use_sqlite_reviews():
     init_db()
 elif use_postgres():
     init_pg_db()
 
 
-# ---------------------------------------------------------------------------
-# Review repository - encapsulates dual-database branching
-# ---------------------------------------------------------------------------
-
-# Triple-branch pattern: every repository method checks use_sqlite_reviews()
-# then use_postgres(), falling through to Supabase.  SQLite is used for
-# tests and local dev, PostgreSQL for self-hosted, Supabase for production.
-
 class ReviewRepository:
-    """Handles review persistence for SQLite, PostgreSQL, and Supabase."""
+    """Handles review persistence for SQLite and PostgreSQL."""
 
     @staticmethod
     def list_all(identity=None) -> list:
@@ -457,29 +608,16 @@ class ReviewRepository:
                 ).fetchall()
             return [public_review(row, identity) for row in rows]
 
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(
-                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
-                              UPDATED_AT, USER_ID,
-                              GUEST_OWNER_HASH, IS_ANONYMOUS,
-                              AUTHOR_DISPLAY_NAME
-                       FROM REVIEWS ORDER BY CREATED_AT DESC, ID DESC'''
-                )
-                rows = cur.fetchall()
-            return [public_review(row, identity) for row in rows]
-
-        result = (
-            supabase.table('reviews')
-            .select(
-                'id,module_code,rating,comment,created_at,updated_at,'
-                'user_id,guest_owner_hash,is_anonymous,'
-                'author_display_name'
+        with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
+                          UPDATED_AT, USER_ID,
+                          GUEST_OWNER_HASH, IS_ANONYMOUS,
+                          AUTHOR_DISPLAY_NAME
+                   FROM REVIEWS ORDER BY CREATED_AT DESC, ID DESC'''
             )
-            .order('created_at', desc=True)
-            .execute()
-        )
-        return [public_review(row, identity) for row in result.data]
+            rows = cur.fetchall()
+        return [public_review(row, identity) for row in rows]
 
     @staticmethod
     def list_by_module(module_code: str, identity=None) -> list:
@@ -498,32 +636,18 @@ class ReviewRepository:
                 ).fetchall()
             return [public_review(row, identity) for row in rows]
 
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(
-                    '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
-                              UPDATED_AT, USER_ID,
-                              GUEST_OWNER_HASH, IS_ANONYMOUS,
-                              AUTHOR_DISPLAY_NAME
-                       FROM REVIEWS WHERE MODULE_CODE = %s
-                       ORDER BY CREATED_AT DESC, ID DESC''',
-                    (normalized,),
-                )
-                rows = cur.fetchall()
-            return [public_review(row, identity) for row in rows]
-
-        result = (
-            supabase.table('reviews')
-            .select(
-                'id,module_code,rating,comment,created_at,updated_at,'
-                'user_id,guest_owner_hash,is_anonymous,'
-                'author_display_name'
+        with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                '''SELECT ID, MODULE_CODE, RATING, COMMENT, CREATED_AT,
+                          UPDATED_AT, USER_ID,
+                          GUEST_OWNER_HASH, IS_ANONYMOUS,
+                          AUTHOR_DISPLAY_NAME
+                   FROM REVIEWS WHERE MODULE_CODE = %s
+                   ORDER BY CREATED_AT DESC, ID DESC''',
+                (normalized,),
             )
-            .eq('module_code', normalized)
-            .order('created_at', desc=True)
-            .execute()
-        )
-        return [public_review(row, identity) for row in result.data]
+            rows = cur.fetchall()
+        return [public_review(row, identity) for row in rows]
 
     @staticmethod
     def create(payload: dict, identity: dict) -> tuple:
@@ -561,45 +685,25 @@ class ReviewRepository:
                     row = select_review(conn, cursor.lastrowid)
                 return public_review(row, identity), None
 
-            if use_postgres():
-                with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                    cur.execute(
-                        '''INSERT INTO REVIEWS
-                           (MODULE_CODE, RATING, COMMENT, USER_ID,
-                            GUEST_OWNER_HASH, IS_ANONYMOUS,
-                            AUTHOR_DISPLAY_NAME)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s)
-                           RETURNING *''',
-                        (
-                            payload['module_code'], payload['rating'],
-                            payload['comment'], ownership['user_id'],
-                            ownership['guest_owner_hash'], is_anonymous,
-                            author_name,
-                        ),
-                    )
-                    row = cur.fetchone()
-                return public_review(row, identity), None
-
-            insert_payload = {
-                'module_code': payload['module_code'],
-                'rating': payload['rating'],
-                'comment': payload['comment'],
-                **ownership,
-                'is_anonymous': is_anonymous,
-                'author_display_name': author_name,
-            }
-            result = supabase.table('reviews').insert(insert_payload).execute()
-            return public_review(result.data[0], identity), None
+            with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    '''INSERT INTO REVIEWS
+                       (MODULE_CODE, RATING, COMMENT, USER_ID,
+                        GUEST_OWNER_HASH, IS_ANONYMOUS,
+                        AUTHOR_DISPLAY_NAME)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)
+                       RETURNING *''',
+                    (
+                        payload['module_code'], payload['rating'],
+                        payload['comment'], ownership['user_id'],
+                        ownership['guest_owner_hash'], is_anonymous,
+                        author_name,
+                    ),
+                )
+                row = cur.fetchone()
+            return public_review(row, identity), None
         except (sqlite3.IntegrityError, psycopg2.IntegrityError) as error:
             if 'unique' in str(error).lower():
-                return None, (jsonify({
-                    'error': 'You already reviewed this module.',
-                }), 409)
-            raise
-        except APIError as error:
-            if error.code == '23503':
-                return None, (jsonify({'error': 'Module code does not exist.'}), 400)
-            if error.code == '23505':
                 return None, (jsonify({
                     'error': 'You already reviewed this module.',
                 }), 409)
@@ -624,6 +728,16 @@ class ReviewRepository:
                         review_to_dict(existing)['is_anonymous'],
                     ))
                 )
+                if (identity['kind'] == 'account'
+                        and not existing['USER_ID']
+                        and existing['GUEST_OWNER_HASH']):
+                    conn.execute(
+                        '''UPDATE REVIEWS
+                           SET USER_ID = ?, GUEST_OWNER_HASH = NULL,
+                               AUTHOR_DISPLAY_NAME = ?
+                           WHERE ID = ?''',
+                        (identity['user_id'], identity.get('display_name'), review_id),
+                    )
                 conn.execute(
                     '''UPDATE REVIEWS
                        SET RATING = ?, COMMENT = ?, IS_ANONYMOUS = ?,
@@ -637,70 +751,43 @@ class ReviewRepository:
                 row = select_review(conn, review_id)
             return public_review(row, identity), None
 
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
-                existing = cur.fetchone()
-                if not existing:
-                    return None, (jsonify({'error': 'Review not found.'}), 404)
-                if not identity_owns(review_to_dict(existing), identity):
-                    return None, (jsonify({'error': 'Forbidden: you do not own this review.'}), 403)
-                anonymous = (
-                    True if identity['kind'] == 'guest'
-                    else bool(payload.get(
-                        'is_anonymous',
-                        review_to_dict(existing)['is_anonymous'],
-                    ))
-                )
+        with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
+            existing = cur.fetchone()
+            if not existing:
+                return None, (jsonify({'error': 'Review not found.'}), 404)
+            if not identity_owns(review_to_dict(existing), identity):
+                return None, (jsonify({'error': 'Forbidden: you do not own this review.'}), 403)
+            anonymous = (
+                True if identity['kind'] == 'guest'
+                else bool(payload.get(
+                    'is_anonymous',
+                    review_to_dict(existing)['is_anonymous'],
+                ))
+            )
+            if (identity['kind'] == 'account'
+                    and not existing['user_id']
+                    and existing['guest_owner_hash']):
                 cur.execute(
                     '''UPDATE REVIEWS
-                       SET RATING = %s, COMMENT = %s, IS_ANONYMOUS = %s,
-                           UPDATED_AT = CURRENT_TIMESTAMP
-                       WHERE ID = %s''',
-                    (
-                        payload['rating'], payload['comment'], anonymous,
-                        review_id,
-                    ),
+                       SET user_id = %s, guest_owner_hash = NULL,
+                           author_display_name = %s
+                       WHERE id = %s''',
+                    (identity['user_id'], identity.get('display_name'), review_id),
                 )
-                cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
-                row = cur.fetchone()
-            return public_review(row, identity), None
-
-        existing_result = (
-            supabase.table('reviews')
-            .select(
-                'id,module_code,rating,comment,created_at,updated_at,'
-                'user_id,guest_owner_hash,is_anonymous,'
-                'author_display_name'
+            cur.execute(
+                '''UPDATE REVIEWS
+                   SET RATING = %s, COMMENT = %s, IS_ANONYMOUS = %s,
+                       UPDATED_AT = CURRENT_TIMESTAMP
+                   WHERE ID = %s''',
+                (
+                    payload['rating'], payload['comment'], anonymous,
+                    review_id,
+                ),
             )
-            .eq('id', review_id)
-            .limit(1)
-            .execute()
-        )
-        if not existing_result.data:
-            return None, (jsonify({'error': 'Review not found.'}), 404)
-        existing = review_to_dict(existing_result.data[0])
-        if not identity_owns(existing, identity):
-            return None, (jsonify({'error': 'Forbidden: you do not own this review.'}), 403)
-
-        payload = {
-            'rating': payload['rating'],
-            'comment': payload['comment'],
-            'is_anonymous': (
-                True if identity['kind'] == 'guest'
-                else bool(payload.get('is_anonymous', existing['is_anonymous']))
-            ),
-            'updated_at': datetime.now(timezone.utc).isoformat(),
-        }
-        result = (
-            supabase.table('reviews')
-            .update(payload)
-            .eq('id', review_id)
-            .execute()
-        )
-        if not result.data:
-            return None, (jsonify({'error': 'Review not found.'}), 404)
-        return public_review(result.data[0], identity), None
+            cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
+            row = cur.fetchone()
+        return public_review(row, identity), None
 
     @staticmethod
     def delete(review_id: int, identity: dict) -> tuple | None:
@@ -717,29 +804,14 @@ class ReviewRepository:
                 conn.execute('DELETE FROM REVIEWS WHERE ID = ?', (review_id,))
             return None
 
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
-                existing = cur.fetchone()
-                if not existing:
-                    return jsonify({'error': 'Review not found.'}), 404
-                if not identity_owns(review_to_dict(existing), identity):
-                    return jsonify({'error': 'Forbidden: you do not own this review.'}), 403
-                cur.execute('DELETE FROM REVIEWS WHERE ID = %s', (review_id,))
-            return None
-
-        existing = (
-            supabase.table('reviews')
-            .select('id,user_id,guest_owner_hash')
-            .eq('id', review_id)
-            .limit(1)
-            .execute()
-        )
-        if not existing.data:
-            return jsonify({'error': 'Review not found.'}), 404
-        if not identity_owns(existing.data[0], identity):
-            return jsonify({'error': 'Forbidden: you do not own this review.'}), 403
-        supabase.table('reviews').delete().eq('id', review_id).execute()
+        with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
+            existing = cur.fetchone()
+            if not existing:
+                return jsonify({'error': 'Review not found.'}), 404
+            if not identity_owns(review_to_dict(existing), identity):
+                return jsonify({'error': 'Forbidden: you do not own this review.'}), 403
+            cur.execute('DELETE FROM REVIEWS WHERE ID = %s', (review_id,))
         return None
 
     @staticmethod
@@ -755,8 +827,7 @@ class ReviewRepository:
                 )
                 return cursor.rowcount
 
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor() as cur:
+        with pg_connection() as conn, conn.cursor() as cur:
                 cur.execute(
                     '''UPDATE REVIEWS
                        SET AUTHOR_DISPLAY_NAME = %s
@@ -764,14 +835,6 @@ class ReviewRepository:
                     (display_name, user_id),
                 )
                 return cur.rowcount
-
-        result = (
-            supabase.table('reviews')
-            .update({'author_display_name': display_name})
-            .eq('user_id', user_id)
-            .execute()
-        )
-        return len(result.data)
 
     @staticmethod
     def count_by_user(user_id: str) -> int:
@@ -784,21 +847,12 @@ class ReviewRepository:
                 ).fetchone()
             return row['cnt']
 
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor() as cur:
+        with pg_connection() as conn, conn.cursor() as cur:
                 cur.execute(
                     'SELECT COUNT(*) FROM REVIEWS WHERE USER_ID = %s',
                     (user_id,),
                 )
                 return cur.fetchone()[0]
-
-        result = (
-            supabase.table('reviews')
-            .select('id', count='exact')
-            .eq('user_id', user_id)
-            .execute()
-        )
-        return result.count
 
     @staticmethod
     def rating_summaries() -> dict:
@@ -831,65 +885,40 @@ class ReviewRepository:
                 for row in rows
             }
 
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(
-                    '''SELECT MODULE_CODE,
-                              ROUND(AVG(RATING)::numeric, 2) AS AVERAGE_RATING,
-                              COUNT(*) AS REVIEW_COUNT,
-                              SUM(CASE WHEN RATING = 5 THEN 1 ELSE 0 END) AS RATING_5_COUNT,
-                              SUM(CASE WHEN RATING = 4 THEN 1 ELSE 0 END) AS RATING_4_COUNT,
-                              SUM(CASE WHEN RATING = 3 THEN 1 ELSE 0 END) AS RATING_3_COUNT,
-                              SUM(CASE WHEN RATING = 2 THEN 1 ELSE 0 END) AS RATING_2_COUNT,
-                              SUM(CASE WHEN RATING = 1 THEN 1 ELSE 0 END) AS RATING_1_COUNT
-                       FROM REVIEWS GROUP BY MODULE_CODE ORDER BY MODULE_CODE'''
-                )
-                rows = cur.fetchall()
-            return {
-                row['MODULE_CODE']: {
-                    'average_rating': float(row['AVERAGE_RATING']),
-                    'review_count': row['REVIEW_COUNT'],
-                    'distribution': {
-                        '5': row['RATING_5_COUNT'],
-                        '4': row['RATING_4_COUNT'],
-                        '3': row['RATING_3_COUNT'],
-                        '2': row['RATING_2_COUNT'],
-                        '1': row['RATING_1_COUNT'],
-                    },
-                }
-                for row in rows
+        with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                '''SELECT MODULE_CODE,
+                          ROUND(AVG(RATING)::numeric, 2) AS average_rating,
+                          COUNT(*) AS review_count,
+                          SUM(CASE WHEN RATING = 5 THEN 1 ELSE 0 END) AS rating_5_count,
+                          SUM(CASE WHEN RATING = 4 THEN 1 ELSE 0 END) AS rating_4_count,
+                          SUM(CASE WHEN RATING = 3 THEN 1 ELSE 0 END) AS rating_3_count,
+                          SUM(CASE WHEN RATING = 2 THEN 1 ELSE 0 END) AS rating_2_count,
+                          SUM(CASE WHEN RATING = 1 THEN 1 ELSE 0 END) AS rating_1_count
+                   FROM REVIEWS GROUP BY MODULE_CODE ORDER BY MODULE_CODE'''
+            )
+            rows = cur.fetchall()
+        return {
+            row['module_code']: {
+                'average_rating': float(row['average_rating']),
+                'review_count': row['review_count'],
+                'distribution': {
+                    '5': row['rating_5_count'],
+                    '4': row['rating_4_count'],
+                    '3': row['rating_3_count'],
+                    '2': row['rating_2_count'],
+                    '1': row['rating_1_count'],
+                },
             }
-
-        # Aggregate in-memory instead of GROUP BY — avoids Supabase
-        # restrictions on aggregate queries with the free tier.
-        try:
-            result = supabase.table('reviews').select('module_code,rating').execute()
-            grouped = {}
-            for review in result.data:
-                code = review['module_code']
-                grouped.setdefault(code, []).append(review['rating'])
-            return {
-                code: {
-                    'average_rating': round(sum(ratings) / len(ratings), 2),
-                    'review_count': len(ratings),
-                    'distribution': {
-                        str(rating): ratings.count(rating)
-                        for rating in range(5, 0, -1)
-                    },
-                }
-                for code, ratings in grouped.items()
-            }
-        except APIError:
-            return {}
+            for row in rows
+        }
 
 
 app.extensions['review_repository'] = ReviewRepository
 
 
-# ---------------------------------------------------------------------------
-
 class VoteRepository:
-    """Handles vote persistence for SQLite, PostgreSQL, and Supabase."""
+    """Handles vote persistence for SQLite and PostgreSQL."""
 
     @staticmethod
     def _identity_filter(identity):
@@ -938,7 +967,7 @@ class VoteRepository:
                     user_votes = {
                         row['REVIEW_ID']: row['VOTE_TYPE'] for row in rows
                     }
-        elif use_postgres():
+        else:
             placeholders = ','.join(['%s'] * len(review_ids))
             with pg_connection() as conn, conn.cursor(
                 cursor_factory=psycopg2.extras.RealDictCursor
@@ -962,24 +991,6 @@ class VoteRepository:
                         row['review_id']: row['vote_type']
                         for row in cur.fetchall()
                     }
-        else:
-            try:
-                rows = (
-                    supabase.table('review_votes')
-                    .select('review_id,vote_type,user_id,guest_owner_hash')
-                    .in_('review_id', review_ids)
-                    .execute()
-                    .data
-                )
-                for row in rows:
-                    review_id = row['review_id']
-                    scores[review_id] = (
-                        scores.get(review_id, 0) + row['vote_type']
-                    )
-                    if column and str(row.get(column) or '') == str(value):
-                        user_votes[review_id] = row['vote_type']
-            except APIError:
-                pass
 
         return {
             review_id: {
@@ -998,21 +1009,12 @@ class VoteRepository:
                     'SELECT * FROM REVIEWS WHERE ID = ?',
                     (review_id,),
                 ).fetchone()
-        elif use_postgres():
+        else:
             with pg_connection() as conn, conn.cursor(
                 cursor_factory=psycopg2.extras.RealDictCursor
             ) as cur:
                 cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
                 row = cur.fetchone()
-        else:
-            result = (
-                supabase.table('reviews')
-                .select('id,user_id,guest_owner_hash')
-                .eq('id', review_id)
-                .limit(1)
-                .execute()
-            )
-            row = result.data[0] if result.data else None
         return row is not None and identity_owns(review_to_dict(row), identity)
 
     @staticmethod
@@ -1044,8 +1046,7 @@ class VoteRepository:
                     conn, existing, review_id, vote_type, column, value
                 ), None
 
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor(
+        with pg_connection() as conn, conn.cursor(
                 cursor_factory=psycopg2.extras.RealDictCursor
             ) as cur:
                 cur.execute(
@@ -1073,43 +1074,6 @@ class VoteRepository:
                     (review_id, value, vote_type),
                 )
                 return {'action': 'added', 'vote_type': vote_type}, None
-
-        try:
-            existing = (
-                supabase.table('review_votes')
-                .select('id,vote_type')
-                .eq('review_id', review_id)
-                .eq(column, value)
-                .limit(1)
-                .execute()
-            )
-            if existing.data:
-                vote = existing.data[0]
-                if vote['vote_type'] == vote_type:
-                    (
-                        supabase.table('review_votes')
-                        .delete()
-                        .eq('id', vote['id'])
-                        .execute()
-                    )
-                    return {'action': 'removed', 'vote_type': 0}, None
-                (
-                    supabase.table('review_votes')
-                    .update({'vote_type': vote_type})
-                    .eq('id', vote['id'])
-                    .execute()
-                )
-                return {'action': 'updated', 'vote_type': vote_type}, None
-            supabase.table('review_votes').insert({
-                'review_id': review_id,
-                column: value,
-                'vote_type': vote_type,
-            }).execute()
-            return {'action': 'added', 'vote_type': vote_type}, None
-        except APIError as error:
-            if error.code == '23503':
-                return None, (jsonify({'error': 'Review not found.'}), 404)
-            raise
 
     @staticmethod
     def _write_sqlite_vote(
@@ -1146,21 +1110,13 @@ class VoteRepository:
                         WHERE REVIEW_ID = ? AND {column.upper()} = ?''',
                     (review_id, value),
                 )
-        elif use_postgres():
+        else:
             with pg_connection() as conn, conn.cursor() as cur:
                 cur.execute(
                     f'''DELETE FROM REVIEW_VOTES
                         WHERE REVIEW_ID = %s AND {column} = %s''',
                     (review_id, value),
                 )
-        else:
-            (
-                supabase.table('review_votes')
-                .delete()
-                .eq('review_id', review_id)
-                .eq(column, value)
-                .execute()
-            )
 
 
 class BookmarkRepository:
@@ -1177,22 +1133,13 @@ class BookmarkRepository:
                     (user_id,),
                 ).fetchall()
             return [row['MODULE_CODE'] for row in rows]
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor() as cur:
+        with pg_connection() as conn, conn.cursor() as cur:
                 cur.execute(
                     '''SELECT MODULE_CODE FROM BOOKMARKS
                        WHERE USER_ID = %s ORDER BY CREATED_AT''',
                     (user_id,),
                 )
                 return [row[0] for row in cur.fetchall()]
-        result = (
-            supabase.table('bookmarks')
-            .select('module_code')
-            .eq('user_id', user_id)
-            .order('created_at')
-            .execute()
-        )
-        return [row['module_code'] for row in result.data]
 
     @staticmethod
     def add(user_id, module_code):
@@ -1205,25 +1152,13 @@ class BookmarkRepository:
                        (USER_ID, MODULE_CODE) VALUES (?, ?)''',
                     (user_id, code),
                 )
-        elif use_postgres():
+        else:
             with pg_connection() as conn, conn.cursor() as cur:
                 cur.execute(
                     '''INSERT INTO BOOKMARKS (USER_ID, MODULE_CODE)
                        VALUES (%s, %s) ON CONFLICT DO NOTHING''',
                     (user_id, code),
                 )
-        else:
-            try:
-                supabase.table('bookmarks').upsert({
-                    'user_id': user_id,
-                    'module_code': code,
-                }, on_conflict='user_id,module_code').execute()
-            except APIError as error:
-                if error.code == '23503':
-                    return None, (jsonify({
-                        'error': 'Module code does not exist.',
-                    }), 400)
-                raise
         return code, None
 
     @staticmethod
@@ -1242,7 +1177,7 @@ class BookmarkRepository:
                         'DELETE FROM BOOKMARKS WHERE USER_ID = ?',
                         (user_id,),
                     )
-        elif use_postgres():
+        else:
             with pg_connection() as conn, conn.cursor() as cur:
                 if module_code:
                     cur.execute(
@@ -1255,15 +1190,6 @@ class BookmarkRepository:
                         'DELETE FROM BOOKMARKS WHERE USER_ID = %s',
                         (user_id,),
                     )
-        else:
-            query = (
-                supabase.table('bookmarks')
-                .delete()
-                .eq('user_id', user_id)
-            )
-            if module_code:
-                query = query.eq('module_code', module_code.strip().upper())
-            query.execute()
 
 
 class OwnershipRepository:
@@ -1287,37 +1213,20 @@ class OwnershipRepository:
                     (guest_hash,),
                 ).fetchone()[0]
             return {'reviews': reviews, 'votes': votes}
-        if use_postgres():
-            with pg_connection() as conn, conn.cursor() as cur:
-                cur.execute(
-                    '''SELECT COUNT(*) FROM REVIEWS
-                       WHERE GUEST_OWNER_HASH = %s''',
-                    (guest_hash,),
-                )
-                reviews = cur.fetchone()[0]
-                cur.execute(
-                    '''SELECT COUNT(*) FROM REVIEW_VOTES
-                       WHERE GUEST_OWNER_HASH = %s''',
-                    (guest_hash,),
-                )
-                votes = cur.fetchone()[0]
-            return {'reviews': reviews, 'votes': votes}
-        reviews = (
-            supabase.table('reviews')
-            .select('id', count='exact')
-            .eq('guest_owner_hash', guest_hash)
-            .execute()
-        )
-        votes = (
-            supabase.table('review_votes')
-            .select('id', count='exact')
-            .eq('guest_owner_hash', guest_hash)
-            .execute()
-        )
-        return {
-            'reviews': reviews.count or 0,
-            'votes': votes.count or 0,
-        }
+        with pg_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                '''SELECT COUNT(*) FROM REVIEWS
+                   WHERE GUEST_OWNER_HASH = %s''',
+                (guest_hash,),
+            )
+            reviews = cur.fetchone()[0]
+            cur.execute(
+                '''SELECT COUNT(*) FROM REVIEW_VOTES
+                   WHERE GUEST_OWNER_HASH = %s''',
+                (guest_hash,),
+            )
+            votes = cur.fetchone()[0]
+        return {'reviews': reviews, 'votes': votes}
 
     @staticmethod
     def claim(identity, guest_hash, bookmark_codes):
@@ -1340,17 +1249,9 @@ class OwnershipRepository:
             return OwnershipRepository._claim_sqlite(
                 identity, guest_hash, codes
             )
-        if use_postgres():
-            return OwnershipRepository._claim_postgres(
-                identity, guest_hash, codes
-            )
-        result = supabase.rpc('claim_guest_activity', {
-            'p_user_id': identity['user_id'],
-            'p_guest_owner_hash': guest_hash,
-            'p_display_name': identity['display_name'],
-            'p_bookmark_codes': codes,
-        }).execute()
-        return result.data
+        return OwnershipRepository._claim_postgres(
+            identity, guest_hash, codes
+        )
 
     @staticmethod
     def _claim_sqlite(identity, guest_hash, codes):
@@ -1444,10 +1345,6 @@ class OwnershipRepository:
             return cur.fetchone()[0]
 
 
-# ---------------------------------------------------------------------------
-# Payload validation
-# ---------------------------------------------------------------------------
-
 def validate_review_payload(data: dict | None, require_module_code: bool = False) -> tuple:
     """Validate and sanitize review payload data.
 
@@ -1516,13 +1413,9 @@ def validate_comparison_payload(data: dict | None) -> tuple:
     return normalized_codes, None
 
 
-# ---------------------------------------------------------------------------
-# Module data caching
-# ---------------------------------------------------------------------------
-
-# Manual TTL cache — avoids hitting Supabase rate limits on every keystroke.
+# Manual TTL cache — avoids re-fetching on every keystroke.
 _modules_cache = {'data': None, 'timestamp': 0}
-MODULE_CACHE_TTL = 300  # 5 minutes
+MODULE_CACHE_TTL = 300
 
 
 _CAREER_PATHS_TABLE = 'rp_career_paths'
@@ -1530,7 +1423,7 @@ _LOCAL_DATA_DIR = os.path.join(_base_dir, 'app', 'static', 'local-data', 'data')
 
 
 def _load_local_modules() -> list[dict] | None:
-    """Load module data from local JSON files when Supabase is unreachable."""
+    """Load module data from local JSON files as fallback."""
     synopsis_path = os.path.join(_LOCAL_DATA_DIR, 'rp_modules_synopsis.json')
     try:
         with open(synopsis_path, encoding='utf-8') as f:
@@ -1549,7 +1442,7 @@ def _load_local_modules() -> list[dict] | None:
 
 
 def _load_local_courses() -> list[dict] | None:
-    """Load course/diploma data from local JSON file when Supabase is unreachable."""
+    """Load course/diploma data from local JSON file as fallback."""
     courses_path = os.path.join(_LOCAL_DATA_DIR, 'rp_courses.json')
     try:
         with open(courses_path, encoding='utf-8') as f:
@@ -1559,7 +1452,7 @@ def _load_local_courses() -> list[dict] | None:
 
 
 def _load_local_minors() -> list[dict] | None:
-    """Load minor programme data from local JSON file when Supabase is unreachable."""
+    """Load minor programme data from local JSON file as fallback."""
     minors_path = os.path.join(_LOCAL_DATA_DIR, 'rp_minors.json')
     try:
         with open(minors_path, encoding='utf-8') as f:
@@ -1569,8 +1462,7 @@ def _load_local_minors() -> list[dict] | None:
 
 
 def _build_modules_list() -> list | None:
-    """Fetch modules from PostgreSQL/Supabase, falling back to local JSON files."""
-    # PostgreSQL path
+    """Fetch modules from PostgreSQL, falling back to local JSON files."""
     if use_postgres():
         try:
             with pg_connection() as conn, conn.cursor() as cur:
@@ -1579,21 +1471,6 @@ def _build_modules_list() -> list | None:
                 if rows:
                     return [{'code': r[0], 'name': r[1], 'synopsis': r[2], 'school': r[3], 'school_abbr': r[4], 'url': r[5]} for r in rows]
         except psycopg2.Error:
-            pass
-
-    # Supabase path
-    if supabase is not None:
-        try:
-            result = supabase.table("rp_modules").select("*").order("module_code").execute()
-            return [{
-                "code": row.get("module_code", ""),
-                "name": row.get("module_name", ""),
-                "synopsis": row.get("synopsis", ""),
-                "school": row.get("school_name", ""),
-                "school_abbr": row.get("school_abbr", ""),
-                "url": row.get("url", ""),
-            } for row in result.data]
-        except APIError:
             pass
 
     return _load_local_modules()
@@ -1673,10 +1550,6 @@ def generate_gemini_comparison(modules: list[dict]) -> list[dict]:
     return rows
 
 
-# ---------------------------------------------------------------------------
-# Routes - Page serving
-# ---------------------------------------------------------------------------
-
 @app.route('/')
 def serve_index():
     """Render the home page with module search functionality."""
@@ -1702,13 +1575,9 @@ def serve_reviews():
     return render_template('modules/reviews.html')
 
 
-# ---------------------------------------------------------------------------
-# Routes - API endpoints
-# ---------------------------------------------------------------------------
-
 @app.route('/api/modules', methods=['GET'])
 def get_modules():
-    """Return all modules from Supabase with generated comparison fields.
+    """Return all modules with generated comparison fields.
 
     Results are cached for MODULE_CACHE_TTL seconds to avoid
     re-running regex matching on every request.
@@ -1732,14 +1601,13 @@ COURSES_CACHE_TTL = 300
 
 @app.route('/api/courses', methods=['GET'])
 def get_courses():
-    """Return all courses (diplomas) from PostgreSQL/Supabase rp_courses table."""
+    """Return all courses (diplomas) from PostgreSQL rp_courses table."""
     now = time.time()
     if _courses_cache['data'] is not None and (now - _courses_cache['timestamp']) < COURSES_CACHE_TTL:
         return jsonify(_courses_cache['data']), 200
 
     courses = None
 
-    # PostgreSQL path
     if use_postgres():
         try:
             with pg_connection() as conn, conn.cursor() as cur:
@@ -1759,14 +1627,6 @@ def get_courses():
         except (psycopg2.Error, json.JSONDecodeError):
             pass
 
-    # Supabase path
-    if courses is None and supabase is not None:
-        try:
-            result = supabase.table('rp_courses').select('*').execute()
-            courses = result.data
-        except APIError:
-            pass
-
     if courses is None:
         courses = _load_local_courses()
 
@@ -1784,14 +1644,13 @@ MINORS_CACHE_TTL = 300
 
 @app.route('/api/minors', methods=['GET'])
 def get_minors():
-    """Return all minor programmes from PostgreSQL/Supabase rp_minors table."""
+    """Return all minor programmes from PostgreSQL rp_minors table."""
     now = time.time()
     if _minors_cache['data'] is not None and (now - _minors_cache['timestamp']) < MINORS_CACHE_TTL:
         return jsonify(_minors_cache['data']), 200
 
     minors = None
 
-    # PostgreSQL path
     if use_postgres():
         try:
             with pg_connection() as conn, conn.cursor() as cur:
@@ -1804,14 +1663,6 @@ def get_minors():
                         'eligibility': r[4],
                     } for r in rows]
         except (psycopg2.Error, json.JSONDecodeError):
-            pass
-
-    # Supabase path
-    if minors is None and supabase is not None:
-        try:
-            result = supabase.table('rp_minors').select('*').execute()
-            minors = result.data
-        except APIError:
             pass
 
     if minors is None:
@@ -2102,7 +1953,6 @@ def _get_active_module_codes() -> frozenset:
     """Return frozenset of module codes linked to active courses/diplomas."""
     courses = None
 
-    # PostgreSQL path
     if use_postgres():
         try:
             with pg_connection() as conn, conn.cursor() as cur:
@@ -2117,14 +1967,6 @@ def _get_active_module_codes() -> frozenset:
                             row[field] = val if isinstance(val, list) else json.loads(val) if val else []
                         courses.append(row)
         except (psycopg2.Error, json.JSONDecodeError):
-            pass
-
-    # Supabase path
-    if courses is None and supabase is not None:
-        try:
-            result = supabase.table("rp_courses").select("*").execute()
-            courses = result.data
-        except APIError:
             pass
 
     if courses is None:
@@ -2323,7 +2165,6 @@ def gobot_chat():
 
     # --- Fast paths (no Gemini) ---
 
-    # 1. Exact module code match
     for t in user_msg.split():
         clean = re.sub(r'[^a-z0-9]', '', t.lower())
         if clean in module_map:
@@ -2335,9 +2176,8 @@ def gobot_chat():
                     {"text": "Compare", "url": f"/comparison?id={m['code']}"},
                 ],
                 "suggestions": [f"Reviews for {m['code']}", f"Compare {m['code']}"],
-            })
+                })
 
-    # 2. Greeting
     if re.match(r'^(hi|hello|hey|howdy|yo|sup)\b', msg_lower):
         return jsonify({
             "reply": "Hi! Tell me what career or interests you're exploring, and I'll recommend modules for you!",
@@ -2345,7 +2185,6 @@ def gobot_chat():
             "suggestions": ["I like designing websites", "I want to build software", "Tell me about careers"],
         })
 
-    # 3. Reviews lookup
     m = re.search(r'(?:reviews?|rating|feedback)\s+(?:for|of|about|on)?\s*([a-z]\d{3})', msg_lower)
     if m:
         code = m.group(1).lower()
@@ -2368,7 +2207,6 @@ def gobot_chat():
             return jsonify({"reply": reply, "links": links, "suggestions": []})
         return jsonify({"reply": f"Couldn't find module '{code}'.", "links": [], "suggestions": []})
 
-    # 4. Navigation / help
     if re.search(r'(where|navigate|how to|how do i|guide|help|what can|what does)', msg_lower):
         return jsonify({
             "reply": "Here's how to get around:",
@@ -2380,7 +2218,6 @@ def gobot_chat():
             "suggestions": ["What modules for Data Analyst?", "Tell me about C270"],
         })
 
-    # 5. About ModuleGo
     if 'modulego' in msg_lower or 'module go' in msg_lower:
         return jsonify({
             "reply": "ModuleGo helps Republic Polytechnic students discover and compare modules. Tell me your career goals and I'll recommend the right modules for you!",
@@ -2424,8 +2261,7 @@ def gobot_chat():
 
 
 def _load_career_paths() -> list:
-    """Load career paths from DB (SQLite/PostgreSQL/Supabase), with file + hardcoded fallback."""
-    # SQLite path (dev/test)
+    """Load career paths from DB (SQLite/PostgreSQL), with file + hardcoded fallback."""
     if use_sqlite_reviews():
         try:
             with database_connection() as conn:
@@ -2441,7 +2277,6 @@ def _load_career_paths() -> list:
             return paths
         return _CAREER_FALLBACK
 
-    # PostgreSQL path
     if use_postgres():
         try:
             with pg_connection() as conn, conn.cursor() as cur:
@@ -2455,14 +2290,6 @@ def _load_career_paths() -> list:
         if paths:
             return paths
         return _CAREER_FALLBACK
-
-    # Supabase path (production)
-    try:
-        result = supabase.table(_CAREER_PATHS_TABLE).select('*').order('id').execute()
-        if result.data:
-            return [{'id': r['id'], 'label': r['label'], 'keywords': r['keywords']} for r in result.data]
-    except APIError:
-        pass
 
     paths = _load_career_paths_from_file()
     if paths:
