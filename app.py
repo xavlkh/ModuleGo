@@ -430,7 +430,7 @@ def init_pg_db() -> None:
                 PRIMARY KEY (USER_ID, MODULE_CODE))'''
         )
         cur.execute(
-            '''CREATE TABLE IF NOT EXISTS CAREER_PATHS
+            '''CREATE TABLE IF NOT EXISTS rp_career_paths
                (ID SERIAL PRIMARY KEY,
                 CAREER_ID TEXT NOT NULL UNIQUE,
                 LABEL TEXT NOT NULL,
@@ -477,7 +477,7 @@ def init_pg_db() -> None:
 def _seed_pg_career_paths() -> None:
     """Seed career paths from local JSON into PostgreSQL if table is empty."""
     with pg_connection() as conn, conn.cursor() as cur:
-        cur.execute('SELECT COUNT(*) FROM CAREER_PATHS')
+        cur.execute(f'SELECT COUNT(*) FROM {_CAREER_PATHS_TABLE}')
         count = cur.fetchone()[0]
         if count > 0:
             return
@@ -488,7 +488,7 @@ def _seed_pg_career_paths() -> None:
         for p in paths:
             try:
                 cur.execute(
-                    'INSERT INTO CAREER_PATHS (CAREER_ID, LABEL, KEYWORDS) VALUES (%s, %s, %s)',
+                    f'INSERT INTO {_CAREER_PATHS_TABLE} (CAREER_ID, LABEL, KEYWORDS) VALUES (%s, %s, %s)',
                     (p['id'], p['label'], json.dumps(p.get('keywords', [])))
                 )
             except psycopg2.Error:
@@ -2266,7 +2266,7 @@ def _load_career_paths() -> list:
         try:
             with database_connection() as conn:
                 rows = conn.execute(
-                    'SELECT CAREER_ID, LABEL, KEYWORDS FROM CAREER_PATHS ORDER BY ID'
+                    f'SELECT CAREER_ID, LABEL, KEYWORDS FROM {_CAREER_PATHS_TABLE} ORDER BY ID'
                 ).fetchall()
                 if rows:
                     return [{'id': r[0], 'label': r[1], 'keywords': json.loads(r[2])} for r in rows]
@@ -2280,7 +2280,7 @@ def _load_career_paths() -> list:
     if use_postgres():
         try:
             with pg_connection() as conn, conn.cursor() as cur:
-                cur.execute('SELECT CAREER_ID, LABEL, KEYWORDS FROM CAREER_PATHS ORDER BY ID')
+                cur.execute(f'SELECT CAREER_ID, LABEL, KEYWORDS FROM {_CAREER_PATHS_TABLE} ORDER BY ID')
                 rows = cur.fetchall()
                 if rows:
                     return [{'id': r[0], 'label': r[1], 'keywords': r[2] if isinstance(r[2], list) else json.loads(r[2]) if r[2] else []} for r in rows]
