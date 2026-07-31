@@ -467,6 +467,7 @@ def init_pg_db() -> None:
                 MODULES JSONB DEFAULT '[]',
                 ELIGIBILITY TEXT DEFAULT '')'''
         )
+    _init_pg_users()
     _seed_pg_career_paths()
     _seed_pg_modules()
     _seed_pg_courses()
