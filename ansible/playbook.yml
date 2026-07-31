@@ -93,7 +93,7 @@
       delay: 10
 
     - name: Restart containers
-      command: docker compose up -d
+      command: docker compose up -d --force-recreate
       args:
         chdir: "/home/ubuntu/modulego-{{ env }}"
       become_user: ubuntu
