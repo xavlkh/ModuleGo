@@ -1,54 +1,25 @@
 """Shared database helpers extracted from app.py.
 
-Contains the Supabase client, row converters, and backend-selection
-helpers used by ReviewRepository and other modules.  Connection
-lifecycle (database_connection, init_db) stays in app.py so tests
-can monkeypatch ``app_module.db_name`` and have it take effect.
+Contains row converters and backend-selection helpers used by
+ReviewRepository and other modules.  Connection lifecycle
+(database_connection, init_db) stays in app.py so tests can
+monkeypatch ``app_module.db_name`` and have it take effect.
 """
 
 import os
 
-from postgrest.exceptions import APIError  # noqa: F401 — re-exported for app.py
-from supabase import create_client
-
 _base_dir = os.path.dirname(os.path.abspath(__file__))
 
-# ---------------------------------------------------------------------------
-# Supabase client — created once at import time
-# ---------------------------------------------------------------------------
-
-supabase_url = os.environ.get('SUPABASE_URL')
-supabase_secret_key = os.environ.get('SUPABASE_SECRET_KEY')
-supabase = None
-
-if supabase_url and supabase_secret_key:
-    if not supabase_url.startswith(('https://', 'http://')):
-        raise RuntimeError('SUPABASE_URL must be a complete HTTP(S) URL.')
-    if supabase_secret_key.startswith('sb_publishable_'):
-        raise RuntimeError(
-            'SUPABASE_SECRET_KEY must use the backend-only sb_secret_ key, not a '
-            'publishable browser key.'
-        )
-    supabase = create_client(supabase_url, supabase_secret_key)
-
-
-# ---------------------------------------------------------------------------
-# Backend selection
-# ---------------------------------------------------------------------------
 
 def use_sqlite_reviews():
-    """True when SQLite should be used (tests or no remote DB).
-
-    When a Flask app context exists, honours ``TESTING``; otherwise falls
-    back to checking whether Supabase and DATABASE_URL are configured.
-    """
+    """True when SQLite should be used (tests or no DATABASE_URL)."""
     try:
         import flask
         if flask.current_app.config.get('TESTING'):
             return True
     except RuntimeError:
         pass
-    return supabase is None and not os.environ.get('DATABASE_URL')
+    return not os.environ.get('DATABASE_URL')
 
 
 def use_postgres():
@@ -62,16 +33,11 @@ def use_postgres():
     return bool(os.environ.get('DATABASE_URL'))
 
 
-# ---------------------------------------------------------------------------
-# Row helpers
-# ---------------------------------------------------------------------------
-
 def _row_value(row, key, default=None):
-    """Read a value from SQLite, PostgreSQL, or Supabase row mappings.
+    """Read a value from SQLite or PostgreSQL row mappings.
 
     Handles the casing mismatch: SQLite Row returns UPPERCASE keys,
-    PostgreSQL RealDictCursor returns lowercase, Supabase returns
-    whatever the API sends.
+    PostgreSQL RealDictCursor returns lowercase.
     """
     try:
         return row[key]
@@ -102,7 +68,7 @@ def public_review(row, identity=None) -> dict:
     """Return a review without leaking private ownership fields.
 
     Public contract exposes ``is_owner`` and ``author.{anonymous, label}``
-    only — raw ``user_id`` / ``guest_owner_hash`` never leave this function.
+    only -- raw ``user_id`` / ``guest_owner_hash`` never leave this function.
     """
     from ownership import identity_owns
 

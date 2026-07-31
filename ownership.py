@@ -5,6 +5,7 @@ import hmac
 import secrets
 
 from flask import current_app, g, request
+from flask_login import current_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 GUEST_COOKIE_NAME = "modulego_guest"
@@ -45,13 +46,12 @@ def current_guest_hash():
 
 def request_identity(create_guest=False):
     """Return the verified account identity or signed guest identity."""
-    user = getattr(g, "current_user", None)
-    if user and user.get("id"):
+    if current_user.is_authenticated:
         return {
             "kind": "account",
-            "user_id": user["id"],
+            "user_id": current_user.id,
             "guest_owner_hash": None,
-            "display_name": user.get("display_name", "Student")[:50],
+            "display_name": getattr(current_user, "display_name", "Student")[:50],
         }
 
     guest_hash = current_guest_hash()
@@ -96,10 +96,13 @@ def identity_owns(row, identity):
     if not identity:
         return False
     if identity["kind"] == "account":
-        return bool(
-            row.get("user_id")
-            and str(row["user_id"]) == identity["user_id"]
-        )
+        if row.get("user_id") and str(row["user_id"]) == identity["user_id"]:
+            return True
+        # Guest-to-account: logged-in user claiming a guest review via cookie
+        guest_hash = current_guest_hash()
+        if guest_hash and row.get("guest_owner_hash"):
+            return hmac.compare_digest(row["guest_owner_hash"], guest_hash)
+        return False
     return bool(
         row.get("guest_owner_hash")
         and hmac.compare_digest(
