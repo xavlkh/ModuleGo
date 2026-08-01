@@ -472,6 +472,7 @@ def init_pg_db() -> None:
     _seed_pg_modules()
     _seed_pg_courses()
     _seed_pg_minors()
+    _sync_pg_sequences()
 
 
 def _seed_pg_career_paths() -> None:
@@ -580,6 +581,20 @@ def _seed_pg_minors() -> None:
                     (m['minor_name'], m.get('minor_type', ''), m.get('url', ''),
                      json.dumps([{'code': mod['code'], 'name': mod['name']} for mod in m.get('modules', [])]),
                      m.get('eligibility', ''))
+                )
+            except psycopg2.Error:
+                continue
+
+
+def _sync_pg_sequences() -> None:
+    """Reset PostgreSQL serial sequences to MAX(id) to prevent duplicate key errors."""
+    tables = ['reviews', 'review_votes', 'rp_career_paths']
+    with pg_connection() as conn, conn.cursor() as cur:
+        for table in tables:
+            try:
+                cur.execute(
+                    f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), "
+                    f"(SELECT COALESCE(MAX(id), 0) FROM {table}))"
                 )
             except psycopg2.Error:
                 continue
