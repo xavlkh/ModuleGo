@@ -93,6 +93,7 @@ MAX_COMMENT_LENGTH = 500
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.1-flash-lite')
 GEMINI_TIMEOUT_SECONDS = 25
 MAX_COMPARISON_SOURCE_LENGTH = 4000
+_CAREER_PATHS_TABLE = 'rp_career_paths'
 
 
 class GeminiServiceError(RuntimeError):
@@ -1433,7 +1434,6 @@ _modules_cache = {'data': None, 'timestamp': 0}
 MODULE_CACHE_TTL = 300
 
 
-_CAREER_PATHS_TABLE = 'rp_career_paths'
 _LOCAL_DATA_DIR = os.path.join(_base_dir, 'app', 'static', 'local-data', 'data')
 
 
