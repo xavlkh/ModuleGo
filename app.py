@@ -577,7 +577,7 @@ def _seed_pg_modules() -> None:
         cur.execute('SELECT COUNT(*) FROM RP_MODULES')
         if cur.fetchone()[0] > 0:
             return
-    path = os.path.join(_LOCAL_DATA_DIR, 'rp_modules_synopsis.json')
+    path = os.path.join(LOCAL_DATA_DIR, 'rp_modules_synopsis.json')
     try:
         with open(path, encoding='utf-8') as f:
             modules = json.load(f)
@@ -602,7 +602,7 @@ def _seed_pg_courses() -> None:
         cur.execute('SELECT COUNT(*) FROM RP_COURSES')
         if cur.fetchone()[0] > 0:
             return
-    path = os.path.join(_LOCAL_DATA_DIR, 'rp_courses.json')
+    path = os.path.join(LOCAL_DATA_DIR, 'rp_courses.json')
     try:
         with open(path, encoding='utf-8') as f:
             courses = json.load(f)
@@ -641,7 +641,7 @@ def _seed_pg_minors() -> None:
         cur.execute('SELECT COUNT(*) FROM RP_MINORS')
         if cur.fetchone()[0] > 0:
             return
-    path = os.path.join(_LOCAL_DATA_DIR, 'rp_minors.json')
+    path = os.path.join(LOCAL_DATA_DIR, 'rp_minors.json')
     try:
         with open(path, encoding='utf-8') as f:
             minors = json.load(f)
@@ -1508,12 +1508,12 @@ _modules_cache = {'data': None, 'timestamp': 0}
 MODULE_CACHE_TTL = 300
 
 
-_LOCAL_DATA_DIR = os.path.join(_base_dir, 'app', 'static', 'local-data', 'data')
+LOCAL_DATA_DIR = os.path.join(_base_dir, 'app', 'static', 'local-data', 'data')
 
 
 def _load_local_modules() -> list[dict] | None:
     """Load module data from local JSON files as fallback."""
-    synopsis_path = os.path.join(_LOCAL_DATA_DIR, 'rp_modules_synopsis.json')
+    synopsis_path = os.path.join(LOCAL_DATA_DIR, 'rp_modules_synopsis.json')
     try:
         with open(synopsis_path, encoding='utf-8') as f:
             synopsis_data = json.load(f)
@@ -1532,7 +1532,7 @@ def _load_local_modules() -> list[dict] | None:
 
 def _load_local_courses() -> list[dict] | None:
     """Load course/diploma data from local JSON file as fallback."""
-    courses_path = os.path.join(_LOCAL_DATA_DIR, 'rp_courses.json')
+    courses_path = os.path.join(LOCAL_DATA_DIR, 'rp_courses.json')
     try:
         with open(courses_path, encoding='utf-8') as f:
             return json.load(f)
@@ -1542,7 +1542,7 @@ def _load_local_courses() -> list[dict] | None:
 
 def _load_local_minors() -> list[dict] | None:
     """Load minor programme data from local JSON file as fallback."""
-    minors_path = os.path.join(_LOCAL_DATA_DIR, 'rp_minors.json')
+    minors_path = os.path.join(LOCAL_DATA_DIR, 'rp_minors.json')
     try:
         with open(minors_path, encoding='utf-8') as f:
             return json.load(f)
