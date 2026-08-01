@@ -468,6 +468,80 @@ def init_pg_db() -> None:
                 MODULES JSONB DEFAULT '[]',
                 ELIGIBILITY TEXT DEFAULT '')'''
         )
+        cur.execute(
+            '''CREATE OR REPLACE FUNCTION claim_guest_activity(
+                p_user_id TEXT,
+                p_guest_hash TEXT,
+                p_display_name TEXT,
+                p_bookmark_codes TEXT[]
+            ) RETURNS JSON AS $$
+            DECLARE
+                v_claimed_reviews INT := 0;
+                v_legacy_reviews INT := 0;
+                v_claimed_votes INT := 0;
+                v_removed_votes INT := 0;
+                v_bookmark_count INT := 0;
+                v_conflict_ids BIGINT[];
+                v_vote RECORD;
+            BEGIN
+                SELECT array_agg(g.id) INTO v_conflict_ids
+                FROM reviews g
+                JOIN reviews a ON a.module_code = g.module_code AND a.user_id::text = p_user_id
+                WHERE g.guest_owner_hash = p_guest_hash;
+
+                v_legacy_reviews := COALESCE(array_length(v_conflict_ids, 1), 0);
+
+                IF v_conflict_ids IS NOT NULL THEN
+                    DELETE FROM reviews WHERE id = ANY(v_conflict_ids);
+                END IF;
+
+                UPDATE reviews
+                SET user_id = p_user_id::uuid,
+                    guest_owner_hash = NULL,
+                    author_display_name = p_display_name,
+                    is_anonymous = true
+                WHERE guest_owner_hash = p_guest_hash;
+
+                GET DIAGNOSTICS v_claimed_reviews = ROW_COUNT;
+
+                FOR v_vote IN
+                    SELECT id, review_id FROM review_votes WHERE guest_owner_hash = p_guest_hash
+                LOOP
+                    IF EXISTS (
+                        SELECT 1 FROM review_votes WHERE review_id = v_vote.review_id AND user_id::text = p_user_id
+                    ) OR EXISTS (
+                        SELECT 1 FROM reviews WHERE id = v_vote.review_id AND user_id::text = p_user_id
+                    ) THEN
+                        DELETE FROM review_votes WHERE id = v_vote.id;
+                        v_removed_votes := v_removed_votes + 1;
+                    ELSE
+                        UPDATE review_votes
+                        SET user_id = p_user_id::uuid, guest_owner_hash = NULL
+                        WHERE id = v_vote.id;
+                        v_claimed_votes := v_claimed_votes + 1;
+                    END IF;
+                END LOOP;
+
+                IF p_bookmark_codes IS NOT NULL THEN
+                    FOR i IN 1..array_length(p_bookmark_codes, 1) LOOP
+                        INSERT INTO bookmarks (user_id, module_code)
+                        VALUES (p_user_id::uuid, p_bookmark_codes[i])
+                        ON CONFLICT DO NOTHING;
+                    END LOOP;
+                END IF;
+
+                SELECT COUNT(*) INTO v_bookmark_count FROM bookmarks WHERE user_id = p_user_id::uuid;
+
+                RETURN json_build_object(
+                    'claimed_reviews', v_claimed_reviews,
+                    'legacy_reviews', v_legacy_reviews,
+                    'claimed_votes', v_claimed_votes,
+                    'removed_votes', v_removed_votes,
+                    'bookmarks', v_bookmark_count
+                );
+            END;
+            $$ LANGUAGE plpgsql;'''
+        )
     _init_pg_users()
     _seed_pg_career_paths()
     _seed_pg_modules()
