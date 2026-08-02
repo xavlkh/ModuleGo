@@ -109,6 +109,8 @@ jobs:
           ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Deploy to EC2 via Ansible
+        env:
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         run: |
           COMMIT_SHA=$(git rev-parse --short HEAD)
           ansible-playbook -i ${{ steps.settings.outputs.inventory }} ansible/playbook.yml -e "ansible_host=${{ vars.EC2_IP }} env=${{ needs.build.outputs.environment }} ghcr_token=${{ secrets.GITHUB_TOKEN }} gemini_api_key=${{ secrets.GEMINI_API_KEY }} flask_secret_key=${{ secrets.FLASK_SECRET_KEY }} commit_hash=${COMMIT_SHA}"
