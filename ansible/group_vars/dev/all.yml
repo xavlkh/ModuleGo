@@ -1,7 +1,7 @@
 ---
 # Development environment config
 app_name: modulego-dev
-app_port: 5001
+app_port: 5000
 ghcr_image: ghcr.io/xavlkh/modulego:dev
 
 # PostgreSQL DB name (non-sensitive)
