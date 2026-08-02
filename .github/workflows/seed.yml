@@ -98,15 +98,18 @@ jobs:
           $SSH "docker cp /tmp/*.json ${CONTAINER}:/app/"
 
           echo "=== Running seed ==="
-          # -e passes DATABASE_URL into the container env without embedding it in the shell command
-          $SSH "docker exec -e DATABASE_URL='postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME}' ${CONTAINER} sh -c 'python seed_db.py'"
+          # Pass DATABASE_URL via --env-file to avoid shell quoting issues through SSH
+          echo "DATABASE_URL=postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME}" > /tmp/.env
+          $SCP /tmp/.env ubuntu@${EC2_IP}:/tmp/.env
+          $SSH "docker cp /tmp/.env ${CONTAINER}:/tmp/.env"
+          $SSH "docker exec --env-file /tmp/.env ${CONTAINER} python seed_db.py"
 
           echo "=== Cleaning up container ==="
           # Root needed because docker cp copies files as root; || true if container already stopped
-          $SSH "docker exec --user root ${CONTAINER} rm -f /app/seed_db.py /app/*.json" || true
+          $SSH "docker exec --user root ${CONTAINER} rm -f /app/seed_db.py /app/*.json /tmp/.env" || true
 
       # Run even if seed fails — don't leave temp files on EC2
       - name: Cleanup EC2 temp files
         if: always()
         run: |
-          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "rm -f /tmp/*.json /tmp/seed_db.py" || true
+          ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "rm -f /tmp/*.json /tmp/seed_db.py /tmp/.env" || true
