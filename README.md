@@ -171,6 +171,28 @@ Tests use an in-memory SQLite database — no setup needed.
 
 ---
 
+## 📊 Monitoring with Prometheus and Grafana
+
+Docker Compose starts a private monitoring stack together with ModuleGo:
+
+- Flask exports HTTP request counts, errors, and response-time histograms.
+- PostgreSQL Exporter publishes database health and connection metrics.
+- Prometheus collects the metrics every 15 seconds and retains 15 days locally.
+- Grafana provisions the Prometheus data source and ModuleGo dashboard automatically.
+
+Set a local Grafana password in `.env`, then start the stack:
+
+```bash
+# Add this line to .env:
+GRAFANA_ADMIN_PASSWORD=replace-with-a-strong-password
+
+docker compose up -d --build
+```
+
+Open Grafana at `http://127.0.0.1:3000` and Prometheus targets at `http://127.0.0.1:9090/targets`. Both ports bind only to the local machine.
+
+---
+
 ## 🚢 Deploying to AWS EC2
 
 ModuleGo can be deployed to AWS EC2 with automated CI/CD.

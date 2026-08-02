@@ -5,3 +5,5 @@ ec2_instance_type: t3.micro
 ec2_ami: ami-04b70fa7483cd182e  # Ubuntu 22.04 LTS (ap-southeast-1)
 ec2_security_group: modulego-sg
 ghcr_username: xavlkh
+grafana_port: 3000
+grafana_admin_user: admin
