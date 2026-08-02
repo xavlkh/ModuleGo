@@ -15,8 +15,8 @@ import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
 
-# Load .env file so DATABASE_URL is available without setting it in shell
-load_dotenv()
+# Load .env for local use; won't override env vars set via docker exec -e
+load_dotenv(override=False)
 
 # JSON files live in app/static/local-data/data/
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app', 'static', 'local-data', 'data')
