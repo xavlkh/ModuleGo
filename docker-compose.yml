@@ -1,6 +1,10 @@
+name: modulego
+
 services:
   postgres:
     image: postgres:16-alpine
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-modulego}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-modulego}
@@ -8,32 +12,35 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
+      # pg_isready checks if PostgreSQL is accepting connections
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-modulego} -d ${POSTGRES_DB:-modulego}"]
       interval: 5s
       timeout: 3s
       retries: 10
     restart: unless-stopped
 
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - app
-    restart: unless-stopped
-
   app:
     build: .
     ports:
       - "${APP_PORT:-5000}:5000"
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
+      # Always set DATABASE_URL so app uses PostgreSQL, not SQLite fallback
       DATABASE_URL: postgresql://${POSTGRES_USER:-modulego}:${POSTGRES_PASSWORD:-modulego}@postgres:5432/${POSTGRES_DB:-modulego}
     depends_on:
       postgres:
+        # Wait for PostgreSQL to be healthy before starting the app
         condition: service_healthy
+    healthcheck:
+      # Socket check is lighter than HTTP — just verifies gunicorn is listening
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',5000)); s.close()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      # Give gunicorn time to boot all 4 workers before first check
+      start_period: 15s
     restart: unless-stopped
     deploy:
       resources:
@@ -42,11 +49,25 @@ services:
     logging:
       driver: "json-file"
       options:
+        # Prevent logs from filling disk — rotate at 10MB, keep 3 files
         max-size: "10m"
         max-file: "3"
     volumes:
-      - appdata:/app/data
+      # Mount local scraped data so app can read JSON files
+      - ./app/static/local-data/data:/srv/app/static/local-data/data
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      app:
+        # Nginx only starts after app passes health check
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
+  # Persists PostgreSQL data across container recreates
   pgdata:
-  appdata:

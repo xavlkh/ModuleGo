@@ -96,9 +96,9 @@ jobs:
           fi
 
           echo "=== Copying seed_db.py into container ==="
-          $SSH "docker cp /tmp/seed_db.py ${CONTAINER}:/app/seed_db.py"
+          $SSH "docker cp /tmp/seed_db.py ${CONTAINER}:/srv/seed_db.py"
           echo "=== Copying JSON files into container ==="
-          $SSH "docker cp /tmp/*.json ${CONTAINER}:/app/"
+          $SSH "docker cp /tmp/*.json ${CONTAINER}:/srv/app/static/local-data/data/"
 
           echo "=== Running seed ==="
           echo "DATABASE_URL=postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME}" > /tmp/.env
@@ -109,7 +109,7 @@ jobs:
 
           echo "=== Cleaning up container ==="
           # Root needed because docker cp copies files as root; || true if container already stopped
-          $SSH "docker exec --user root ${CONTAINER} rm -f /app/seed_db.py /app/*.json /tmp/.env" || true
+          $SSH "docker exec --user root ${CONTAINER} rm -f /srv/seed_db.py /srv/app/static/local-data/data/*.json /tmp/.env" || true
 
       # Run even if seed fails — don't leave temp files on EC2
       - name: Cleanup EC2 temp files

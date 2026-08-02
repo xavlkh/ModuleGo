@@ -1,5 +1,5 @@
 # CI/CD pipeline: build Docker image → push to GHCR → deploy to EC2 via Ansible
-# master branch → production (port 80), dev branch → development (port 5001)
+# master branch → production (port 80), dev branch → development (port 5000)
 name: CD
 
 on:
@@ -93,7 +93,7 @@ jobs:
           else
             echo "ssh_key=modulego-dev.pem" >> $GITHUB_OUTPUT
             echo "inventory=ansible/inventory/dev.ini" >> $GITHUB_OUTPUT
-            echo "port=5001" >> $GITHUB_OUTPUT
+            echo "port=5000" >> $GITHUB_OUTPUT
           fi
 
       - name: Install Ansible

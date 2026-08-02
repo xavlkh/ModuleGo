@@ -3,8 +3,8 @@
 Usage:
     DATABASE_URL=postgresql://modulego:modulego@postgres:5432/modulego python seed_db.py
 
-Runs the scraping pipeline (if data files don't exist), then upserts
-JSON data into the local PostgreSQL tables.
+Expects JSON files (rp_modules_synopsis.json, rp_courses.json, etc.) in the
+same directory as this script. The CI/CD seed workflow copies them there.
 """
 
 import json
@@ -13,8 +13,13 @@ import sys
 
 import psycopg2
 import psycopg2.extras
+from dotenv import load_dotenv
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+# Load .env file so DATABASE_URL is available without setting it in shell
+load_dotenv()
+
+# JSON files live in app/static/local-data/data/
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app', 'static', 'local-data', 'data')
 
 
 def read_json(filename):
@@ -63,10 +68,10 @@ def create_tables(conn):
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS rp_career_paths (
-                id TEXT PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
+                career_id TEXT NOT NULL UNIQUE,
                 label TEXT DEFAULT '',
-                keywords JSONB DEFAULT '[]',
-                module_count INTEGER DEFAULT 0
+                keywords JSONB DEFAULT '[]'
             );
         """)
         # Reviews table — matches spec schema (no auth.users FK for local PG)
@@ -212,29 +217,32 @@ def upsert_career_paths(conn, data):
     with conn.cursor() as cur:
         for p in data:
             cur.execute("""
-                INSERT INTO rp_career_paths (id, label, keywords, module_count)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
+                INSERT INTO rp_career_paths (career_id, label, keywords)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (career_id) DO UPDATE SET
                     label = EXCLUDED.label,
-                    keywords = EXCLUDED.keywords,
-                    module_count = EXCLUDED.module_count
+                    keywords = EXCLUDED.keywords
             """, (
                 p['id'],
                 p['label'],
                 psycopg2.extras.Json(p.get('keywords', [])),
-                p.get('module_count', 0),
             ))
     conn.commit()
     return len(data)
 
-
 def main():
-    db_url = os.environ.get('DATABASE_URL')
-    if not db_url:
-        sys.exit('DATABASE_URL must be set.')
+    db_url = os.environ.get('DATABASE_URL', 'postgresql://modulego:modulego@localhost:5432/modulego')
 
     print("Connecting to PostgreSQL...")
-    conn = psycopg2.connect(db_url)
+    try:
+        conn = psycopg2.connect(db_url)
+    except psycopg2.OperationalError:
+        sys.exit(
+            'Could not connect to PostgreSQL.\n'
+            '\n'
+            'Make sure Docker is running:\n'
+            '  docker compose up -d'
+        )
 
     print("Creating tables...")
     create_tables(conn)
