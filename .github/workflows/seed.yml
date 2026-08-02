@@ -83,9 +83,12 @@ jobs:
           $SSH "ls -la /tmp/seed_db.py /tmp/*.json"
 
           echo "=== Getting container ID ==="
-          # --status running avoids matching stopped containers from failed deploys
-          # tr strips Windows carriage returns from SSH output
-          CONTAINER=$($SSH "docker compose -f ${COMPOSE_FILE} ps -q --status running app" | tr -d '\r\n')
+          # docker compose ps -q may behave differently via SSH; fallback to name-based filter
+          CONTAINER=$($SSH "docker compose -f ${COMPOSE_FILE} ps -q app" | tr -d '\r\n')
+          if [ -z "$CONTAINER" ]; then
+            COMPOSE_PROJECT=$(basename $(dirname ${COMPOSE_FILE}))
+            CONTAINER=$($SSH "docker ps -q --filter 'name=${COMPOSE_PROJECT}' --filter 'name=app'" | head -1 | tr -d '\r\n')
+          fi
           echo "Container: [${CONTAINER}]"
           if [ -z "$CONTAINER" ]; then
             echo "ERROR: Container not found"
