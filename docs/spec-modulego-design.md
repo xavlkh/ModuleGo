@@ -1,11 +1,11 @@
 ---
 title: ModuleGo - Republic Polytechnic Module Viewer Design Specification
-version: 10.0
+version: 11.0
 date_created: 2026-06-29
-last_updated: 2026-07-31
+last_updated: 2026-08-02
 owner: Developer
 status: 'In Progress'
-tags: ['design', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'postgresql', 'flask-login', 'bcrypt', 'ui-redesign', 'reviews', 'voting', 'minors', 'career-paths', 'gobot', 'bookmarks', 'share']
+tags: ['design', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'postgresql', 'flask-login', 'bcrypt', 'ui-redesign', 'reviews', 'voting', 'minors', 'career-paths', 'gobot', 'bookmarks', 'share', 'refactor', 'accessibility']
 ---
 
 # Introduction
@@ -37,7 +37,7 @@ ModuleGo is a responsive web application that allows Republic Polytechnic studen
 - Backend server runs on Python Flask and proxies all PostgreSQL calls
 - SQLite is used only for automated tests and local development without PostgreSQL
 - GoBot chatbot uses Gemini API for AI-assisted module recommendations
-- Bookmarks and share functionality are client-side (localStorage)
+- Bookmarks: localStorage for guests, server-side API for authenticated accounts
 
 ## 2. Definitions
 

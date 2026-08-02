@@ -1,11 +1,11 @@
 ---
 goal: ModuleGo - Republic Polytechnic Module Viewer Implementation
-version: 14.0
+version: 16.0
 date_created: 2026-06-29
-last_updated: 2026-07-31
+last_updated: 2026-08-02
 owner: Developer
 status: 'In Progress'
-tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'flask-login', 'postgresql', 'dark-mode', 'ui-redesign', 'saas-patterns', 'security', 'csrf', 'rate-limiting', 'scraping', 'automation', 'gobot', 'chatbot', 'minors', 'career-paths', 'bookmarks', 'share', 'theme-refresh']
+tags: ['feature', 'frontend', 'backend', 'vanilla-js', 'tailwindcss', 'glassmorphism', 'flask', 'flask-login', 'postgresql', 'dark-mode', 'ui-redesign', 'saas-patterns', 'security', 'csrf', 'rate-limiting', 'scraping', 'automation', 'gobot', 'chatbot', 'minors', 'career-paths', 'bookmarks', 'share', 'theme-refresh', 'refactor', 'architecture', 'code-quality', 'accessibility']
 ---
 
 # Introduction
@@ -227,22 +227,6 @@ Acceptance checks:
 | TASK-049 | Create `tests/` directory for future test files | ✅ | 2026-07-05 |
 | TASK-050 | Create `.env.example` for environment configuration | ✅ | 2026-07-05 |
 | TASK-051 | Update `.gitignore` for new project structure | ✅ | 2026-07-05 |
-
-### Implementation Phase 9: ~~Supabase Integration~~ (Superseded by Phase 34)
-
-- GOAL-009: ~~Migrate from local SQLite to Supabase for modules and reviews~~ — Replaced by Phase 34 (Flask-Login + PostgreSQL migration). All Supabase SDK usage removed.
-
-| Task | Description | Completed | Date |
-|------|-------------|-----------|------|
-| TASK-052 | Add `/api/modules` endpoint to query Supabase `rp_modules` table | ✅ | 2026-07-14 |
-| TASK-053 | Update Flask to always initialize Supabase client from env vars | ✅ | 2026-07-14 |
-| TASK-054 | Update `data.js` to fetch modules from `/api/modules` instead of local JSON | ✅ | 2026-07-14 |
-| TASK-055 | Update reviews endpoints to use Supabase (with SQLite fallback for tests) | ✅ | 2026-07-14 |
-| TASK-056 | Add school name mapping in `/api/modules` for Supabase data | ✅ | 2026-07-14 |
-| TASK-057 | Generate `features` and `suitableFor` fields server-side for comparison | ✅ | 2026-07-14 |
-| TASK-058 | Create Supabase migration for reviews foreign key to modules | ✅ | 2026-07-15 |
-| TASK-059 | Update `.env.example` with Supabase credential placeholders | ✅ | 2026-07-14 |
-| TASK-060 | Verify end-to-end: modules load, search works, reviews save | ✅ | 2026-07-14 |
 
 ### Implementation Phase 10: Tailwind CSS Glassmorphism Design System
 
@@ -915,6 +899,184 @@ The handler pipeline must run in this exact order, each returning early:
 | TASK-307 | Update `app/static/local-data/SCRAPING_GUIDE.md` — remove Supabase upsert section, update workflow description | ✅ | 2026-07-31 |
 | TASK-308 | Update `.github/copilot-instructions.md` — remove Supabase key security references | ✅ | 2026-07-31 |
 
+### Implementation Phase 35: Flask Folder Structure Refactoring
+
+- GOAL-35: Refactor flat root-level Python files into a proper Flask app package with app factory pattern, and consolidate JS files
+
+#### Phase 35.1: Python Package Structure
+
+- GOAL-35.1: Create `app/` Python package with app factory, organized modules, and blueprints
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-309 | Create `app/__init__.py` with `create_app()` factory — initializes Flask, CSRF, Limiter, LoginManager, registers blueprints, calls `init_db()` | ✅ | 2026-08-02 |
+| TASK-310 | Create `app/db.py` — consolidate database helpers: `get_db()`, `database_connection()`, `get_pg_db()`, `pg_connection()`, `use_sqlite_reviews()`, `use_postgres()`, `init_db()`, row mappers (`review_to_dict`, `public_review`, `select_review`) | ✅ | 2026-08-02 |
+| TASK-311 | Create `app/models.py` — move `User` class from root `user_model.py`, replace deferred `import app` with `current_app` / `app.db.get_db()` | ✅ | 2026-08-02 |
+| TASK-312 | Create `app/core.py` — consolidate ownership helpers, repositories (`ReviewRepository`, `VoteRepository`, `BookmarkRepository`, `OwnershipRepository`), validation, Gemini integration, GoBot logic, data loading, career paths | ✅ | 2026-08-02 |
+| TASK-313 | Create `app/routes/__init__.py` (empty) | ✅ | 2026-08-02 |
+| TASK-314 | Create `app/routes/auth.py` — auth blueprint with forms and routes from root `auth_routes.py` | ✅ | 2026-08-02 |
+| TASK-315 | Create `app/routes/api.py` — API blueprint with all `/api/*` endpoints extracted from root `app.py` | ✅ | 2026-08-02 |
+| TASK-316 | Create `app/routes/pages.py` — page view functions (`/`, `/comparison`, `/bookmarks`, `/reviews`) | ✅ | 2026-08-02 |
+| TASK-317 | Create `wsgi.py` at root — WSGI entry point for Gunicorn production deployment | ✅ | 2026-08-02 |
+| TASK-318 | Delete root `app.py`, `auth_routes.py`, `db.py`, `ownership.py`, `user_model.py` | ✅ | 2026-08-02 |
+| TASK-319 | Update `tests/test_auth.py` import: `from user_model import User` → `from app.models import User` | ✅ | 2026-08-02 |
+| TASK-320 | Add backward-compatible exports in `app/__init__.py` (`app`, `init_db`, `db_name`, `_modules_cache`, etc.) for test compatibility | ✅ | 2026-08-02 |
+
+#### Phase 35.2: JS File Consolidation
+
+- GOAL-35.2: Merge small JS files into larger ones, reducing 12 files to 8
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-321 | Merge `ownership.js` (48 lines) into `utils.js` | ✅ | 2026-08-02 |
+| TASK-322 | Merge `profile.js` (42 lines) into `utils.js` | ✅ | 2026-08-02 |
+| TASK-323 | Merge `share.js` (115 lines) into `utils.js` | ✅ | 2026-08-02 |
+| TASK-324 | Merge `bookmarks-page.js` (83 lines) into `bookmark.js` | ✅ | 2026-08-02 |
+| TASK-325 | Remove `<script>` tags for deleted JS files from templates (`base.html`, `profile.html`, `bookmarks.html`, `comparison.html`, `index.html`) | ✅ | 2026-08-02 |
+| TASK-326 | Delete `ownership.js`, `profile.js`, `share.js`, `bookmarks-page.js` | ✅ | 2026-08-02 |
+
+#### Phase 35.3: Deployment Config Update
+
+- GOAL-35.3: Update Dockerfile for new entry point
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-327 | Update Dockerfile CMD from `app:app` to `wsgi:app` | ✅ | 2026-08-02 |
+| TASK-328 | Verify all 89 tests pass after refactoring | ✅ | 2026-08-02 |
+
+### Implementation Phase 36: Python Backend Code Quality Audit
+
+- GOAL-36: Fix code quality issues found during comprehensive audit — naming, redundancy, comments, best practices
+
+#### Phase 36.1: High-Severity Fixes
+
+- GOAL-36.1: Fix potential bugs and security issues
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-329 | Fix dead `USE_POSTGRES` config check in `api.py` `get_courses()` — replace with `use_postgres()` from `app.db` | ✅ | 2026-08-02 |
+| TASK-330 | Remove duplicate unregistered `Limiter` instance in `api.py` — route-specific rate limits were never enforced | ✅ | 2026-08-02 |
+| TASK-331 | Add warning when `FLASK_SECRET_KEY` is not set in `__init__.py` | ✅ | 2026-08-02 |
+| TASK-332 | Remove all dead `@limiter.limit()` decorators from API routes (applied to unregistered limiter) | ✅ | 2026-08-02 |
+
+#### Phase 36.2: Code Cleanup and Comments
+
+- GOAL-36.2: Add missing comments, remove redundant code, fix naming
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-333 | Move inline imports to top-level in `api.py` (`pg_connection`, `use_postgres`, `_gobot_find_diplomas`) | ✅ | 2026-08-02 |
+| TASK-334 | Remove unused `pages_bp` Blueprint from `pages.py` (routes registered manually) | ✅ | 2026-08-02 |
+| TASK-335 | Add docstring for `_row_value()` explaining SQLite/PostgreSQL column casing | ✅ | 2026-08-02 |
+| TASK-336 | Add comment for ownership migration logic in `ReviewRepository.update()` | ✅ | 2026-08-02 |
+| TASK-337 | Add comment for per-process cache scope in `core.py` | ✅ | 2026-08-02 |
+| TASK-338 | Add comment for stopwords purpose in GoBot | ✅ | 2026-08-02 |
+| TASK-339 | Add comment for Gemini prompt design | ✅ | 2026-08-02 |
+| TASK-340 | Add docstring for `_identity_filter()` return type | ✅ | 2026-08-02 |
+| TASK-341 | Add comment for GoBot review regex pattern | ✅ | 2026-08-02 |
+| TASK-342 | Add docstring for `_rate_limit_key()` explaining test behavior | ✅ | 2026-08-02 |
+| TASK-343 | Fix stale comment referencing "old app.py" in `__init__.py` | ✅ | 2026-08-02 |
+| TASK-344 | Remove unused `json` import from `_init_pg_db()` | ✅ | 2026-08-02 |
+
+#### Phase 36.3: Test Suite Simplification
+
+- GOAL-36.3: Extract shared fixtures and helpers into `conftest.py`
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-345 | Create shared `client` fixture in `conftest.py` (context-manager form) | ✅ | 2026-08-02 |
+| TASK-346 | Create shared `create_review()` helper in `conftest.py` | ✅ | 2026-08-02 |
+| TASK-347 | Create shared `create_review_as_new_guest()` helper in `conftest.py` | ✅ | 2026-08-02 |
+| TASK-348 | Create shared `register_and_login()` helper in `conftest.py` | ✅ | 2026-08-02 |
+| TASK-349 | Update `test_auth.py` to use shared fixtures, remove duplicate `client` fixture | ✅ | 2026-08-02 |
+| TASK-350 | Update `test_ownership.py` to use shared fixtures | ✅ | 2026-08-02 |
+| TASK-351 | Update `test_reviews.py` to use shared fixtures | ✅ | 2026-08-02 |
+| TASK-352 | Update `test_security.py` to use shared fixtures | ✅ | 2026-08-02 |
+| TASK-353 | Remove redundant `TESTING=True` from individual test fixtures (autouse handles it) | ✅ | 2026-08-02 |
+| TASK-354 | Fix `load_dotenv()` missing from app factory — `.env` not loaded | ✅ | 2026-08-02 |
+| TASK-355 | Fix CSRF exemptions missing for `generate_comparison` and `gobot_chat` POST endpoints | ✅ | 2026-08-02 |
+| TASK-356 | Fix `bookmark.js` `BookmarksPage.init()` crashing on non-bookmarks pages | ✅ | 2026-08-02 |
+
+### Implementation Phase 37: Frontend Accessibility & Code Quality Audit
+
+- GOAL-37: Fix accessibility issues, add CSS variables, add non-obvious code comments
+
+#### Phase 37.1: Accessibility Fixes
+
+- GOAL-37.1: Fix WCAG compliance issues
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-357 | Add `<label class="sr-only">` to search input in `index.html` | ✅ | 2026-08-02 |
+| TASK-358 | Add `<label class="sr-only">` to review search input in `reviews.html` | ✅ | 2026-08-02 |
+| TASK-359 | Add `aria-label` to bookmark toggle button in `index.html` | ✅ | 2026-08-02 |
+| TASK-360 | Add `aria-label` to filter toggle button in `index.html` | ✅ | 2026-08-02 |
+| TASK-361 | Add `aria-label` to review filter toggle button in `reviews.html` | ✅ | 2026-08-02 |
+| TASK-362 | Add `type="button"` to clear review filters button | ✅ | 2026-08-02 |
+| TASK-363 | Enhance `prefers-reduced-motion` to disable all animations/transitions | ✅ | 2026-08-02 |
+
+#### Phase 37.2: CSS Improvements
+
+- GOAL-37.2: Add CSS variables for hardcoded colors, fix duplicates
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-364 | Add `--color-border` and `--color-border-primary` CSS variables to `:root` | ✅ | 2026-08-02 |
+| TASK-365 | Replace 9 hardcoded `oklch()` border colors with CSS variables | ✅ | 2026-08-02 |
+| TASK-366 | Remove duplicate `scroll-smooth` from `base.html` (already in `app.css`) | ✅ | 2026-08-02 |
+| TASK-367 | Pin Lucide CDN to `@0.344.0` instead of `@latest` | ✅ | 2026-08-02 |
+
+#### Phase 37.3: Non-Obvious Code Comments
+
+- GOAL-37.3: Add "why" comments to confusing JavaScript and CSS
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-368 | Add comment for `parseTimestamp()` PostgreSQL timestamp normalization | ✅ | 2026-08-02 |
+| TASK-369 | Add comment for modal body scroll lock (`overflow: hidden`) | ✅ | 2026-08-02 |
+| TASK-370 | Add comment for search scoring system (lower = better) | ✅ | 2026-08-02 |
+| TASK-371 | Add comment for search run-id cancellation pattern | ✅ | 2026-08-02 |
+| TASK-372 | Add comment for 409 conflict auto-switch to edit mode | ✅ | 2026-08-02 |
+| TASK-373 | Add comment for comparison request ID cancellation | ✅ | 2026-08-02 |
+| TASK-374 | Add comment for `accountMode` captured at script load time | ✅ | 2026-08-02 |
+| TASK-375 | Add comment for GoBot welcome popup timing | ✅ | 2026-08-02 |
+| TASK-376 | Add comment for dark mode backdrop-filter disabled | ✅ | 2026-08-02 |
+| TASK-377 | Add comment for theme transition `!important` necessity | ✅ | 2026-08-02 |
+
+### Implementation Phase 38: Deployment Config Audit
+
+- GOAL-38: Fix deployment configuration issues found during audit
+
+#### Phase 38.1: CI/CD Workflow Fixes
+
+- GOAL-38.1: Fix broken CI references
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-378 | Fix `compileall` step in `ci.yml` — was referencing deleted root files, now references `app/`, `tests/`, `wsgi.py`, `seed_db.py` | ✅ | 2026-08-02 |
+
+#### Phase 38.2: Nginx Hardening
+
+- GOAL-38.2: Add security headers, compression, rate limiting
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-379 | Add `worker_processes auto` and `worker_connections 1024` | ✅ | 2026-08-02 |
+| TASK-380 | Add gzip compression for text/css/json/js | ✅ | 2026-08-02 |
+| TASK-381 | Add security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection) | ✅ | 2026-08-02 |
+| TASK-382 | Add rate limiting zone (`10r/s` for API endpoints) | ✅ | 2026-08-02 |
+| TASK-383 | Add `upstream app` block and `/static/` location with caching | ✅ | 2026-08-02 |
+| TASK-384 | Add `/api/` location with rate limiting and `proxy_read_timeout` | ✅ | 2026-08-02 |
+
+#### Phase 38.3: Dependency and Config Cleanup
+
+- GOAL-38.3: Organize dependencies, fix config issues
+
+| Task | Description | Completed | Date |
+|------|-------------|-----------|------|
+| TASK-385 | Organize `requirements.txt` into 3 sections: Runtime, Test, Scraping | ✅ | 2026-08-02 |
+| TASK-386 | Add docstring and comment for `seed_db.py` `DATA_DIR` purpose | ✅ | 2026-08-02 |
+
 ## 3. Alternatives
 
 - **ALT-001**: React/Vue framework - Rejected due to constraint CON-001 (Vanilla JS only)
@@ -962,6 +1124,14 @@ The handler pipeline must run in this exact order, each returning early:
 
 | Path | Description |
 |------|-------------|
+| `app/__init__.py` | Application factory (`create_app()`), backward-compatible module exports |
+| `app/db.py` | Database connection helpers, row mappers, `init_db()` schema creation |
+| `app/models.py` | Flask-Login `User` model with bcrypt (SQLite + PostgreSQL dual-backend) |
+| `app/core.py` | Ownership helpers, repositories, validation, Gemini integration, GoBot, data loading |
+| `app/routes/__init__.py` | Routes package |
+| `app/routes/auth.py` | Auth blueprint — registration, login, profile, password, deletion |
+| `app/routes/api.py` | API blueprint — modules, reviews, votes, bookmarks, ownership, comparison, gobot |
+| `app/routes/pages.py` | Page view functions — home, comparison, bookmarks, reviews dashboards |
 | `app/templates/modules/index.html` | Main search and browse page with collapsible filter panel |
 | `app/templates/modules/comparison.html` | Module comparison page (Tailwind glassmorphism) |
 | `app/templates/modules/reviews.html` | Review dashboard page (Tailwind glassmorphism) |
@@ -972,18 +1142,14 @@ The handler pipeline must run in this exact order, each returning early:
 | `app/templates/base.html` | Layout template with glass navbar/footer (Tailwind) |
 | `app/templates/_macros.html` | Shared Jinja macros (hero, navLinks, themeToggle, selectField, glassCard, statCard, modalOverlay, etc.) |
 | `app/static/css/app.css` | Tailwind CSS with `:root` custom properties and glassmorphism tokens |
-| `app/static/js/utils.js` | Shared utilities (`apiFetch`, escaping, stars, timestamps, messages, review actions, modal controller) |
+| `app/static/js/utils.js` | Shared utilities (escapeHtml, createStars, ownership, profile, share) |
 | `app/static/js/data.js` | Data loading from `/api/modules` + `/api/courses` + `/api/minors` with diploma/minor/rating/active filtering |
-| `app/static/js/ui.js` | UI rendering, search, pagination, filter panel + app initialization (merged from search.js + app.js) |
+| `app/static/js/ui.js` | UI rendering, search, pagination, filter panel + app initialization |
 | `app/static/js/comparison.js` | Module comparison logic (Tailwind markup) |
 | `app/static/js/detail.js` | Module detail modal + review CRUD (ownership-based) |
-| `app/static/js/reviews.js` | Review dashboard + module detail review CRUD (merged from detail.js) |
-| `app/static/js/bookmark.js` | BookmarkManager — favorites with localStorage (guest) and server-side API (account) |
-| `app/static/js/bookmarks-page.js` | Bookmarks page rendering and interaction logic |
-| `app/static/js/share.js` | ShareManager — clipboard copy, CSV export, toast notifications |
+| `app/static/js/reviews.js` | Review dashboard + module detail review CRUD |
+| `app/static/js/bookmark.js` | BookmarkManager — favorites with localStorage (guest) and server-side API (account) + bookmarks page rendering |
 | `app/static/js/gobot.js` | GoBot chatbot client-side UI (welcome popup, chat interface, quick-send buttons, message history) |
-| `app/static/js/profile.js` | Profile page client-side logic |
-| `app/static/js/ownership.js` | Guest-to-account ownership claim UI |
 | `app/static/local-data/scripts/step1_get_tokens.py` | Playwright browser automation for RP session token extraction |
 | `app/static/local-data/scripts/step2_scrape_all_modules.py` | Scrapes module synopsis data from RP OutSystems |
 | `app/static/local-data/scripts/step3_scrape_diplomas.py` | Scrapes diploma curriculum data (courses + module mappings) |
@@ -992,11 +1158,7 @@ The handler pipeline must run in this exact order, each returning early:
 | `app/static/local-data/data/` | Scraping output (gitignored) — tokens.json, rp_modules_synopsis, rp_courses, rp_minors, career_paths |
 | `app/static/local-data/run_all.py` | Sequential runner for scraping steps 1-5 |
 | `app/static/local-data/SCRAPING_GUIDE.md` | Documentation for the scraping pipeline |
-| `app.py` | Flask backend with ReviewRepository, VoteRepository, BookmarkRepository, OwnershipRepository, CSRF, rate limiting, GoBot chatbot |
-| `auth_routes.py` | Authentication routes — Flask-Login register, login, logout, profile, password change, account deletion |
-| `user_model.py` | Flask-Login User model with bcrypt password hashing (SQLite + PostgreSQL) |
-| `ownership.py` | Guest/account identity, ownership checks, guest-to-account transfer |
-| `db.py` | DB backend selection helpers, row mappers |
+| `wsgi.py` | WSGI entry point for Gunicorn production deployment |
 | `seed_db.py` | PostgreSQL seed script — creates tables and upserts scraped JSON data |
 | `requirements.txt` | Python dependencies (Flask, Flask-Login, bcrypt, Flask-WTF, Flask-Limiter, etc.) |
 | `requirements-runtime.txt` | Production-only dependencies (subset of requirements.txt) |
@@ -1089,33 +1251,18 @@ The handler pipeline must run in this exact order, each returning early:
 
 ## 7. Risks & Assumptions
 
-- **RISK-001**: Large dataset (537 modules) may cause slow initial load - Mitigation: Show loading indicator
-- **RISK-002**: PostgreSQL outage would affect both module data and reviews - Mitigation: SQLite fallback for tests
-- **RISK-003**: Diploma mapping may be incomplete - Mitigation: Show "No diploma information available" for unmapped modules
-- **RISK-004**: Flask backend must be running for all functionality - Mitigation: Show error message if server not available
-- **RISK-005**: PostgreSQL column names may differ from expectations - Mitigation: Map columns in `/api/modules` endpoint
-- **RISK-006**: Tailwind CDN adds runtime CSS generation - Mitigation: Acceptable for student project scale; can migrate to build step later
-- **RISK-007**: Glassmorphism effects may not render on older browsers - Mitigation: Graceful degradation with fallback solid backgrounds
-- **RISK-008**: Dark mode contrast may be insufficient on certain components - Mitigation: Test all combinations with contrast checker, minimum 4.5:1 ratio
-- **RISK-009**: Theme toggle may flash on page load (FOUC) - Mitigation: Inline script in `<head>` to apply theme before render
-- **RISK-010**: Merging detail.js into reviews.js may cause regression in detail modal - Mitigation: Test coverage of review CRUD
-- **RISK-011**: Changing CSS class names on cards may break JS that targets `.glass-card` — verify `ui.js` and `detail.js` selectors
-- **RISK-012**: Dark mode custom oklch vars may produce unexpected contrast on some monitors — test on multiple screens
-- **RISK-013**: Existing `owner_token` reviews cannot be safely assigned to an account — preserved as readable legacy content (superseded by hybrid ownership in Phase 5B)
-- **RISK-014**: Clearing the signed guest cookie removes guest mutation access — mitigated by HTTP-only cookie lasting 30 days and explicit claim flow after login
-- **RISK-015**: Flask-Limiter in-memory storage is per-invocation — not global rate limiting. Mitigation: Acceptable for single-server deployment
-- **RISK-016**: Scraping scripts depend on RP website structure — changes may break scraping. Mitigation: Monitor scraping workflow, fix as needed
-- **RISK-017**: Playwright browser automation is required for CSRF token extraction in step 1. Mitigation: use installed Chrome locally and install Playwright Chromium in GitHub Actions
-- **RISK-018**: RP session tokens may expire during scraping. Mitigation: Pipeline skips step1 if tokens.json exists; GitHub Actions runs fresh each time
-- **RISK-020**: `VoteRepository` handles vote persistence across three backends — complexity may introduce edge cases. Mitigation: Covered by test_security.py vote tests
+- **RISK-001**: Large dataset (537 modules) may cause slow initial load — Mitigation: loading indicator + per-process cache with 5-minute TTL
+- **RISK-002**: PostgreSQL outage affects module data and reviews — Mitigation: SQLite fallback for tests and local dev
+- **RISK-003**: Tailwind CDN adds runtime CSS generation — Mitigation: acceptable for student project scale
+- **RISK-004**: Glassmorphism effects may not render on older browsers — Mitigation: graceful degradation with fallback solid backgrounds
+- **RISK-005**: Dark mode contrast may be insufficient on certain components — Mitigation: WCAG AA 4.5:1 ratio verified
+- **RISK-006**: Theme toggle may flash on page load (FOUC) — Mitigation: inline `<head>` script applies theme before render
+- **RISK-007**: Scraping scripts depend on RP website structure — Mitigation: monitor scraping workflow, fix as needed
+- **RISK-008**: Flask-Limiter in-memory storage is per-process — Mitigation: acceptable for single-server deployment
 - **ASSUMPTION-001**: Users have modern browsers with JavaScript support
 - **ASSUMPTION-002**: Tailwind CSS CDN and Google Fonts CDN are accessible
-- **ASSUMPTION-003**: Module data in PostgreSQL is accurate and up-to-date
-- **ASSUMPTION-004**: Python 3.12+ is installed on the server
-- **ASSUMPTION-005**: PostgreSQL is available via DATABASE_URL environment variable
-- **RISK-G01**: Module codes might share prefixes (e.g., "C270" and "C2701") — token cleaning strips punctuation before exact match, so "C270" only matches if an alphanumeric token exactly equals "c270". A token "C2701" would NOT match "C270". This is correct.
-- **ASSUMPTION-G01**: The `_build_modules_list()` returns data in the expected format with `code`, `name`, `synopsis` keys — verified in existing codebase.
-- **ASSUMPTION-G02**: `ReviewRepository.list_by_module()` and `.rating_summaries()` exist and work — verified in existing codebase.
+- **ASSUMPTION-003**: Python 3.12+ is deployed (Dockerfile uses `python:3.12-slim`)
+- **ASSUMPTION-004**: PostgreSQL available via `DATABASE_URL` environment variable
 
 ## 8. Related Specifications / Further Reading
 
