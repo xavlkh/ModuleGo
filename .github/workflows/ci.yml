@@ -2,48 +2,64 @@ name: CI
 
 on:
   push:
-    branches: [dev, master]
+    branches: [master, dev]
   pull_request:
-    branches: [dev, master]
+    branches: [master, dev]
+
+# Cancel superseded runs on the same branch — only the latest commit matters for CI
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12", "3.13"]
     steps:
-      - name: Check out repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           persist-credentials: false
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install ruff
+        run: python -m pip install ruff==0.11.13
+
+      - name: Run ruff check
+        run: ruff check
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for SonarQube blame data
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Install ruff
-        run: python -m pip install ruff
-
-      - name: Install test coverage tools
-        run: python -m pip install pytest-cov
-
-      - name: Lint with Ruff
-        run: ruff check
-
-      - name: Compile Python source
+      - name: Check for syntax errors
         run: >-
           python -m compileall -q app.py auth_routes.py user_model.py
           db.py ownership.py tests
 
-      - name: Run API tests with coverage
+      - name: Run pytest with coverage
         run: >-
           python -m pytest -q
           --junitxml=pytest-report.xml
@@ -52,10 +68,10 @@ jobs:
           --cov-report=xml:coverage.xml
 
       - name: Upload pytest report
-        if: always()
+        if: always()  # Upload even if tests fail — useful for debugging
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-report-python-${{ matrix.python-version }}
+          name: pytest-report
           path: pytest-report.xml
           if-no-files-found: warn
           retention-days: 30
@@ -64,13 +80,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report-python-${{ matrix.python-version }}
+          name: coverage-report
           path: coverage.xml
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Check SonarQube Cloud configuration
-        if: matrix.python-version == '3.12'
+      # SonarQube: 3-step pattern — detect token, skip if missing, analyze if present
+      - name: Detect SonarQube token
         id: sonar-token
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -81,12 +97,12 @@ jobs:
             echo "available=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: SonarQube Cloud is not configured yet
-        if: matrix.python-version == '3.12' && steps.sonar-token.outputs.available != 'true'
+      - name: Skip SonarQube (token not configured)
+        if: steps.sonar-token.outputs.available != 'true'
         run: echo "Skipping analysis until the SONAR_TOKEN secret is added."
 
       - name: Run SonarQube Cloud analysis
-        if: matrix.python-version == '3.12' && steps.sonar-token.outputs.available == 'true'
+        if: steps.sonar-token.outputs.available == 'true'
         uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -94,15 +110,13 @@ jobs:
   security:
     name: Trivy Security Audit
     runs-on: ubuntu-latest
-    # Non-blocking — scan is informational only
-    continue-on-error: true
-
+    continue-on-error: true  # Informational only — don't block the pipeline on vuln findings
     steps:
-      - name: Check out repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Run Trivy security scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: fs
           scan-ref: .
