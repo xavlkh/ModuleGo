@@ -9,6 +9,9 @@ RUN pip install --no-cache-dir -r requirements-runtime.txt
 COPY app/ ./app/
 COPY *.py ./
 
+# Create data directory for scraped JSON files
+RUN mkdir -p ./app/static/local-data/data
+
 RUN addgroup --system --gid 10001 modulego \
     && adduser --system --uid 10001 --ingroup modulego \
         --no-create-home modulego \
