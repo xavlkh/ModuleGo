@@ -104,14 +104,10 @@ jobs:
           done
 
           echo "=== Running seed ==="
-          echo "DATABASE_URL=postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME}" > /tmp/.env
-          $SCP /tmp/.env ubuntu@${EC2_IP}:/tmp/.env
-          $SSH "docker cp /tmp/.env ${CONTAINER}:/tmp/.env"
-          # Source the env file inside the container shell to avoid --env-file compatibility issues
-          $SSH "docker exec ${CONTAINER} sh -c '. /tmp/.env && python seed_db.py'"
+          $SSH "docker exec -e DATABASE_URL=postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME} ${CONTAINER} python /srv/seed_db.py"
 
           echo "=== Cleaning up container ==="
-          $SSH "docker exec --user root ${CONTAINER} rm -f /srv/seed_db.py /tmp/.env" || true
+          $SSH "docker exec --user root ${CONTAINER} rm -f /srv/seed_db.py" || true
           for f in rp_career_paths.json rp_courses.json rp_minors.json rp_modules_synopsis.json; do
             $SSH "docker exec --user root ${CONTAINER} rm -f /srv/app/static/local-data/data/$f" || true
           done
