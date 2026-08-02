@@ -115,5 +115,13 @@ jobs:
 
       - name: Verify deployment
         run: |
-          sleep 5
-          curl -sf http://${{ vars.EC2_IP }}:${{ steps.settings.outputs.port }} || exit 1
+          for i in 1 2 3 4 5; do
+            sleep 5
+            if curl -sf http://${{ vars.EC2_IP }}:${{ steps.settings.outputs.port }}; then
+              echo "App is up!"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+          done
+          echo "App failed to start after 5 attempts"
+          exit 1
