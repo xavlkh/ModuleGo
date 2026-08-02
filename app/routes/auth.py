@@ -1,4 +1,4 @@
-"""Flask-Login authentication routes, session handling, and account management."""
+"""Authentication blueprint: registration, login, profile, account deletion."""
 
 import secrets
 import time
@@ -19,7 +19,11 @@ from flask_wtf import FlaskForm
 from wtforms import EmailField, PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired, Email, EqualTo, Length
 
-from user_model import User
+from app.models import User
+
+auth_bp = Blueprint("auth", __name__)
+DELETE_ACCOUNT_TOKEN_KEY = "delete_account_confirmation"
+DELETE_ACCOUNT_TOKEN_SECONDS = 120
 
 
 def _strip_text(value):
@@ -31,8 +35,6 @@ def _normalise_email(value):
 
 
 class RegistrationForm(FlaskForm):
-    """Validate public account registration."""
-
     display_name = StringField(
         "Display name",
         filters=[_strip_text],
@@ -70,8 +72,6 @@ class RegistrationForm(FlaskForm):
 
 
 class LoginForm(FlaskForm):
-    """Validate email/password login."""
-
     email = EmailField(
         "Email",
         filters=[_normalise_email],
@@ -89,8 +89,6 @@ class LoginForm(FlaskForm):
 
 
 class ProfileForm(FlaskForm):
-    """Validate an account display-name change."""
-
     display_name = StringField(
         "Display name",
         filters=[_strip_text],
@@ -107,8 +105,6 @@ class ProfileForm(FlaskForm):
 
 
 class PasswordChangeForm(FlaskForm):
-    """Validate a password change."""
-
     current_password = PasswordField(
         "Current password",
         validators=[DataRequired(message="Current password is required.")],
@@ -135,26 +131,18 @@ class PasswordChangeForm(FlaskForm):
 
 
 class DeleteAccountForm(FlaskForm):
-    """Require the current password before account deletion."""
-
     current_password = PasswordField(
         "Current password",
         validators=[DataRequired(message="Current password is required.")],
     )
     submit = SubmitField("Delete Account")
 
-auth_bp = Blueprint("auth", __name__)
-DELETE_ACCOUNT_TOKEN_KEY = "delete_account_confirmation"
-DELETE_ACCOUNT_TOKEN_SECONDS = 120
-
 
 def _profile_forms():
-    """Create the three independent forms displayed on the profile page."""
     return ProfileForm(), PasswordChangeForm(), DeleteAccountForm()
 
 
 def _login_required():
-    """Redirect anonymous visitors away from account settings."""
     if not current_user.is_authenticated:
         flash("Log in to manage your profile.", "error")
         return redirect(url_for("auth.login"))
@@ -163,20 +151,17 @@ def _login_required():
 
 @auth_bp.before_app_request
 def load_current_user():
-    """Expose Flask-Login's current_user via g for legacy code paths."""
     g.current_user = current_user if current_user.is_authenticated else None
 
 
 @auth_bp.app_context_processor
 def inject_globals():
-    """Expose safe current user to all Jinja templates."""
     user = current_user if current_user.is_authenticated else None
     return {"current_user": user}
 
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
-    """Create an account."""
     if current_user.is_authenticated:
         return redirect(url_for("serve_index"))
     form = RegistrationForm()
@@ -201,7 +186,6 @@ def register():
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    """Authenticate an account."""
     if current_user.is_authenticated:
         return redirect(url_for("serve_index"))
     form = LoginForm()
@@ -217,7 +201,6 @@ def login():
 
 @auth_bp.route("/logout", methods=["POST"])
 def logout():
-    """Clear the local session."""
     logout_user()
     flash("You have been logged out.", "success")
     return redirect(url_for("serve_index"))
@@ -225,15 +208,13 @@ def logout():
 
 @auth_bp.route("/profile", methods=["GET"])
 def profile():
-    """Display account settings for the signed-in user."""
     redirect_response = _login_required()
     if redirect_response:
         return redirect_response
     profile_form, password_form, delete_form = _profile_forms()
     profile_form.display_name.data = current_user.display_name
 
-    from app import BookmarkRepository, ReviewRepository
-
+    from app.core import BookmarkRepository, ReviewRepository
     user_id = current_user.id
     review_count = ReviewRepository.count_by_user(user_id)
     bookmark_count = len(BookmarkRepository.list_for_user(user_id))
@@ -250,7 +231,6 @@ def profile():
 
 @auth_bp.route("/profile", methods=["POST"])
 def update_profile():
-    """Update the current account's display name."""
     redirect_response = _login_required()
     if redirect_response:
         return redirect_response
@@ -263,7 +243,7 @@ def update_profile():
             flash("We could not update your account. Please try again.", "error")
         else:
             try:
-                from app import ReviewRepository
+                from app.core import ReviewRepository
                 ReviewRepository.update_author_display_name(
                     current_user.id,
                     display_name,
@@ -290,7 +270,6 @@ def update_profile():
 
 @auth_bp.route("/profile/password", methods=["POST"])
 def change_password():
-    """Verify the current password and save a replacement."""
     redirect_response = _login_required()
     if redirect_response:
         return redirect_response
@@ -319,7 +298,6 @@ def change_password():
 
 @auth_bp.route("/profile/delete/verify", methods=["POST"])
 def verify_account_deletion():
-    """Verify the password and issue a short-lived deletion confirmation."""
     if not current_user.is_authenticated:
         return jsonify({"verified": False, "message": "Log in first."}), 401
     delete_form = DeleteAccountForm()
@@ -353,7 +331,6 @@ def verify_account_deletion():
 
 @auth_bp.route("/profile/delete", methods=["POST"])
 def delete_account():
-    """Delete an account only after password verification and confirmation."""
     if not current_user.is_authenticated:
         flash("Log in to manage your profile.", "error")
         return redirect(url_for("auth.login"))
@@ -382,7 +359,6 @@ def delete_account():
 
 @auth_bp.route("/api/auth/me", methods=["GET"])
 def current_user_api():
-    """Return only safe verified account information."""
     if not current_user.is_authenticated:
         return jsonify({"authenticated": False, "user": None}), 200
     return jsonify({

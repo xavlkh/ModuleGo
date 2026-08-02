@@ -1,8 +1,4 @@
-"""Flask-Login User model with bcrypt password hashing.
-
-Stores users in SQLite (tests) or PostgreSQL (production) depending on
-the active database backend.
-"""
+"""Flask-Login User model with bcrypt password hashing."""
 
 import uuid
 from datetime import datetime, timezone
@@ -10,11 +6,11 @@ from datetime import datetime, timezone
 import bcrypt
 import psycopg2
 import psycopg2.extras
+from flask import current_app
 from flask_login import UserMixin
 
 
 class User(UserMixin):
-    """User model for Flask-Login authentication."""
 
     def __init__(self, id, email, display_name, password_hash, created_at=None):
         self.id = str(id)
@@ -24,14 +20,12 @@ class User(UserMixin):
         self.created_at = created_at
 
     def verify_password(self, password):
-        """Check a plaintext password against the stored bcrypt hash."""
         return bcrypt.checkpw(
             password.encode("utf-8"),
             self.password_hash.encode("utf-8"),
         )
 
     def to_dict(self):
-        """Return safe user fields for templates and APIs."""
         return {
             "id": self.id,
             "email": self.email,
@@ -40,10 +34,8 @@ class User(UserMixin):
 
     @staticmethod
     def _get_backend():
-        """Return 'sqlite', 'postgres', or None."""
         try:
-            import flask
-            if flask.current_app.config.get("TESTING"):
+            if current_app.config.get("TESTING"):
                 return "sqlite"
         except RuntimeError:
             pass
@@ -58,8 +50,12 @@ class User(UserMixin):
         return psycopg2.connect(os.environ["DATABASE_URL"])
 
     @classmethod
+    def _sqlite_conn(cls):
+        from app.db import get_db
+        return get_db()
+
+    @classmethod
     def create(cls, email, password, display_name):
-        """Create a new user. Returns the User instance."""
         password_hash = bcrypt.hashpw(
             password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
@@ -81,8 +77,7 @@ class User(UserMixin):
             finally:
                 conn.close()
         else:
-            import app as app_module
-            conn = app_module.get_db()
+            conn = cls._sqlite_conn()
             try:
                 conn.execute(
                     """INSERT INTO users (id, email, display_name, password_hash, created_at)
@@ -97,7 +92,6 @@ class User(UserMixin):
 
     @staticmethod
     def _row_val(row, dict_key, sqlite_key):
-        """Read a value from a dict (PostgreSQL) or sqlite3.Row (SQLite)."""
         if isinstance(row, dict):
             return row.get(dict_key)
         try:
@@ -107,7 +101,6 @@ class User(UserMixin):
 
     @classmethod
     def _from_row(cls, row):
-        """Build a User from a database row (dict or sqlite3.Row)."""
         if row is None:
             return None
         return cls(
@@ -120,7 +113,6 @@ class User(UserMixin):
 
     @classmethod
     def find_by_email(cls, email):
-        """Look up a user by email (case-insensitive). Returns User or None."""
         email = email.strip().lower()
         if cls._get_backend() == "postgres":
             conn = cls._pg_conn()
@@ -131,20 +123,17 @@ class User(UserMixin):
             finally:
                 conn.close()
         else:
-            import app as app_module
-            conn = app_module.get_db()
+            conn = cls._sqlite_conn()
             try:
                 row = conn.execute(
                     "SELECT * FROM users WHERE email = ?", (email,)
                 ).fetchone()
             finally:
                 conn.close()
-
         return cls._from_row(row)
 
     @classmethod
     def find_by_id(cls, user_id):
-        """Look up a user by ID. Returns User or None."""
         user_id = str(user_id)
         if cls._get_backend() == "postgres":
             conn = cls._pg_conn()
@@ -155,19 +144,16 @@ class User(UserMixin):
             finally:
                 conn.close()
         else:
-            import app as app_module
-            conn = app_module.get_db()
+            conn = cls._sqlite_conn()
             try:
                 row = conn.execute(
                     "SELECT * FROM users WHERE id = ?", (user_id,)
                 ).fetchone()
             finally:
                 conn.close()
-
         return cls._from_row(row)
 
     def update_display_name(self, display_name):
-        """Update the display name and return self."""
         display_name = display_name.strip()[:50]
         self.display_name = display_name
         if self._get_backend() == "postgres":
@@ -182,8 +168,7 @@ class User(UserMixin):
             finally:
                 conn.close()
         else:
-            import app as app_module
-            conn = app_module.get_db()
+            conn = self._sqlite_conn()
             try:
                 conn.execute(
                     "UPDATE users SET display_name = ? WHERE id = ?",
@@ -195,7 +180,6 @@ class User(UserMixin):
         return self
 
     def change_password(self, new_password):
-        """Hash and store a new password."""
         self.password_hash = bcrypt.hashpw(
             new_password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
@@ -211,8 +195,7 @@ class User(UserMixin):
             finally:
                 conn.close()
         else:
-            import app as app_module
-            conn = app_module.get_db()
+            conn = self._sqlite_conn()
             try:
                 conn.execute(
                     "UPDATE users SET password_hash = ? WHERE id = ?",
@@ -224,7 +207,6 @@ class User(UserMixin):
         return self
 
     def delete(self):
-        """Permanently delete this user. Cascade deletes reviews/votes/bookmarks."""
         if self._get_backend() == "postgres":
             conn = self._pg_conn()
             try:
@@ -237,8 +219,7 @@ class User(UserMixin):
             finally:
                 conn.close()
         else:
-            import app as app_module
-            conn = app_module.get_db()
+            conn = self._sqlite_conn()
             try:
                 conn.execute("DELETE FROM REVIEW_VOTES WHERE USER_ID = ?", (self.id,))
                 conn.execute("DELETE FROM REVIEWS WHERE USER_ID = ?", (self.id,))
