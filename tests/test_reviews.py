@@ -1,39 +1,9 @@
+"""Review API tests: CRUD, validation, rating summaries, and guest isolation."""
+
 import pytest
 
 import app as app_module
-
-
-@pytest.fixture()
-def client(tmp_path, monkeypatch):
-    test_database = tmp_path / "modulego-test.db"
-    monkeypatch.setattr(app_module, "db_name", str(test_database))
-    app_module.init_db()
-    app_module.app.config.update(TESTING=True)
-
-    with app_module.app.test_client() as test_client:
-        yield test_client
-
-
-def create_review(client, module_code="C270", rating=5, comment="Very useful"):
-    return client.post(
-        "/api/reviews",
-        json={
-            "module_code": module_code,
-            "rating": rating,
-            "comment": comment,
-        },
-    )
-
-
-def create_review_as_new_guest(
-    client,
-    module_code="C270",
-    rating=5,
-    comment="Very useful",
-):
-    """Create a review from a fresh signed guest identity."""
-    client.delete_cookie("modulego_guest")
-    return create_review(client, module_code, rating, comment)
+from tests.conftest import create_review, create_review_as_new_guest
 
 
 def test_pages_are_available(client):
@@ -51,7 +21,7 @@ def test_create_and_read_review(client):
     assert created["id"] > 0
     assert created["module_code"] == "C270"
     assert created["rating"] == 5
-    assert created["comment"] == "Very useful"
+    assert created["comment"] == "Good"
     assert created["created_at"] is not None
 
     response = client.get("/api/reviews/C270")
@@ -248,4 +218,3 @@ def test_update_and_delete_unknown_review_return_404(client):
 
     assert update_response.status_code == 404
     assert delete_response.status_code == 404
-

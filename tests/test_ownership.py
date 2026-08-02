@@ -2,48 +2,8 @@
 
 import re
 
-import pytest
-
 import app as app_module
-
-
-@pytest.fixture()
-def client(tmp_path, monkeypatch):
-    """Return an isolated SQLite test client."""
-    test_database = tmp_path / "ownership-test.db"
-    monkeypatch.setattr(app_module, "db_name", str(test_database))
-    app_module.init_db()
-    return app_module.app.test_client()
-
-
-def create_review(client, module_code="C270", rating=5, **extra):
-    """Create a review through the public API."""
-    payload = {
-        "module_code": module_code,
-        "rating": rating,
-        "comment": extra.pop("comment", "Helpful"),
-        **extra,
-    }
-    return client.post("/api/reviews", json=payload)
-
-
-def login_as(client, user_id="user-1", name="A Student",
-             email=None, password="testpass1"):
-    """Register and log in as a test user via Flask-Login."""
-    if email is None:
-        email = f"{user_id}@example.com"
-    # Register (ignore if already exists)
-    client.post("/register", data={
-        "display_name": name,
-        "email": email,
-        "password": password,
-        "confirm_password": password,
-    })
-    # Login
-    client.post("/login", data={
-        "email": email,
-        "password": password,
-    })
+from tests.conftest import create_review, register_and_login
 
 
 def test_public_reviews_hide_private_ownership_fields(client):
@@ -83,7 +43,7 @@ def test_backend_rejects_self_vote(client):
 
 
 def test_account_review_visibility_and_bookmarks(client):
-    login_as(client, name="Jamie Tan")
+    register_and_login(client, display_name="Jamie Tan")
 
     anonymous = create_review(client, is_anonymous=True).get_json()
     assert anonymous["author"]["label"] == "Anonymous student"
@@ -111,7 +71,7 @@ def test_account_review_visibility_and_bookmarks(client):
 
 def test_profile_name_sync_updates_only_owned_review_snapshots(client):
     """Renaming an account preserves visibility, content, and timestamps."""
-    login_as(client, user_id="user-1", name="Old Name")
+    register_and_login(client, email="user-1@example.com", display_name="Old Name")
 
     with app_module.database_connection() as conn:
         conn.executemany(
@@ -201,7 +161,7 @@ def test_guest_claim_keeps_account_review_on_conflict(client):
         json={"vote_type": 1},
     ).status_code == 200
 
-    login_as(client, name="Account Owner")
+    register_and_login(client, display_name="Account Owner")
     account_review = create_review(client, rating=5).get_json()
     response = client.post(
         "/api/ownership/claim",
