@@ -136,6 +136,8 @@ const DataManager = {
                 module.code, module.name, module.school, module.synopsis, module.url
             ].filter(Boolean).join(' '));
             if (!searchTokens.every(token => searchableText.includes(token))) continue;
+            // Scoring: lower = better match. Start at 100, subtract for matches.
+            // Exact code match (20) > code prefix (40) > name match (45-75) > school (88)
             let score = 100;
             if (code === searchTerm) score -= 80;
             else if (code.startsWith(searchTerm)) score -= 60;

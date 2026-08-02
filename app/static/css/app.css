@@ -10,6 +10,9 @@
   --color-primary-800: oklch(0.41 0.09 151);
   --color-primary-900: oklch(0.35 0.07 152);
 
+  --color-border: oklch(0.92 0.005 260);
+  --color-border-primary: oklch(0.89 0.07 155 / 0.5);
+
   --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
 
@@ -80,7 +83,7 @@
     position: relative;
     z-index: 10;
     background: white;
-    border: 1px solid oklch(0.92 0.005 260);
+    border: 1px solid var(--color-border);
     border-radius: 1rem;
     box-shadow: 0 1px 3px oklch(0 0 0 / 0.06), 0 4px 16px oklch(0 0 0 / 0.04);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -133,7 +136,7 @@
   /* Input components */
   .input-field {
     background: white;
-    border: 1px solid oklch(0.9 0.005 260);
+    border: 1px solid var(--color-border);
     border-radius: 0.75rem;
     padding: 0.75rem 1rem;
     font-size: 0.95rem;
@@ -165,15 +168,15 @@
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.01em;
-    background: oklch(0.97 0.015 155);
+    background: var(--color-primary-50);
     color: var(--color-primary-600);
-    border: 1px solid oklch(0.89 0.07 155 / 0.5);
+    border: 1px solid var(--color-border-primary);
   }
 
   /* Stat card component */
   .stat-card {
     background: white;
-    border: 1px solid oklch(0.92 0.005 260);
+    border: 1px solid var(--color-border);
     border-radius: 1rem;
     padding: 1.25rem;
     text-align: center;
@@ -237,18 +240,18 @@
 
   /* Module-specific components */
   .module-header {
-    background: oklch(0.97 0.015 155);
-    border: 1px solid oklch(0.89 0.07 155 / 0.5);
+    background: var(--color-primary-50);
+    border: 1px solid var(--color-border-primary);
   }
 
   .module-code-box {
-    background: oklch(0.97 0.015 155);
-    border: 1px solid oklch(0.89 0.07 155 / 0.5);
+    background: var(--color-primary-50);
+    border: 1px solid var(--color-border-primary);
   }
 
   .icon-box-primary {
-    background: oklch(0.97 0.015 155);
-    border: 1px solid oklch(0.89 0.07 155 / 0.5);
+    background: var(--color-primary-50);
+    border: 1px solid var(--color-border-primary);
     color: var(--color-primary-600);
   }
 
@@ -258,7 +261,7 @@
   }
 
   .review-item {
-    border-bottom: 1px solid oklch(0.92 0.005 260);
+    border-bottom: 1px solid var(--color-border);
     padding: 1rem 0;
   }
 
@@ -267,7 +270,8 @@
   }
 }
 
-/* Dark mode variants */
+/* Dark mode variants — backdrop-filter disabled because blur over dark backgrounds
+   produces muddy, unreadable results in most browsers. */
 .dark .glass {
   background: var(--dark-bg);
   backdrop-filter: none;
@@ -419,13 +423,19 @@
 
 @media (prefers-reduced-motion: reduce) {
   #cursorGlow { display: none; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .collapsible-hidden {
   display: none;
 }
 
-/* Theme transition — applied temporarily during theme toggle */
+/* Theme transition — applied temporarily via JS during dark/light toggle.
+   The !important and * selector override every element's existing transitions
+   to prevent a jarring mix of snapping and animating colors. */
 html.theme-transition,
 html.theme-transition *,
 html.theme-transition *::before,

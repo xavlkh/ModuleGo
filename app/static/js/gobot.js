@@ -82,6 +82,8 @@ const GoBot = {
     });
 
     this.loadHistory();
+    // First-time visitors: show welcome popup after 1s (lets page load animations finish).
+    // Returning visitors (localStorage flag set): show bot button immediately.
     if (this.hasPopped) {
         this.showButton();
     } else {

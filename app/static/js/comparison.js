@@ -20,8 +20,21 @@ const ComparisonManager = {
         this.cacheElements();
         if (!this.elements.searchOne || !this.elements.searchTwo) return;
 
-        await DataManager.loadData();
+        try {
+            await DataManager.loadData();
+        } catch (error) {
+            console.error('Failed to load data:', error);
+            this.showMessage('Failed to load module data. Please refresh the page.', 'error');
+            return;
+        }
+
         this.modules = DataManager.modules.slice().sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+
+        if (this.modules.length === 0) {
+            this.showMessage('No module data available. Please refresh the page.', 'error');
+            return;
+        }
+
         this.bindSearch('one');
         this.bindSearch('two');
         this.showStarterResults();
@@ -286,6 +299,7 @@ const ComparisonManager = {
         const first = this.selected.one;
         const second = this.selected.two;
 
+        // Increment request ID to cancel any in-flight Gemini API calls
         if (!first || !second) {
             this.comparisonRequestId++;
             this.showMessage('Select two different modules to start comparing.');
@@ -425,8 +439,13 @@ const ComparisonManager = {
      * Display a message and hide the comparison table.
      * @param {string} text - The message text.
      */
-    showMessage(text) {
-        this.elements.message.textContent = text;
+    showMessage(text, type = 'warning') {
+        const colors = {
+            info: 'border-primary-200 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/30 text-primary-800 dark:text-primary-200',
+            warning: 'border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200',
+            error: 'border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200',
+        };
+        this.elements.message.innerHTML = `<div class="rounded-xl border px-5 py-4 text-sm ${colors[type] || colors.warning}" role="alert">${escapeHtml(text)}</div>`;
         this.elements.message.classList.remove('hidden');
         this.elements.tableWrap.classList.add('hidden');
     },
