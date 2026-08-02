@@ -12,13 +12,13 @@ on:
         required: true
         type: choice
         options:
-          - dev
-          - prod
+          - dev-db
+          - prod-db
 
 jobs:
   seed:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment || 'dev' }}
+    environment: ${{ inputs.environment || 'prod-db' }}
 
     steps:
       - name: Checkout
@@ -55,10 +55,11 @@ jobs:
           PG_USER: ${{ secrets.POSTGRES_USER }}
           PG_PASS: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
-          SSH="ssh -i /home/runner/.ssh/id.pem ubuntu@${EC2_IP}"
-          SCP="scp -i /home/runner/.ssh/id.pem"
+          SSH_KEY=~/.ssh/id.pem
+          SSH="ssh -i ${SSH_KEY} ubuntu@${EC2_IP}"
+          SCP="scp -i ${SSH_KEY}"
 
-          if [ "${{ inputs.environment || 'dev' }}" = "dev" ]; then
+          if [ "${{ inputs.environment || 'prod-db' }}" = "dev-db" ]; then
             DB_NAME="modulego_dev"
             COMPOSE_FILE="/home/ubuntu/modulego-dev/docker-compose.yml"
           else
@@ -79,7 +80,7 @@ jobs:
           $SSH "ls -la /tmp/seed_db.py /tmp/*.json"
 
           echo "=== Getting container ID ==="
-          CONTAINER=$($SSH "docker compose -f ${COMPOSE_FILE} ps -q app" | tr -d '\r\n')
+          CONTAINER=$($SSH "docker compose -f ${COMPOSE_FILE} ps -q --status running app" | tr -d '\r\n')
           echo "Container: [${CONTAINER}]"
           if [ -z "$CONTAINER" ]; then
             echo "ERROR: Container not found"
@@ -89,12 +90,10 @@ jobs:
           echo "=== Copying seed_db.py into container ==="
           $SSH "docker cp /tmp/seed_db.py ${CONTAINER}:/app/seed_db.py"
           echo "=== Copying JSON files into container ==="
-          for f in $($SSH "ls /tmp/*.json"); do
-            $SSH "docker cp ${f} ${CONTAINER}:/app/"
-          done
+          $SSH "docker cp /tmp/*.json ${CONTAINER}:/app/"
 
           echo "=== Running seed ==="
-          $SSH "docker exec ${CONTAINER} sh -c 'DATABASE_URL=postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME} python seed_db.py'"
+          $SSH "docker exec -e DATABASE_URL='postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME}' ${CONTAINER} sh -c 'python seed_db.py'"
 
           echo "=== Cleaning up container ==="
           $SSH "docker exec --user root ${CONTAINER} rm -f /app/seed_db.py /app/*.json" || true

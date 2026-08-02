@@ -1,6 +1,6 @@
 # CI/CD pipeline: build Docker image → push to GHCR → deploy to EC2 via Ansible
 # master branch → production (port 80), dev branch → development (port 5001)
-name: Build & Deploy
+name: CD
 
 on:
   push:
