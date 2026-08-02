@@ -256,6 +256,8 @@ const UIRenderer = {
         else url.searchParams.delete('page');
         window.history.replaceState({}, '', url);
 
+        // Search cancellation: each keystroke increments searchRunId. If a newer
+        // search fires during the 150ms delay, the stale one is silently discarded.
         const runId = ++this.searchRunId;
         this.showLoading();
 
@@ -648,7 +650,7 @@ async function initHomePage() {
         document.getElementById('resultsContainer').innerHTML = `
             <div class="col-span-full py-16 text-center">
                 <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-900/30 mb-4">
-                    <i data-lucide="triangle-alert" class="w-8 h-8 text-red-500 dark:text-red-400"></i>
+                    <i data-lucide="alert-triangle" class="w-8 h-8 text-red-500 dark:text-red-400"></i>
                 </div>
                 <h3 class="text-xl font-semibold text-zinc-700 dark:text-zinc-200 mb-1">Failed to load module data</h3>
                 <p class="text-zinc-500 dark:text-zinc-400">Please refresh the page or try again later.</p>

@@ -554,6 +554,7 @@ const DetailManager = {
             });
             const result = await response.json();
             if (!response.ok) {
+                // 409 = already reviewed this module (one per user). Switch to edit mode.
                 if (response.status === 409) {
                     const ownedReview = [...this.currentReviews.values()]
                         .find(review => review.is_owner);
