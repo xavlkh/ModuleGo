@@ -98,11 +98,11 @@ jobs:
           $SSH "docker cp /tmp/*.json ${CONTAINER}:/app/"
 
           echo "=== Running seed ==="
-          # Pass DATABASE_URL via --env-file to avoid shell quoting issues through SSH
           echo "DATABASE_URL=postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${DB_NAME}" > /tmp/.env
           $SCP /tmp/.env ubuntu@${EC2_IP}:/tmp/.env
           $SSH "docker cp /tmp/.env ${CONTAINER}:/tmp/.env"
-          $SSH "docker exec --env-file /tmp/.env ${CONTAINER} python seed_db.py"
+          # Source the env file inside the container shell to avoid --env-file compatibility issues
+          $SSH "docker exec ${CONTAINER} sh -c '. /tmp/.env && python seed_db.py'"
 
           echo "=== Cleaning up container ==="
           # Root needed because docker cp copies files as root; || true if container already stopped
