@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -68,7 +68,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -335,7 +335,6 @@
     </script>
 
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/ownership.js') }}"></script>
     <script src="{{ url_for('static', filename='js/gobot.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>

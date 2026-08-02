@@ -47,7 +47,7 @@
                 </div>
             </div>
 
-            <div id="comparisonMessage" class="mt-6">
+            <div id="comparisonMessage" class="hidden mt-6">
                 {{ alert('Select two different modules to start comparing.', type='warning') }}
             </div>
 
@@ -81,6 +81,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/share.js') }}"></script>
 <script src="{{ url_for('static', filename='js/comparison.js') }}"></script>
 {% endblock %}

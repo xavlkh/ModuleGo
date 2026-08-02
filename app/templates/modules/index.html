@@ -12,6 +12,7 @@
             <div class="flex flex-row gap-2 items-stretch">
                 <div class="relative min-w-0 flex-1">
                     <i data-lucide="search" class="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+                    <label for="searchInput" class="sr-only">Search modules</label>
                     <input
                         type="text"
                         id="searchInput"
@@ -24,10 +25,10 @@
                         <i data-lucide="x" class="h-4 w-4"></i>
                     </button>
                 </div>
-                <button id="bookmarkToggle" class="flex-none w-12 rounded-xl border py-3.5 text-sm font-semibold transition-all duration-200 shrink-0 truncate flex items-center justify-center gap-1.5 bg-white/95 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700">
+                <button id="bookmarkToggle" aria-label="Toggle bookmark filter" class="flex-none w-12 rounded-xl border py-3.5 text-sm font-semibold transition-all duration-200 shrink-0 truncate flex items-center justify-center gap-1.5 bg-white/95 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700">
                     <i data-lucide="bookmark" class="w-5 h-5 shrink-0" id="bookmarkToggleIcon"></i>
                 </button>
-                <button id="filterToggle" class="flex-none w-14 rounded-xl border py-3.5 text-sm font-semibold transition-all duration-200 shrink-0 truncate flex items-center justify-center gap-1.5 bg-white/95 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700">
+                <button id="filterToggle" aria-label="Toggle filters" class="flex-none w-14 rounded-xl border py-3.5 text-sm font-semibold transition-all duration-200 shrink-0 truncate flex items-center justify-center gap-1.5 bg-white/95 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700">
                     <i data-lucide="sliders-horizontal" class="w-5 h-5 shrink-0"></i>
                 </button>
             </div>
@@ -142,7 +143,6 @@
 <script src="{{ url_for('static', filename='js/bookmark.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
 <script src="{{ url_for('static', filename='js/detail.js') }}"></script>
-<script src="{{ url_for('static', filename='js/share.js') }}"></script>
 <script>
     const INITIAL_QUERY = {{ query | tojson }};
 
