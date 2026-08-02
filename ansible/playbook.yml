@@ -60,6 +60,21 @@
       become_user: ubuntu
       when: not app_dir.stat.exists
 
+    - name: Require a Grafana administrator password
+      assert:
+        that:
+          - lookup('env', 'GRAFANA_ADMIN_PASSWORD') | length >= 12
+        fail_msg: "Set GRAFANA_ADMIN_PASSWORD to a secret with at least 12 characters."
+      no_log: true
+
+    - name: Copy monitoring configuration
+      copy:
+        src: "{{ playbook_dir }}/../monitoring/"
+        dest: "/home/ubuntu/modulego-{{ env }}/monitoring/"
+        owner: ubuntu
+        group: ubuntu
+        mode: preserve
+
     - name: Copy docker-compose
       template:
         src: templates/docker-compose.ec2.yml.j2

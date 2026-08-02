@@ -133,6 +133,37 @@ python -m pytest -q
 
 Tests use an in-memory SQLite database — no PostgreSQL credentials needed.
 
+## Monitoring with Prometheus and Grafana
+
+Docker Compose starts a private monitoring stack together with ModuleGo:
+
+- Flask exports HTTP request counts, errors, and response-time histograms.
+- PostgreSQL Exporter publishes database health and connection metrics.
+- Prometheus collects the metrics every 15 seconds and retains 15 days locally.
+- Grafana provisions the Prometheus data source and ModuleGo dashboard automatically.
+
+Set a local Grafana password in `.env`, then start the stack:
+
+```bash
+# Add this line to .env:
+GRAFANA_ADMIN_PASSWORD=replace-with-a-strong-password
+
+docker compose up -d --build
+```
+
+Open Grafana at `http://127.0.0.1:3000` and Prometheus targets at
+`http://127.0.0.1:9090/targets`. Both ports bind only to the local machine.
+
+On EC2, Grafana remains bound to the server's loopback interface. Connect with
+an SSH tunnel instead of exposing the dashboard publicly:
+
+```bash
+ssh -i your-key.pem -L 3000:localhost:3000 ubuntu@YOUR_EC2_IP
+```
+
+Then open `http://127.0.0.1:3000`. The production password comes from the
+`GRAFANA_ADMIN_PASSWORD` GitHub environment secret.
+
 ## Deploying to AWS EC2
 
 ModuleGo can be deployed to AWS EC2 using Ansible for infrastructure and GitHub Actions for CI/CD.
@@ -233,7 +264,8 @@ ModuleGo/
 │       └── local-data/     Scraping pipeline and scraped JSON/CSV
 ├── tests/                  pytest test suite (SQLite, no PostgreSQL needed)
 ├── ansible/                EC2 provisioning and deployment playbooks
-├── docker-compose.yml      Docker Compose config (app + postgres + nginx)
+├── monitoring/             Prometheus and provisioned Grafana configuration
+├── docker-compose.yml      App, PostgreSQL, Nginx, Prometheus, and Grafana
 ├── Dockerfile              Production Docker image
 └── nginx.conf              Reverse proxy config
 ```
@@ -248,4 +280,5 @@ ModuleGo/
 | AI | Google Gemini (module comparisons, chatbot) |
 | Auth | Flask-Login + bcrypt (accounts), HMAC-SHA256 signed cookies (guests) |
 | Deployment | Docker, Nginx, Ansible, GitHub Actions, AWS EC2 |
+| Monitoring | Prometheus, Grafana, PostgreSQL Exporter |
 | Scraping | Playwright, Crawl4AI, BeautifulSoup |

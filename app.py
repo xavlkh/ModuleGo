@@ -21,6 +21,8 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
+from prometheus_flask_exporter import PrometheusMetrics
+from prometheus_flask_exporter.multiprocess import GunicornPrometheusMetrics
 
 from auth_routes import auth_bp
 from db import (
@@ -53,6 +55,13 @@ app.config.update(
 )
 app.register_blueprint(auth_bp)
 app.after_request(set_pending_guest_cookie)
+
+# Gunicorn has four worker processes in Docker, so its exporter must merge
+# their counters. Local Flask runs keep the convenient /metrics endpoint.
+if os.environ.get('PROMETHEUS_MULTIPROC_DIR'):
+    metrics = GunicornPrometheusMetrics(app, path=None, group_by='url_rule')
+else:
+    metrics = PrometheusMetrics(app, group_by='url_rule')
 
 csrf = CSRFProtect()
 
