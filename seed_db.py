@@ -32,6 +32,8 @@ def read_json(filename):
 
 def create_tables(conn):
     with conn.cursor() as cur:
+        # Drop and recreate rp_career_paths to ensure correct schema
+        cur.execute("DROP TABLE IF EXISTS rp_career_paths CASCADE")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS rp_modules (
                 module_code TEXT PRIMARY KEY,
