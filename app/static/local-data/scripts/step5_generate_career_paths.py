@@ -270,6 +270,9 @@ def generate_minor_careers(minors, modules, global_freq, specificity_min=2.5):
 
 
 def main():
+    print("\n[5/5] Career Paths")
+    print("-" * 50)
+
     modules = load_json('rp_modules_synopsis.json')
     courses = load_json('rp_courses.json')
     minors = load_json('rp_minors.json')

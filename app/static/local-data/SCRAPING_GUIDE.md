@@ -1,4 +1,4 @@
-# Module Scraping Guide
+# Data Scraping Guide
 
 ## Quick Start
 
@@ -37,7 +37,7 @@ All output is written to `data/` (gitignored).
 | `rp_career_paths.json` | Career paths with matched modules and keywords |
 | `tokens.json` | Auth tokens (auto-generated, session-based) |
 
-CSV equivalents are generated alongside each JSON file.
+CSV equivalents are generated alongside each JSON file for manual inspection only — no code consumes them.
 
 ## Module Schema
 
@@ -48,7 +48,7 @@ CSV equivalents are generated alongside each JSON file.
 | `synopsis` | `"This module covers..."` | Full synopsis text |
 | `school_name` | `"School of Applied Science"` | Full school name (General for G/P prefix) |
 | `school_abbr` | `"SAS"` | Short school code |
-| `url` | `"https://www.rp.edu.sg/..."` | RP module page URL (empty if no page exists) |
+| `url` | `"https://www.rp.edu.sg/..."` | RP module page URL (constructed from module code) |
 
 ## Minor Programme Schema
 
@@ -66,7 +66,6 @@ CSV equivalents are generated alongside each JSON file.
 - API returns double-encoded UTF-8 (mojibake) — fixed automatically in step 2
 - When the same module code appears under multiple schools, `should_keep()` picks the one matching the prefix's owning school
 - G/P prefix modules are always assigned to "General" school regardless of API response
-- Module URLs are validated against the RP sitemap — only modules with actual pages get URLs
 - "School of Technology for the Arts" is normalized to "School of Technology for Arts, Media and Design"
 
 ## Loading into PostgreSQL
@@ -78,13 +77,13 @@ cd ../../  # project root
 python seed_db.py
 ```
 
-Requires `DATABASE_URL` in `.env` (or docker-compose). Reads the JSON files from `app/static/local-data/data/` and upserts to PostgreSQL tables.
+Requires `DATABASE_URL` in `.env` (or docker-compose). The CI/CD seed workflow (`.github/workflows/seed.yml`) automates this.
 
 ## Automated Pipeline
 
 The scraping pipeline runs automatically via GitHub Actions every Sunday at 2am UTC. It can also be triggered manually from the Actions tab.
 
-The workflow (`.github/workflows/seed.yml`) installs Python + Playwright Chromium, runs `run_all.py`, then loads data into PostgreSQL via `seed_db.py`.
+The workflow installs Python + Playwright Chromium, runs `run_all.py`, then loads data into PostgreSQL via `seed_db.py`.
 
 ## Visible Browser Mode
 
