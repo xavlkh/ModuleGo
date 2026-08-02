@@ -12,13 +12,12 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.12", "3.13"]
-    env:
-      SONAR_TOKEN: ${{ matrix.python-version == '3.12' && secrets.SONAR_TOKEN || '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -54,13 +53,27 @@ jobs:
         if: matrix.python-version != '3.12'
         run: python -m pytest -q
 
+      - name: Check SonarQube Cloud configuration
+        if: matrix.python-version == '3.12'
+        id: sonar-token
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: SonarQube Cloud is not configured yet
-        if: matrix.python-version == '3.12' && env.SONAR_TOKEN == ''
+        if: matrix.python-version == '3.12' && steps.sonar-token.outputs.available != 'true'
         run: echo "Skipping analysis until the SONAR_TOKEN secret is added."
 
       - name: Run SonarQube Cloud analysis
-        if: matrix.python-version == '3.12' && env.SONAR_TOKEN != ''
+        if: matrix.python-version == '3.12' && steps.sonar-token.outputs.available == 'true'
         uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   security:
     name: Trivy Security Audit
