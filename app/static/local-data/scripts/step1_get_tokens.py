@@ -104,7 +104,7 @@ def capture_tokens(headed=False):
 
 
 def main():
-    print("\n[1/4] Tokens")
+    print("\n[1/5] Tokens")
     print("-" * 50)
 
     headed = environment_flag("PLAYWRIGHT_HEADED", default=environment_flag("AGENT_BROWSER_HEADED"))

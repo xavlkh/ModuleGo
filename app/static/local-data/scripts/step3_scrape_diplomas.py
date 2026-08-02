@@ -131,9 +131,13 @@ def extract_data(html):
 
 
 async def main():
-    from crawl4ai import AsyncWebCrawler
+    try:
+        from crawl4ai import AsyncWebCrawler
+    except ImportError:
+        print("ERROR: crawl4ai not installed. Run: pip install crawl4ai && crawl4ai-setup")
+        return
 
-    print("\n[3/4] Diplomas")
+    print("\n[3/5] Diplomas")
     print("-" * 50)
 
     # Fetch sitemap for diploma URLs

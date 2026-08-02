@@ -78,9 +78,13 @@ def parse_eligibility(markdown):
 
 
 async def main():
-    from crawl4ai import AsyncWebCrawler
+    try:
+        from crawl4ai import AsyncWebCrawler
+    except ImportError:
+        print("ERROR: crawl4ai not installed. Run: pip install crawl4ai && crawl4ai-setup")
+        return
 
-    print("\n[4/4] Minors")
+    print("\n[4/5] Minors")
     print("-" * 50)
 
     urls, type_map = fetch_minor_urls_and_types()

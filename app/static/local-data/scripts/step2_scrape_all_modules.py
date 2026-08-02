@@ -43,6 +43,12 @@ def fix_mojibake(text):
 
 
 def should_keep(module, seen_codes):
+    """Return True if this module entry should replace the existing one.
+
+    Dedup rule: when the same code appears under multiple schools,
+    keep the one whose school matches the prefix's owning school.
+    If both match, keep the later one (last-wins).
+    """
     code = module.get("module_code", "")
     school = module.get("school_name", "")
     if code not in seen_codes:
@@ -50,7 +56,9 @@ def should_keep(module, seen_codes):
     expected = PREFIX_SCHOOL.get(code[0].upper(), "")
     if not expected:
         return False
-    return school == expected and seen_codes[code] != expected
+    existing_school = seen_codes[code][0]
+    # Keep if this entry's school matches expected AND existing doesn't
+    return school == expected and existing_school != expected
 
 
 def fetch(code, start, csrf, mv, cookie):
@@ -103,7 +111,7 @@ def get_school_abbr(school_name):
 
 
 def main():
-    print("\n[2/4] Modules")
+    print("\n[2/5] Modules")
     print("-" * 50)
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -113,7 +121,7 @@ def main():
         tokens = json.load(f)
 
     all_modules = []
-    seen_codes = {}
+    seen_codes = {}  # code -> (school_name, index_in_all_modules)
     t0 = time.time()
 
     for prefix in string.ascii_uppercase:
@@ -133,9 +141,10 @@ def main():
                     continue
                 if should_keep(m, seen_codes):
                     if code in seen_codes:
-                        all_modules[seen_codes[code]] = m
+                        _, idx = seen_codes[code]
+                        all_modules[idx] = m
                     else:
-                        seen_codes[code] = len(all_modules)
+                        seen_codes[code] = (m.get("school_name", ""), len(all_modules))
                         all_modules.append(m)
             if page == 1 and count > 0:
                 print(f"  {prefix}: {count} modules")
