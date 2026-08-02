@@ -1,4 +1,4 @@
-"""Shared test configuration for isolated SQLite API tests."""
+"""Shared test configuration and fixtures for isolated SQLite API tests."""
 
 import pytest
 
@@ -16,3 +16,44 @@ def configure_test_app():
         TESTING=previous_testing,
         WTF_CSRF_ENABLED=previous_csrf,
     )
+
+
+@pytest.fixture()
+def client(tmp_path, monkeypatch):
+    """Return an isolated Flask test client backed by a temp SQLite database."""
+    monkeypatch.setattr(app_module, "db_name", str(tmp_path / "test.db"))
+    app_module.init_db()
+    with app_module.app.test_client() as test_client:
+        yield test_client
+
+
+def create_review(client, module_code="C270", rating=5, comment="Good", **extra):
+    """Create a review via the API. Accepts arbitrary extra payload fields."""
+    payload = {
+        "module_code": module_code,
+        "rating": rating,
+        "comment": comment,
+        **extra,
+    }
+    return client.post("/api/reviews", json=payload)
+
+
+def create_review_as_new_guest(client, module_code="C270", rating=5, comment="Good"):
+    """Create a review from a fresh signed guest identity."""
+    client.delete_cookie("modulego_guest")
+    return create_review(client, module_code, rating, comment)
+
+
+def register_and_login(client, email="student@example.com", password="testpass1",
+                       display_name="Student"):
+    """Register a user and log in. Idempotent — safe to call multiple times."""
+    client.post("/register", data={
+        "display_name": display_name,
+        "email": email,
+        "password": password,
+        "confirm_password": password,
+    })
+    client.post("/login", data={
+        "email": email,
+        "password": password,
+    })

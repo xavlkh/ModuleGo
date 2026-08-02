@@ -23,7 +23,6 @@ MODULES = [
 @pytest.fixture()
 def client(monkeypatch):
     """Provide a client with a deterministic in-memory module catalogue."""
-    app_module.app.config.update(TESTING=True)
     monkeypatch.setitem(app_module._modules_cache, "data", MODULES)
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
 

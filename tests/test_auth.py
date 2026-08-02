@@ -1,21 +1,7 @@
 """Tests for the Flask-Login authentication routes."""
 
-import pytest
-
 import app as app_module
-from user_model import User
-
-
-@pytest.fixture()
-def client(tmp_path, monkeypatch):
-    """Return an isolated Flask client."""
-    monkeypatch.setattr(
-        app_module,
-        "db_name",
-        str(tmp_path / "auth-test.db"),
-    )
-    app_module.init_db()
-    return app_module.app.test_client()
+from app.models import User
 
 
 def _register_user(client, email="student@example.com", password="password1",
