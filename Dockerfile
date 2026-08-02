@@ -15,10 +15,11 @@ RUN addgroup --system --gid 10001 modulego \
     && mkdir -p /app/data \
     && chown -R modulego:modulego /app/data
 ENV DATABASE_PATH=/app/data/modulego.db \
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus \
     PYTHONDONTWRITEBYTECODE=1
 
 USER modulego
 
-EXPOSE 5000
+EXPOSE 5000 8000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "30", "app:app"]
+CMD ["sh", "-c", "rm -rf /tmp/prometheus && mkdir -p /tmp/prometheus && exec gunicorn -c gunicorn.conf.py app:app"]
