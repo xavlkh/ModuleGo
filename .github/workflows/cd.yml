@@ -6,13 +6,18 @@ on:
   push:
     branches: [master, dev]
 
+# Don't cancel in-progress deploys — a half-finished deploy leaves the server in a broken state
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # Build Docker image and push to GitHub Container Registry
-  build-and-push:
+  build:
+    name: Build & Push
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -27,7 +32,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Determine environment
+      - name: Detect target environment
         id: env
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
@@ -43,7 +48,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -53,7 +58,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=
 
-      - name: Build and push
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -61,12 +66,12 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # Deploy to production EC2 when pushing to master
-  deploy-prod:
-    needs: build-and-push
-    if: needs.build-and-push.outputs.environment == 'prod'
+  deploy:
+    name: Deploy (${{ needs.build.outputs.environment }})
+    needs: build
     runs-on: ubuntu-latest
-    environment: production
+    # Dynamic environment name preserves GitHub environment protection rules (approval gates)
+    environment: ${{ needs.build.outputs.environment == 'prod' && 'production' || 'development' }}
     permissions:
       contents: read
 
@@ -76,42 +81,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Ansible
+      # Map environment to config — avoids duplicating the entire deploy job for prod/dev
+      - name: Resolve deploy settings
+        id: settings
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ansible
-
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/modulego-prod.pem
-          chmod 600 ~/.ssh/modulego-prod.pem
-          ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
-
-      - name: Deploy to EC2
-        run: |
-          COMMIT_SHA=$(git rev-parse --short HEAD)
-          ansible-playbook -i ansible/inventory/prod.ini ansible/playbook.yml -e "ansible_host=${{ vars.EC2_IP }} env=prod ghcr_token=${{ secrets.GITHUB_TOKEN }} gemini_api_key=${{ secrets.GEMINI_API_KEY }} flask_secret_key=${{ secrets.FLASK_SECRET_KEY }} commit_hash=${COMMIT_SHA}"
-
-      - name: Verify deployment
-        run: |
-          sleep 5
-          curl -sf http://${{ vars.EC2_IP }} || exit 1
-
-  # Deploy to dev EC2 when pushing to dev branch
-  deploy-dev:
-    needs: build-and-push
-    if: needs.build-and-push.outputs.environment == 'dev'
-    runs-on: ubuntu-latest
-    environment: development
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+          ENV="${{ needs.build.outputs.environment }}"
+          if [ "$ENV" = "prod" ]; then
+            echo "ssh_key=modulego-prod.pem" >> $GITHUB_OUTPUT
+            echo "inventory=ansible/inventory/prod.ini" >> $GITHUB_OUTPUT
+            echo "port=80" >> $GITHUB_OUTPUT
+          else
+            echo "ssh_key=modulego-dev.pem" >> $GITHUB_OUTPUT
+            echo "inventory=ansible/inventory/dev.ini" >> $GITHUB_OUTPUT
+            echo "port=5001" >> $GITHUB_OUTPUT
+          fi
 
       - name: Install Ansible
         run: |
@@ -121,16 +104,16 @@ jobs:
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/modulego-dev.pem
-          chmod 600 ~/.ssh/modulego-dev.pem
+          printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/${{ steps.settings.outputs.ssh_key }}
+          chmod 600 ~/.ssh/${{ steps.settings.outputs.ssh_key }}
           ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy to EC2
+      - name: Deploy to EC2 via Ansible
         run: |
           COMMIT_SHA=$(git rev-parse --short HEAD)
-          ansible-playbook -i ansible/inventory/dev.ini ansible/playbook.yml -e "ansible_host=${{ vars.EC2_IP }} env=dev ghcr_token=${{ secrets.GITHUB_TOKEN }} gemini_api_key=${{ secrets.GEMINI_API_KEY }} flask_secret_key=${{ secrets.FLASK_SECRET_KEY }} commit_hash=${COMMIT_SHA}"
+          ansible-playbook -i ${{ steps.settings.outputs.inventory }} ansible/playbook.yml -e "ansible_host=${{ vars.EC2_IP }} env=${{ needs.build.outputs.environment }} ghcr_token=${{ secrets.GITHUB_TOKEN }} gemini_api_key=${{ secrets.GEMINI_API_KEY }} flask_secret_key=${{ secrets.FLASK_SECRET_KEY }} commit_hash=${COMMIT_SHA}"
 
       - name: Verify deployment
         run: |
           sleep 5
-          curl -sf http://${{ vars.EC2_IP }}:5001 || exit 1
+          curl -sf http://${{ vars.EC2_IP }}:${{ steps.settings.outputs.port }} || exit 1
