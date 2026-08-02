@@ -74,6 +74,11 @@ def create_tables(conn):
                 keywords JSONB DEFAULT '[]'
             );
         """)
+        # Ensure career_id column exists (may be missing from older schema)
+        cur.execute("""
+            ALTER TABLE rp_career_paths 
+            ADD COLUMN IF NOT EXISTS career_id TEXT DEFAULT '';
+        """)
         # Reviews table — matches spec schema (no auth.users FK for local PG)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS reviews (
