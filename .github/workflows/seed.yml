@@ -55,8 +55,8 @@ jobs:
       - name: Upload files and seed database
         env:
           EC2_IP: ${{ vars.EC2_IP }}
-          PG_USER: ${{ secrets.POSTGRES_USER }}
-          PG_PASS: ${{ secrets.POSTGRES_PASSWORD }}
+          PG_USER: ${{ secrets.POSTGRES_USER || 'modulego' }}
+          PG_PASS: ${{ secrets.POSTGRES_PASSWORD || 'modulego' }}
         run: |
           SSH_KEY=~/.ssh/id.pem
           SSH="ssh -i ${SSH_KEY} ubuntu@${EC2_IP}"
