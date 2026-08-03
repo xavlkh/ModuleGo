@@ -277,18 +277,9 @@ class ReviewRepository:
                         json.dumps({'error': MSG_FORBIDDEN}),
                         status=403, mimetype=MIMETYPE_JSON
                     ))
-                anonymous = (
-                    True if identity['kind'] == 'guest'
-                    else bool(payload.get(
-                        'is_anonymous',
-                        review_to_dict(existing)['is_anonymous'],
-                    ))
-                )
-                # Migrate guest review to account ownership when the logged-in
-                # user edits a guest-authored review.
-                if (identity['kind'] == 'account'
-                        and not existing['USER_ID']
-                        and existing['GUEST_OWNER_HASH']):
+                existing_dict = review_to_dict(existing)
+                anonymous = ReviewRepository._determine_anonymous(identity, existing_dict, payload)
+                if ReviewRepository._should_migrate(identity, existing_dict):
                     conn.execute(
                         '''UPDATE REVIEWS
                            SET USER_ID = ?, GUEST_OWNER_HASH = NULL,
@@ -322,17 +313,9 @@ class ReviewRepository:
                     json.dumps({'error': MSG_FORBIDDEN}),
                     status=403, mimetype=MIMETYPE_JSON
                 ))
-            anonymous = (
-                True if identity['kind'] == 'guest'
-                else bool(payload.get(
-                    'is_anonymous',
-                    review_to_dict(existing)['is_anonymous'],
-                ))
-            )
-            # Migrate guest review to account ownership (PostgreSQL)
-            if (identity['kind'] == 'account'
-                    and not existing['user_id']
-                    and existing['guest_owner_hash']):
+            existing_dict = review_to_dict(existing)
+            anonymous = ReviewRepository._determine_anonymous(identity, existing_dict, payload)
+            if ReviewRepository._should_migrate(identity, existing_dict):
                 cur.execute(
                     '''UPDATE REVIEWS
                        SET user_id = %s, guest_owner_hash = NULL,
@@ -410,6 +393,22 @@ class ReviewRepository:
                 (display_name, user_id),
             )
             return cur.rowcount
+
+    @staticmethod
+    def _determine_anonymous(identity, existing_data, payload):
+        """Determine the anonymous flag for a review update."""
+        if identity['kind'] == 'guest':
+            return True
+        return bool(payload.get('is_anonymous', existing_data.get('is_anonymous', True)))
+
+    @staticmethod
+    def _should_migrate(identity, existing_data):
+        """Check if a guest review should be migrated to account ownership."""
+        return (
+            identity['kind'] == 'account'
+            and not existing_data.get('user_id')
+            and existing_data.get('guest_owner_hash')
+        )
 
     @staticmethod
     def count_by_user(user_id: str) -> int:

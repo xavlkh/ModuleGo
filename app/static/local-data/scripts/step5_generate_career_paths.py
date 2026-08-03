@@ -163,10 +163,39 @@ def enhance_keywords(seed_kws, modules, global_freq, specificity_min=4.0):
     return result
 
 
+def _extract_career_keywords(module_codes, modules, global_freq, specificity_min=3.0, min_modules=4):
+    """Extract distinctive keywords from a set of module codes.
+
+    Returns (top_kws, matched_modules) or (None, []) if insufficient matches.
+    """
+    module_index = {m['module_code']: m for m in modules}
+    matched = [module_index[c] for c in module_codes if c in module_index]
+    if len(matched) < min_modules:
+        return None, []
+
+    combined = ' '.join(
+        f"{m.get('module_name', '')} {m.get('synopsis', '')}" for m in matched
+    )
+    wc = Counter(tokenize(combined))
+    total = len(modules)
+
+    candidates = []
+    for word, count in wc.most_common(50):
+        if len(word) <= 2:
+            continue
+        global_c = global_freq.get(word, 1)
+        specificity = (count / len(matched)) / (global_c / total)
+        if specificity >= specificity_min and count >= 2:
+            candidates.append((specificity, word))
+
+    candidates.sort(key=lambda x: -x[0])
+    top_kws = [w for _, w in candidates[:10]]
+    return top_kws, matched
+
+
 def generate_diploma_careers(courses, modules, global_freq, specificity_min=3.0):
     """Generate careers from diploma data with distinctive keywords."""
     result = []
-    module_index = {m['module_code']: m for m in modules}
 
     for course in (courses or []):
         all_codes = set()
@@ -175,29 +204,10 @@ def generate_diploma_careers(courses, modules, global_freq, specificity_min=3.0)
                 if 'code' in entry:
                     all_codes.add(entry['code'])
 
-        cmods = [module_index[c] for c in all_codes if c in module_index]
-        if len(cmods) < 4:
-            continue
-
-        combined = ' '.join(
-            f"{m.get('module_name', '')} {m.get('synopsis', '')}" for m in cmods
+        top_kws, matched = _extract_career_keywords(
+            all_codes, modules, global_freq, specificity_min, min_modules=4,
         )
-        wc = Counter(tokenize(combined))
-        n_cmods = len(cmods)
-        total = len(modules)
-
-        candidates = []
-        for word, count in wc.most_common(50):
-            if len(word) <= 2:
-                continue
-            global_c = global_freq.get(word, 1)
-            specificity = (count / n_cmods) / (global_c / total)
-            if specificity >= specificity_min and count >= 2:
-                candidates.append((specificity, word))
-
-        candidates.sort(key=lambda x: -x[0])
-        top_kws = [w for _, w in candidates[:10]]
-        if len(top_kws) < 4:
+        if not top_kws or len(top_kws) < 4:
             continue
 
         label = course.get('course_name', '')
@@ -219,7 +229,6 @@ def generate_diploma_careers(courses, modules, global_freq, specificity_min=3.0)
 def generate_minor_careers(minors, modules, global_freq, specificity_min=2.5):
     """Generate careers from minor programmes with distinctive keywords."""
     result = []
-    module_index = {m['module_code']: m for m in modules}
 
     for minor in (minors or []):
         codes = set()
@@ -227,29 +236,10 @@ def generate_minor_careers(minors, modules, global_freq, specificity_min=2.5):
             if isinstance(entry, dict) and 'code' in entry:
                 codes.add(entry['code'])
 
-        mmods = [module_index[c] for c in codes if c in module_index]
-        if len(mmods) < 3:
-            continue
-
-        combined = ' '.join(
-            f"{m.get('module_name', '')} {m.get('synopsis', '')}" for m in mmods
+        top_kws, matched = _extract_career_keywords(
+            codes, modules, global_freq, specificity_min, min_modules=3,
         )
-        wc = Counter(tokenize(combined))
-        n_mmods = len(mmods)
-        total = len(modules)
-
-        candidates = []
-        for word, count in wc.most_common(50):
-            if len(word) <= 2:
-                continue
-            global_c = global_freq.get(word, 1)
-            specificity = (count / n_mmods) / (global_c / total)
-            if specificity >= specificity_min and count >= 2:
-                candidates.append((specificity, word))
-
-        candidates.sort(key=lambda x: -x[0])
-        top_kws = [w for _, w in candidates[:10]]
-        if len(top_kws) < 3:
+        if not top_kws or len(top_kws) < 3:
             continue
 
         label = minor.get('minor_name', '')
