@@ -337,7 +337,7 @@ const ReviewDashboard = {
         lucide.createIcons();
     },
 
-createReviewCard(review, votes = { score: 0, user_vote: 0 }) {
+createReviewCard(review, votes = {}) {
     const module = DataManager.getModule(review.module_code);
     const isOwner = review.is_owner === true;
 

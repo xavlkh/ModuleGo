@@ -31,7 +31,7 @@ const DataManager = {
             this.minors = minorResponse.ok ? await minorResponse.json() : [];
             this.ratings = ratingResponse.ok? await ratingResponse.json() : {};
 
-            if (careerResponse && careerResponse.ok) {
+            if (careerResponse?.ok) {
                 this.careerPaths = await careerResponse.json();
             }
 
@@ -190,7 +190,7 @@ const DataManager = {
     filterByCareer(modules, careerId) {
         if (!careerId || careerId === 'all') return modules;
         const career = this.careerPaths.find(c => c.id === careerId);
-        if (!career ||!career.keywords) return modules;
+        if (!career?.keywords) return modules;
         const keywords = career.keywords.map(k => k.toLowerCase());
         return modules.filter(m => {
             const text = [m.name, m.code, m.synopsis].filter(Boolean).join(' ').toLowerCase();
@@ -241,7 +241,7 @@ const DataManager = {
     },
 
     addToRecentlyViewed(module) {
-        if (!module ||!module.code) return;
+        if (!module?.code) return;
         let list = this.getRecentlyViewed();
         list = list.filter(m => m.code!== module.code);
         list.unshift({ code: module.code, name: module.name, viewedAt: Date.now() });

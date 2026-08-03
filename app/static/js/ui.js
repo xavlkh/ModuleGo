@@ -320,7 +320,7 @@ const UIRenderer = {
         if (this.minorFilter && this.minorFilter.value !== 'all') count++;
         if (this.ratingFilter && this.ratingFilter.value !== 'all') count++;
         if (this.moduleTypeFilter && this.moduleTypeFilter.value !== 'all') count++;
-        if (this.activeFilter && this.activeFilter.dataset.active === 'true') count++;
+        if (this.activeFilter?.dataset.active === 'true') count++;
         return count;
     },
 

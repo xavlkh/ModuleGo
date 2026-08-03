@@ -10,10 +10,9 @@ COPY app/ ./app/
 COPY *.py ./
 COPY gunicorn.conf.py ./
 
-# Create data directory for scraped JSON files
-RUN mkdir -p ./app/static/local-data/data
-
-RUN addgroup --system --gid 10001 modulego \
+# Create data directory, non-root user, and set permissions
+RUN mkdir -p ./app/static/local-data/data \
+    && addgroup --system --gid 10001 modulego \
     && adduser --system --uid 10001 --ingroup modulego \
         --no-create-home modulego \
     && mkdir -p /srv/data \
