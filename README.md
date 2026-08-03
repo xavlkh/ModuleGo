@@ -3,7 +3,7 @@
 
 **A better way for RP students to explore, compare, and review modules.**
 
-[![Live Demo](https://img.shields.io/badge/%F0%9F%9A%80%20Live%20Demo-EC2-FF9900?style=for-the-badge&logo=amazonwebservices&logoColor=white)](http://ec2-52-77-236-110.ap-southeast-1.compute.amazonaws.com/)
+[![Live Demo](https://img.shields.io/badge/%F0%9F%9A%80%20Live%20Demo-EC2-FF9900?style=for-the-badge&logo=amazonwebservices&logoColor=white)](http://ec2-47-130-46-184.ap-southeast-1.compute.amazonaws.com/)
 
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-000000?style=flat-square&logo=flask&logoColor=white)
