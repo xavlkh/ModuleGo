@@ -89,6 +89,15 @@
         mode: "0600"
       become_user: ubuntu
 
+    - name: Pre-pull image (first setup only)
+      command: docker compose pull
+      args:
+        chdir: "/home/ubuntu/modulego-{{ env }}"
+      become_user: ubuntu
+      async: 600
+      poll: 30
+      when: not app_dir.stat.exists
+
     # ── Deploy (always runs) ──
 
     - name: Login to GHCR
@@ -102,9 +111,10 @@
       args:
         chdir: "/home/ubuntu/modulego-{{ env }}"
       become_user: ubuntu
-      async: 600
-      poll: 30
       register: pull_result
+      until: pull_result.rc == 0
+      retries: 3
+      delay: 10
 
     - name: Restart containers
       command: docker compose up -d --force-recreate
