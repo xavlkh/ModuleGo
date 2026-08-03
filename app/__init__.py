@@ -77,7 +77,7 @@ def create_app():
         from app.models import User as _User
         return _User.find_by_id(user_id)
 
-    from app.core import set_pending_guest_cookie, ReviewRepository
+    from app.core import set_pending_guest_cookie, ReviewRepository  # noqa: F811
     app.after_request(set_pending_guest_cookie)
 
     app.extensions['review_repository'] = ReviewRepository
