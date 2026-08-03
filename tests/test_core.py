@@ -507,12 +507,16 @@ class TestDbHelpers:
                 ('C270', 5, 'G'),
             )
             conn.commit()
-            rid = conn.execute('SELECT ID FROM REVIEWS').fetchone()['ID']
+            row = conn.execute('SELECT ID FROM REVIEWS').fetchone()
+            rid = row['ID'] if isinstance(row, dict) else row[0]
         with database_connection() as conn:
             assert select_review(conn, rid) is not None
             assert select_review(conn, 9999) is None
 
     def test_init_db_idempotent(self, client):
+        from app.db import use_postgres
+        if use_postgres():
+            pytest.skip("SQLite-specific test")
         init_db()
         init_db()
         with database_connection() as conn:
