@@ -15,25 +15,21 @@ from flask import current_app
 
 
 def use_sqlite_reviews():
-    if os.environ.get('DATABASE_URL'):
-        return False
     try:
         if current_app.config.get('TESTING'):
             return True
     except RuntimeError:
         pass
-    return True
+    return not os.environ.get('DATABASE_URL')
 
 
 def use_postgres():
-    if os.environ.get('DATABASE_URL'):
-        return True
     try:
         if current_app.config.get('TESTING'):
             return False
     except RuntimeError:
         pass
-    return False
+    return bool(os.environ.get('DATABASE_URL'))
 
 
 def get_db():

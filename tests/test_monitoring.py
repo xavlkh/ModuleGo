@@ -7,14 +7,9 @@ import app as app_module
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    from app.db import use_postgres
-    if use_postgres():
-        from app import _init_pg_db
-        with app_module.app.app_context():
-            _init_pg_db(app_module.app)
-    else:
-        monkeypatch.setattr(app_module, "db_name", str(tmp_path / "modulego-monitoring-test.db"))
-        app_module.init_db()
+    test_database = tmp_path / "modulego-monitoring-test.db"
+    monkeypatch.setattr(app_module, "db_name", str(test_database))
+    app_module.init_db()
 
     with app_module.app.test_client() as test_client:
         yield test_client
