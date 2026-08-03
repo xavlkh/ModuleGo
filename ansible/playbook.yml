@@ -107,14 +107,14 @@
       ignore_errors: yes
 
     - name: Pull latest image
-      command: docker compose pull
+      command: docker compose pull --quiet app
       args:
         chdir: "/home/ubuntu/modulego-{{ env }}"
       become_user: ubuntu
       register: pull_result
       until: pull_result.rc == 0
       retries: 3
-      delay: 10
+      delay: 30
 
     - name: Restart containers
       command: docker compose up -d --force-recreate --remove-orphans
