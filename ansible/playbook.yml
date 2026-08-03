@@ -111,10 +111,9 @@
       args:
         chdir: "/home/ubuntu/modulego-{{ env }}"
       become_user: ubuntu
+      async: 900
+      poll: 30
       register: pull_result
-      until: pull_result.rc == 0
-      retries: 3
-      delay: 30
 
     - name: Restart containers
       command: docker compose up -d --force-recreate --remove-orphans
