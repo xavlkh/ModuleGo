@@ -106,7 +106,7 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/${{ steps.settings.outputs.ssh_key }}
           chmod 600 ~/.ssh/${{ steps.settings.outputs.ssh_key }}
-          ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H ${{ vars.EC2_IP }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Deploy to EC2 via Ansible
         env:
