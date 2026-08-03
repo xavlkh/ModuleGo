@@ -50,12 +50,12 @@
                     <button id="reviewFilterToggle" aria-label="Toggle review filters" class="sm:hidden flex-none w-14 rounded-xl border py-3.5 text-sm font-semibold transition-all duration-200 shrink-0 truncate flex items-center justify-center gap-1.5 bg-white/95 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700">
                         <i data-lucide="sliders-horizontal" class="w-5 h-5 shrink-0"></i>
                     </button>
-                    <select id="confidenceFilter" class="hidden sm:block select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full sm:w-auto">
+                    <select id="confidenceFilter" aria-label="Confidence filter" class="hidden sm:block select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full sm:w-auto">
                         <option value="all">All confidence</option>
                         <option value="high">High confidence</option>
                         <option value="low">Low confidence</option>
                     </select>
-                    <select id="ratingFilter" class="hidden sm:block select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full sm:w-auto">
+                    <select id="ratingFilter" aria-label="Rating filter" class="hidden sm:block select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full sm:w-auto">
                         <option value="all">All ratings</option>
                         <option value="5">5 stars</option>
                         <option value="4">4 stars</option>
@@ -63,7 +63,7 @@
                         <option value="2">2 stars</option>
                         <option value="1">1 star</option>
                     </select>
-                    <select id="reviewSort" class="hidden sm:block select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full sm:w-auto">
+                    <select id="reviewSort" aria-label="Sort order" class="hidden sm:block select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full sm:w-auto">
                         <option value="newest">Newest first</option>
                         <option value="oldest">Oldest first</option>
                     </select>
@@ -76,12 +76,12 @@
                     <div class="overflow-hidden">
                         <div class="pt-2">
                             <div class="flex flex-col gap-2 items-stretch">
-                                <select id="confidenceFilterMobile" class="select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full">
+                                <select id="confidenceFilterMobile" aria-label="Confidence filter" class="select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full">
                                     <option value="all">All confidence</option>
                                     <option value="high">High confidence</option>
                                     <option value="low">Low confidence</option>
                                 </select>
-                                <select id="ratingFilterMobile" class="select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full">
+                                <select id="ratingFilterMobile" aria-label="Rating filter" class="select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full">
                                     <option value="all">All ratings</option>
                                     <option value="5">5 stars</option>
                                     <option value="4">4 stars</option>
@@ -89,7 +89,7 @@
                                     <option value="2">2 stars</option>
                                     <option value="1">1 star</option>
                                 </select>
-                                <select id="reviewSortMobile" class="select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full">
+                                <select id="reviewSortMobile" aria-label="Sort order" class="select-field bg-white/95 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-4 pr-10 py-3 text-sm text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-shadow truncate w-full">
                                     <option value="newest">Newest first</option>
                                     <option value="oldest">Oldest first</option>
                                 </select>

@@ -393,7 +393,7 @@ const DetailManager = {
      * @param {Object} votes - Vote data {score, user_vote} for this review.
      * @returns {string} HTML string for the review.
      */
-    createReviewMarkup(review, votes = { score: 0, user_vote: 0 }) {
+    createReviewMarkup(review, votes = {}) {
         const comment = review.comment
             ? escapeHtml(review.comment)
             : '<span class="text-zinc-400 dark:text-zinc-400 italic">No written comment</span>';
@@ -401,6 +401,8 @@ const DetailManager = {
             ? `<span class="ml-2 text-zinc-400 dark:text-zinc-400">Edited ${formatTimestamp(review.updated_at)}</span>`
             : '';
         const isOwner = review.is_owner === true;
+        const score = votes.score || 0;
+        const userVote = votes.user_vote || 0;
 
         return `
             <article class="review-item" data-review-id="${review.id}">

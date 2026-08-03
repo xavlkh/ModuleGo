@@ -114,32 +114,18 @@ async function handleVote(reviewId, voteType, articleSelector) {
         const scoreEl = article.querySelector('.vote-score');
         if (scoreEl) scoreEl.textContent = votes.score;
 
+        const updateBtn = (btn, activeVote, activeClass, bgClass) => {
+            const icon = btn?.querySelector('i') || btn?.querySelector('svg');
+            if (!icon) return;
+            const isActive = votes.user_vote === activeVote;
+            icon.setAttribute('class', isActive ? activeClass : `w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 hover:${activeClass.split(' ')[0]} dark:hover:${activeClass.split(' ')[1]}`);
+            btn.classList.toggle(bgClass, isActive);
+        };
+
         const upBtn = article.querySelector('.vote-btn[data-vote="1"]');
         const downBtn = article.querySelector('.vote-btn[data-vote="-1"]');
-        if (upBtn) {
-            const upIcon = upBtn.querySelector('i') || upBtn.querySelector('svg');
-            if (upIcon) {
-                if (votes.user_vote === 1) {
-                    upIcon.setAttribute('class', 'w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 fill-emerald-500');
-                    upBtn.classList.add('bg-emerald-500/10');
-                } else {
-                    upIcon.setAttribute('class', 'w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 hover:text-emerald-500 dark:hover:text-emerald-400');
-                    upBtn.classList.remove('bg-emerald-500/10');
-                }
-            }
-        }
-        if (downBtn) {
-            const downIcon = downBtn.querySelector('i') || downBtn.querySelector('svg');
-            if (downIcon) {
-                if (votes.user_vote === -1) {
-                    downIcon.setAttribute('class', 'w-3.5 h-3.5 text-red-500 dark:text-red-400 fill-red-500');
-                    downBtn.classList.add('bg-red-500/10');
-                } else {
-                    downIcon.setAttribute('class', 'w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400');
-                    downBtn.classList.remove('bg-red-500/10');
-                }
-            }
-        }
+        updateBtn(upBtn, 1, 'text-emerald-500 dark:text-emerald-400 fill-emerald-500', 'bg-emerald-500/10');
+        updateBtn(downBtn, -1, 'text-red-500 dark:text-red-400 fill-red-500', 'bg-red-500/10');
     } catch (error) {
         console.error('Error voting:', error);
     } finally {
@@ -147,7 +133,7 @@ async function handleVote(reviewId, voteType, articleSelector) {
     }
 }
 
-function createVoteButtonsHTML(reviewId, votes, isOwnReview) {
+function createVoteButtonsHTML(reviewId, votes = {}, isOwnReview) {
     const upActive = votes.user_vote === 1;
     const downActive = votes.user_vote === -1;
     const upClass = upActive
@@ -165,7 +151,7 @@ function createVoteButtonsHTML(reviewId, votes, isOwnReview) {
         <button class="vote-btn p-1.5 rounded-lg transition-colors ${disabled} ${upBtn}" data-review-id="${reviewId}" data-vote="1" ${attr} title="Upvote">
             <i data-lucide="thumbs-up" class="w-3.5 h-3.5 ${upClass}"></i>
         </button>
-        <span class="vote-score text-xs font-semibold text-zinc-600 dark:text-zinc-300 min-w-[1rem] text-center">${votes.score}</span>
+        <span class="vote-score text-xs font-semibold text-zinc-600 dark:text-zinc-300 min-w-[1rem] text-center">${votes.score || 0}</span>
         <button class="vote-btn p-1.5 rounded-lg transition-colors ${disabled} ${downBtn}" data-review-id="${reviewId}" data-vote="-1" ${attr} title="Downvote">
             <i data-lucide="thumbs-down" class="w-3.5 h-3.5 ${downClass}"></i>
         </button>`;
@@ -352,8 +338,8 @@ const ShareManager = {
             input.value = url;
             document.body.appendChild(input);
             input.select();
-            document.execCommand('copy');
-            document.body.removeChild(input);
+            document.execCommand('copy'); // noqa: S1874 — fallback for older browsers
+            input.remove();
         }
         history.replaceState(null, '', url);
         if (btn) {
@@ -401,12 +387,12 @@ const ShareManager = {
             const minorStr = minors.map(min => min.minor_name).join('; ');
             return [
                 `"${m.code}"`,
-                `"${(m.name || '').replace(/"/g, '""')}"`,
+                `"${(m.name || '').replaceAll('"', '""')}"`,
                 `"${m.school || ''}"`,
-                `"${(m.synopsis || '').replace(/"/g, '""')}"`,
+                `"${(m.synopsis || '').replaceAll('"', '""')}"`,
                 `"${m.url || ''}"`,
-                `"${diplomaStr.replace(/"/g, '""')}"`,
-                `"${minorStr.replace(/"/g, '""')}"`,
+                `"${diplomaStr.replaceAll('"', '""')}"`,
+                `"${minorStr.replaceAll('"', '""')}"`,
             ].join(',');
         });
 

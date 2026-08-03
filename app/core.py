@@ -36,6 +36,11 @@ GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.1-flash-lite')
 GEMINI_TIMEOUT_SECONDS = 25
 MAX_COMPARISON_SOURCE_LENGTH = 4000
 _CAREER_PATHS_TABLE = 'rp_career_paths'
+MIMETYPE_JSON = 'application/json'
+MSG_REVIEW_NOT_FOUND = 'Review not found.'
+MSG_FORBIDDEN = 'Forbidden: you do not own this review.'
+SQL_SELECT_REVIEW_BY_ID_SQLITE = 'SELECT * FROM REVIEWS WHERE ID = ?'
+SQL_SELECT_REVIEW_BY_ID_PG = 'SELECT * FROM REVIEWS WHERE ID = %s'
 
 _base_dir = os.path.dirname(os.path.abspath(__file__))
 LOCAL_DATA_DIR = os.path.join(_base_dir, 'static', 'local-data', 'data')
@@ -251,7 +256,7 @@ class ReviewRepository:
             if 'unique' in str(error).lower():
                 return None, (current_app.response_class(
                     json.dumps({'error': 'You already reviewed this module.'}),
-                    status=409, mimetype='application/json'
+                    status=409, mimetype=MIMETYPE_JSON
                 ))
             raise
 
@@ -260,17 +265,17 @@ class ReviewRepository:
         if use_sqlite_reviews():
             with database_connection() as conn:
                 existing = conn.execute(
-                    'SELECT * FROM REVIEWS WHERE ID = ?', (review_id,)
+                    SQL_SELECT_REVIEW_BY_ID_SQLITE, (review_id,)
                 ).fetchone()
                 if not existing:
                     return None, (current_app.response_class(
-                        json.dumps({'error': 'Review not found.'}),
-                        status=404, mimetype='application/json'
+                        json.dumps({'error': MSG_REVIEW_NOT_FOUND}),
+                        status=404, mimetype=MIMETYPE_JSON
                     ))
                 if not identity_owns(review_to_dict(existing), identity):
                     return None, (current_app.response_class(
-                        json.dumps({'error': 'Forbidden: you do not own this review.'}),
-                        status=403, mimetype='application/json'
+                        json.dumps({'error': MSG_FORBIDDEN}),
+                        status=403, mimetype=MIMETYPE_JSON
                     ))
                 anonymous = (
                     True if identity['kind'] == 'guest'
@@ -305,17 +310,17 @@ class ReviewRepository:
             return public_review(row, identity), None
 
         with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
+            cur.execute(SQL_SELECT_REVIEW_BY_ID_PG, (review_id,))
             existing = cur.fetchone()
             if not existing:
                 return None, (current_app.response_class(
-                    json.dumps({'error': 'Review not found.'}),
-                    status=404, mimetype='application/json'
+                    json.dumps({'error': MSG_REVIEW_NOT_FOUND}),
+                    status=404, mimetype=MIMETYPE_JSON
                 ))
             if not identity_owns(review_to_dict(existing), identity):
                 return None, (current_app.response_class(
-                    json.dumps({'error': 'Forbidden: you do not own this review.'}),
-                    status=403, mimetype='application/json'
+                    json.dumps({'error': MSG_FORBIDDEN}),
+                    status=403, mimetype=MIMETYPE_JSON
                 ))
             anonymous = (
                 True if identity['kind'] == 'guest'
@@ -345,7 +350,7 @@ class ReviewRepository:
                     review_id,
                 ),
             )
-            cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
+            cur.execute(SQL_SELECT_REVIEW_BY_ID_PG, (review_id,))
             row = cur.fetchone()
         return public_review(row, identity), None
 
@@ -354,33 +359,33 @@ class ReviewRepository:
         if use_sqlite_reviews():
             with database_connection() as conn:
                 existing = conn.execute(
-                    'SELECT * FROM REVIEWS WHERE ID = ?', (review_id,)
+                    SQL_SELECT_REVIEW_BY_ID_SQLITE, (review_id,)
                 ).fetchone()
                 if not existing:
                     return current_app.response_class(
-                        json.dumps({'error': 'Review not found.'}),
-                        status=404, mimetype='application/json'
+                        json.dumps({'error': MSG_REVIEW_NOT_FOUND}),
+                        status=404, mimetype=MIMETYPE_JSON
                     )
                 if not identity_owns(review_to_dict(existing), identity):
                     return current_app.response_class(
-                        json.dumps({'error': 'Forbidden: you do not own this review.'}),
-                        status=403, mimetype='application/json'
+                        json.dumps({'error': MSG_FORBIDDEN}),
+                        status=403, mimetype=MIMETYPE_JSON
                     )
                 conn.execute('DELETE FROM REVIEWS WHERE ID = ?', (review_id,))
             return None
 
         with pg_connection() as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
+            cur.execute(SQL_SELECT_REVIEW_BY_ID_PG, (review_id,))
             existing = cur.fetchone()
             if not existing:
                 return current_app.response_class(
-                    json.dumps({'error': 'Review not found.'}),
-                    status=404, mimetype='application/json'
+                    json.dumps({'error': MSG_REVIEW_NOT_FOUND}),
+                    status=404, mimetype=MIMETYPE_JSON
                 )
             if not identity_owns(review_to_dict(existing), identity):
                 return current_app.response_class(
-                    json.dumps({'error': 'Forbidden: you do not own this review.'}),
-                    status=403, mimetype='application/json'
+                    json.dumps({'error': MSG_FORBIDDEN}),
+                    status=403, mimetype=MIMETYPE_JSON
                 )
             cur.execute('DELETE FROM REVIEWS WHERE ID = %s', (review_id,))
         return None
@@ -578,7 +583,7 @@ class VoteRepository:
             with pg_connection() as conn, conn.cursor(
                 cursor_factory=psycopg2.extras.RealDictCursor
             ) as cur:
-                cur.execute('SELECT * FROM REVIEWS WHERE ID = %s', (review_id,))
+                cur.execute(SQL_SELECT_REVIEW_BY_ID_PG, (review_id,))
                 row = cur.fetchone()
         return row is not None and identity_owns(review_to_dict(row), identity)
 
@@ -587,12 +592,12 @@ class VoteRepository:
         if vote_type not in (1, -1):
             return None, (current_app.response_class(
                 json.dumps({'error': 'Vote type must be 1 or -1.'}),
-                status=400, mimetype='application/json'
+                status=400, mimetype=MIMETYPE_JSON
             ))
         if VoteRepository._review_owned(review_id, identity):
             return None, (current_app.response_class(
                 json.dumps({'error': 'You cannot vote on your own review.'}),
-                status=403, mimetype='application/json'
+                status=403, mimetype=MIMETYPE_JSON
             ))
         column, value = VoteRepository._identity_filter(identity)
 
@@ -603,8 +608,8 @@ class VoteRepository:
                 ).fetchone()
                 if not review:
                     return None, (current_app.response_class(
-                        json.dumps({'error': 'Review not found.'}),
-                        status=404, mimetype='application/json'
+                        json.dumps({'error': MSG_REVIEW_NOT_FOUND}),
+                        status=404, mimetype=MIMETYPE_JSON
                     ))
                 existing = conn.execute(
                     f'''SELECT ID, VOTE_TYPE FROM REVIEW_VOTES

@@ -5,7 +5,7 @@ import pytest
 import app as app_module
 
 
-@pytest.fixture()
+@pytest.fixture
 def client(tmp_path, monkeypatch):
     """Return an isolated SQLite test client."""
     monkeypatch.setattr(

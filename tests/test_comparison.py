@@ -20,7 +20,7 @@ MODULES = [
 ]
 
 
-@pytest.fixture()
+@pytest.fixture
 def client(monkeypatch):
     """Provide a client with a deterministic in-memory module catalogue."""
     monkeypatch.setitem(app_module._modules_cache, "data", MODULES)

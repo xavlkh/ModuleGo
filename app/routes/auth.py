@@ -24,6 +24,9 @@ from app.models import User
 auth_bp = Blueprint("auth", __name__)
 DELETE_ACCOUNT_TOKEN_KEY = "delete_account_confirmation"
 DELETE_ACCOUNT_TOKEN_SECONDS = 120
+_ENDPOINT_LOGIN = "auth.login"
+_ENDPOINT_PROFILE = "auth.profile"
+_TEMPLATE_PROFILE = "auth/profile.html"
 
 
 def _strip_text(value):
@@ -145,7 +148,7 @@ def _profile_forms():
 def _login_required():
     if not current_user.is_authenticated:
         flash("Log in to manage your profile.", "error")
-        return redirect(url_for("auth.login"))
+        return redirect(url_for(_ENDPOINT_LOGIN))
     return None
 
 
@@ -180,7 +183,7 @@ def register():
                 flash("We could not create the account. Please try again.", "error")
             else:
                 flash("Account created. You can now log in.", "success")
-                return redirect(url_for("auth.login"))
+                return redirect(url_for(_ENDPOINT_LOGIN))
     return render_template("auth/register.html", form=form)
 
 
@@ -220,7 +223,7 @@ def profile():
     bookmark_count = len(BookmarkRepository.list_for_user(user_id))
 
     return render_template(
-        "auth/profile.html",
+        _TEMPLATE_PROFILE,
         profile_form=profile_form,
         password_form=password_form,
         delete_form=delete_form,
@@ -259,9 +262,9 @@ def update_profile():
                     "Your profile and review names have been updated.",
                     "success",
                 )
-            return redirect(url_for("auth.profile"))
+            return redirect(url_for(_ENDPOINT_PROFILE))
     return render_template(
-        "auth/profile.html",
+        _TEMPLATE_PROFILE,
         profile_form=profile_form,
         password_form=password_form,
         delete_form=delete_form,
@@ -287,9 +290,9 @@ def change_password():
                 flash("We could not update your account. Please try again.", "error")
             else:
                 flash("Your password has been changed.", "success")
-                return redirect(url_for("auth.profile"))
+                return redirect(url_for(_ENDPOINT_PROFILE))
     return render_template(
-        "auth/profile.html",
+        _TEMPLATE_PROFILE,
         profile_form=profile_form,
         password_form=password_form,
         delete_form=delete_form,
@@ -333,7 +336,7 @@ def verify_account_deletion():
 def delete_account():
     if not current_user.is_authenticated:
         flash("Log in to manage your profile.", "error")
-        return redirect(url_for("auth.login"))
+        return redirect(url_for(_ENDPOINT_LOGIN))
     provided_token = request.form.get("delete_token", "")
     confirmation = session.pop(DELETE_ACCOUNT_TOKEN_KEY, None) or {}
     expected_token = confirmation.get("token", "")
@@ -345,12 +348,12 @@ def delete_account():
         or expires_at < int(time.time())
     ):
         flash("Deletion confirmation expired. Verify your password again.", "error")
-        return redirect(url_for("auth.profile"))
+        return redirect(url_for(_ENDPOINT_PROFILE))
     try:
         current_user.delete()
     except (ValueError, RuntimeError):
         flash("We could not delete your account. Please try again.", "error")
-        return redirect(url_for("auth.profile"))
+        return redirect(url_for(_ENDPOINT_PROFILE))
 
     logout_user()
     flash("Your account has been permanently deleted.", "success")
