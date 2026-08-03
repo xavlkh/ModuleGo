@@ -22,12 +22,28 @@ TEST_MODULES = [
 ]
 
 
+TEST_COURSES = [
+    {"course_code": "RS12", "course_name": "CS", "school_name": "SOC",
+     "school_abbr": "SOC", "url": "", "general_modules": [], "major_modules": [],
+     "discipline_modules": [], "elective_modules": [], "industry_modules": [],
+     "major_groups": []},
+]
+
+TEST_MINORS = [
+    {"minor_name": "AI Minor", "minor_type": "Technical", "url": "",
+     "modules": [], "eligibility": ""},
+]
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(app_module, "db_name", str(tmp_path / "gobot-test.db"))
     app_module.init_db()
     monkeypatch.setitem(app_module._modules_cache, "data", TEST_MODULES)
     monkeypatch.setattr('app.routes.api._build_modules_list', lambda: TEST_MODULES)
+    monkeypatch.setattr('app.core._load_local_courses', lambda: TEST_COURSES)
+    monkeypatch.setattr('app.core._load_local_minors', lambda: TEST_MINORS)
+    monkeypatch.setattr('app.routes.api._load_local_courses', lambda: TEST_COURSES)
     with app_module.app.test_client() as c:
         yield c
 

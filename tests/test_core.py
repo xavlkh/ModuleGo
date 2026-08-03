@@ -42,6 +42,7 @@ from app.db import (
     use_sqlite_reviews,
     _row_value,
     _load_career_paths_from_file as _db_load_career_paths,
+    _seed_career_paths,
 )
 from app.models import User
 from tests.conftest import register_and_login
@@ -461,7 +462,12 @@ class TestDbHelpers:
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table'"
             ).fetchone()[0] >= 5
 
-    def test_seed_career_paths(self, client):
+    def test_seed_career_paths(self, client, monkeypatch):
+        monkeypatch.setattr(
+            'app.db._load_career_paths_from_file',
+            lambda: [{'id': 'test', 'label': 'Test', 'keywords': ['a']}],
+        )
+        _seed_career_paths()
         with database_connection() as conn:
             assert conn.execute('SELECT COUNT(*) FROM CAREER_PATHS').fetchone()[0] > 0
 
@@ -469,7 +475,7 @@ class TestDbHelpers:
         data = [{'id': 't', 'label': 'T', 'keywords': ['a']}]
         (tmp_path / 'rp_career_paths.json').write_text(json.dumps(data))
         with mock.patch('app.core.LOCAL_DATA_DIR', str(tmp_path)):
-            assert _db_load_career_paths() is not None
+            assert _load_career_paths_from_file() is not None
 
     def test_db_load_career_paths_file_exists(self):
         result = _db_load_career_paths()
