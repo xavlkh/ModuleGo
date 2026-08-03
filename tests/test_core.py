@@ -1,6 +1,7 @@
 """Consolidated unit tests for app/core.py, app/db.py, app/models.py, and app/__init__.py."""
 
 import json
+import os
 from unittest import mock
 
 import pytest
@@ -340,6 +341,63 @@ class TestGoBotHelpers:
         with mock.patch('app.core._load_local_courses', return_value=None):
             assert _gobot_find_diplomas(['C270'], []) == []
         assert _gobot_find_diplomas([], [{'course_code': 'R1'}]) == []
+
+
+# ---------------------------------------------------------------------------
+# step5 helpers
+# ---------------------------------------------------------------------------
+
+class TestStep5Helpers:
+
+    @pytest.fixture(autouse=True)
+    def _load_step5(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "step5", os.path.join(os.path.dirname(__file__), '..', 'app', 'static', 'local-data', 'scripts', 'step5_generate_career_paths.py')
+        )
+        self.step5 = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.step5)
+
+    def test_extract_career_keywords_enough_modules(self):
+        modules = [
+            {'module_code': 'C270', 'module_name': 'Machine Learning', 'synopsis': 'AI and neural networks'},
+            {'module_code': 'C110', 'module_name': 'Deep Learning', 'synopsis': 'Neural network architectures'},
+            {'module_code': 'C273', 'module_name': 'Data Science', 'synopsis': 'AI predictive analytics'},
+            {'module_code': 'C350', 'module_name': 'NLP', 'synopsis': 'Natural language processing with AI'},
+        ]
+        global_freq = self.step5.compute_global_freq(modules)
+        top_kws, matched = self.step5._extract_career_keywords(
+            ['C270', 'C110', 'C273', 'C350'], modules, global_freq,
+            specificity_min=1.0, min_modules=4,
+        )
+        assert top_kws is not None
+        assert len(matched) == 4
+
+    def test_extract_career_keywords_insufficient(self):
+        modules = [
+            {'module_code': 'C270', 'module_name': 'ML', 'synopsis': 'AI'},
+        ]
+        global_freq = self.step5.compute_global_freq(modules)
+        top_kws, matched = self.step5._extract_career_keywords(
+            ['C270'], modules, global_freq, min_modules=4,
+        )
+        assert top_kws is None
+        assert matched == []
+
+    def test_tokenize(self):
+        result = self.step5.tokenize("The machine learning algorithm")
+        assert 'machine' in result
+        assert 'learning' in result
+        assert 'algorithm' in result
+        assert 'the' not in result
+
+    def test_score_modules(self):
+        modules = [
+            {'module_code': 'C270', 'module_name': 'Machine Learning', 'synopsis': 'AI neural networks'},
+        ]
+        results = self.step5.score_modules(['machine', 'learning'], modules)
+        assert len(results) == 1
+        assert results[0][1]['module_code'] == 'C270'
 
 
 # ---------------------------------------------------------------------------
