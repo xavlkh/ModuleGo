@@ -77,10 +77,18 @@ def create_app():
         from app.models import User as _User
         return _User.find_by_id(user_id)
 
-    from app.core import set_pending_guest_cookie, ReviewRepository as _ReviewRepository  # noqa: F811
+    from app.core import set_pending_guest_cookie, ReviewRepository
     app.after_request(set_pending_guest_cookie)
 
-    app.extensions['review_repository'] = _ReviewRepository
+    app.extensions['review_repository'] = ReviewRepository
+
+    # Prometheus metrics — single-process for tests/dev, multiprocess for Gunicorn
+    from prometheus_flask_exporter import PrometheusMetrics
+    from prometheus_flask_exporter.multiprocess import GunicornPrometheusMetrics
+    if os.environ.get('PROMETHEUS_MULTIPROC_DIR'):
+        GunicornPrometheusMetrics(app, path=None, group_by='url_rule')
+    else:
+        PrometheusMetrics(app, group_by='url_rule')
 
     _base_dir = os.path.dirname(os.path.abspath(__file__))
 
