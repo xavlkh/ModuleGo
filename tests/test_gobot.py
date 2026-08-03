@@ -37,8 +37,14 @@ TEST_MINORS = [
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(app_module, "db_name", str(tmp_path / "gobot-test.db"))
-    app_module.init_db()
+    from app.db import use_postgres
+    if use_postgres():
+        from app import _init_pg_db
+        with app_module.app.app_context():
+            _init_pg_db(app_module.app)
+    else:
+        monkeypatch.setattr(app_module, "db_name", str(tmp_path / "gobot-test.db"))
+        app_module.init_db()
     monkeypatch.setitem(app_module._modules_cache, "data", TEST_MODULES)
     monkeypatch.setattr('app.routes.api._build_modules_list', lambda: TEST_MODULES)
     monkeypatch.setattr('app.core._load_local_courses', lambda: TEST_COURSES)

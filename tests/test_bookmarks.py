@@ -7,13 +7,15 @@ import app as app_module
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    """Return an isolated SQLite test client."""
-    monkeypatch.setattr(
-        app_module,
-        "db_name",
-        str(tmp_path / "bookmarks-test.db"),
-    )
-    app_module.init_db()
+    """Return an isolated test client backed by SQLite or PostgreSQL."""
+    from app.db import use_postgres
+    if use_postgres():
+        from app import _init_pg_db
+        with app_module.app.app_context():
+            _init_pg_db(app_module.app)
+    else:
+        monkeypatch.setattr(app_module, "db_name", str(tmp_path / "bookmarks-test.db"))
+        app_module.init_db()
     return app_module.app.test_client()
 
 
