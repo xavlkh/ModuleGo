@@ -1,4 +1,4 @@
-"""Shared test configuration and fixtures for isolated SQLite API tests."""
+"""Shared test configuration and fixtures for SQLite/PostgreSQL API tests."""
 
 import pytest
 
@@ -20,9 +20,15 @@ def configure_test_app():
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    """Return an isolated Flask test client backed by a temp SQLite database."""
-    monkeypatch.setattr(app_module, "db_name", str(tmp_path / "test.db"))
-    app_module.init_db()
+    """Return an isolated Flask test client backed by SQLite or PostgreSQL."""
+    from app.db import use_postgres
+    if use_postgres():
+        from app import _init_pg_db
+        with app_module.app.app_context():
+            _init_pg_db(app_module.app)
+    else:
+        monkeypatch.setattr(app_module, "db_name", str(tmp_path / "test.db"))
+        app_module.init_db()
     with app_module.app.test_client() as test_client:
         yield test_client
 
