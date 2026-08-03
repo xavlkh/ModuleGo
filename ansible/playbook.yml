@@ -117,10 +117,30 @@
       delay: 10
 
     - name: Restart containers
-      command: docker compose up -d --force-recreate
+      command: docker compose up -d --force-recreate --remove-orphans
       args:
         chdir: "/home/ubuntu/modulego-{{ env }}"
       become_user: ubuntu
+      register: restart_result
+      ignore_errors: yes
+
+    - name: Show container status
+      command: docker compose ps -a
+      args:
+        chdir: "/home/ubuntu/modulego-{{ env }}"
+      become_user: ubuntu
+
+    - name: Show app logs
+      command: docker compose logs --tail=30 app
+      args:
+        chdir: "/home/ubuntu/modulego-{{ env }}"
+      become_user: ubuntu
+      register: app_logs
+      failed_when: false
+
+    - name: Print app logs
+      debug:
+        var: app_logs.stdout_lines
 
     - name: Wait for app to be healthy
       uri:
@@ -128,8 +148,9 @@
         status_code: 200
       register: health
       until: health.status == 200
-      retries: 10
-      delay: 3
+      retries: 20
+      delay: 5
+      when: restart_result.rc == 0
 
     - name: Print access URL
       debug:
