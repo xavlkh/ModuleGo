@@ -21,8 +21,32 @@ jobs:
     runs-on: ubuntu-latest
     # Defaults to prod-db on schedule (workflow_dispatch unavailable for cron triggers)
     environment: ${{ inputs.environment || 'prod-db' }}
+    permissions:
+      contents: read
+      deployments: write
 
     steps:
+      - name: Create deployment
+        id: deployment
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: '${{ inputs.environment || 'prod-db' }}',
+              auto_merge: false,
+              required_contexts: []
+            });
+            core.setOutput('deployment_id', deployment.data.id);
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.data.id,
+              state: 'in_progress'
+            });
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -117,3 +141,16 @@ jobs:
         if: always()
         run: |
           ssh -i ~/.ssh/id.pem ubuntu@${{ vars.EC2_IP }} "rm -f /tmp/*.json /tmp/seed_db.py /tmp/.env" || true
+
+      - name: Report deployment status
+        if: always()
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const success = '${{ job.status }}' === 'success';
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: ${{ steps.deployment.outputs.deployment_id }},
+              state: success ? 'success' : 'failure'
+            });
