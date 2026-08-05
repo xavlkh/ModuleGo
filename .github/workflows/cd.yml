@@ -67,8 +67,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Make package public
+        continue-on-error: true
         run: |
-          gh api -X PATCH "/user/packages/container/modulego/visibility" \
+          PKG_NAME=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          gh api -X PATCH "/user/packages/container/${PKG_NAME}/visibility" \
             -f visibility=public
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
